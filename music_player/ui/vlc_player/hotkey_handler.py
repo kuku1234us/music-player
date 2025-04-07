@@ -5,7 +5,7 @@ This module centralizes keyboard shortcuts for controlling the music player.
 """
 from PyQt6.QtCore import Qt, QObject, QTimer
 from PyQt6.QtGui import QKeyEvent
-from music_player.models.settings_manager import SettingsManager, SettingType
+from qt_base_app.models.settings_manager import SettingsManager, SettingType
 
 
 class HotkeyHandler(QObject):

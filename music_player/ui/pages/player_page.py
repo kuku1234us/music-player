@@ -12,6 +12,10 @@ try:
 except ImportError:
     HAS_QTAWESOME = False
 
+# Import from the framework
+from qt_base_app.components.base_card import BaseCard
+from qt_base_app.theme.theme_manager import ThemeManager
+
 # Import the MainPlayer instead of PlayerWidget for better integration
 from music_player.ui.vlc_player import MainPlayer
 
@@ -23,6 +27,10 @@ class PlayerPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("playerPage")  # Add object name for styling
+        self.setProperty('page_id', 'player')
+        
+        # Initialize theme manager
+        self.theme = ThemeManager.instance()
         
         # Enable background styling for the widget (needed for border visibility)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -31,41 +39,35 @@ class PlayerPage(QWidget):
     
     def setup_ui(self):
         """Set up the user interface."""
-        # Apply a green border around the entire page
-        self.setStyleSheet("""
-            QWidget#playerPage {
-            }
-            QPushButton#openFileButton {
-                background-color: #4a4a4a;
-                color: #ffffff;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton#openFileButton:hover {
-                background-color: #5a5a5a;
-            }
-            QPushButton#openFileButton:pressed {
-                background-color: #3a3a3a;
-            }
-        """)
-        
         # Main layout
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(24, 24, 24, 24)
         self.main_layout.setSpacing(24)
         
+        # Player controls card
+        self.controls_card = BaseCard("Player Controls")
+        
         # Controls layout - contains the open file button
-        self.controls_layout = QHBoxLayout()
+        controls_container = QWidget()
+        self.controls_layout = QHBoxLayout(controls_container)
+        self.controls_layout.setContentsMargins(0, 0, 0, 0)
+        self.controls_layout.setSpacing(16)
         
         # Create Open File button
         self.open_file_button = QPushButton("Open File")
         self.open_file_button.setObjectName("openFileButton")
         self.open_file_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.open_file_button.setStyleSheet(f"""
+            background-color: {self.theme.get_color('background', 'tertiary')};
+            color: {self.theme.get_color('text', 'primary')};
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-weight: bold;
+        """)
         
         # Add icon if qtawesome is available
         if HAS_QTAWESOME:
-            self.open_file_button.setIcon(qta.icon("fa5s.folder-open", color="#ffffff"))
+            self.open_file_button.setIcon(qta.icon("fa5s.folder-open", color=self.theme.get_color('text', 'primary')))
             self.open_file_button.setIconSize(QSize(16, 16))
         
         self.open_file_button.clicked.connect(self._on_open_file_clicked)
@@ -74,12 +76,21 @@ class PlayerPage(QWidget):
         self.controls_layout.addWidget(self.open_file_button)
         self.controls_layout.addStretch()
         
+        # Add the controls to the card
+        self.controls_card.add_widget(controls_container)
+        
+        # Player card
+        self.player_card = BaseCard("Media Player")
+        
         # Player widget - using MainPlayer instead of PlayerWidget
         self.player_widget = MainPlayer()
         
+        # Add the player to the card
+        self.player_card.add_widget(self.player_widget)
+        
         # Add components to main layout
-        self.main_layout.addLayout(self.controls_layout)
-        self.main_layout.addWidget(self.player_widget, 1)  # Give player widget more space
+        self.main_layout.addWidget(self.controls_card)
+        self.main_layout.addWidget(self.player_card, 1)  # Give player card more space
     
     def _on_open_file_clicked(self):
         """Handle open file button click by delegating to the player widget"""

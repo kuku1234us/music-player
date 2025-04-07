@@ -1,14 +1,14 @@
 """
 UI components for the Music Player application.
 """
-from .dashboard_card import DashboardCard
-from .stats_card import StatsCard
 from .activity_item import ActivityItem
-from .sidebar import SidebarWidget, MenuItem, MenuSection
+
+# Import the sidebar components from qt_base_app instead
+from qt_base_app.components.sidebar import SidebarWidget, MenuItem, MenuSection
 
 __all__ = [
-    'DashboardCard',
-    'StatsCard',
+    # 'DashboardCard',
+    # 'StatsCard',
     'ActivityItem',
     'SidebarWidget',
     'MenuItem',

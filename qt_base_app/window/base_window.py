@@ -42,6 +42,9 @@ class BaseWindow(QMainWindow):
         if not config_path:
             config_path = Path(__file__).parent.parent / 'config' / 'app_config.yaml'
         
+        # Store the config path for later use
+        self._config_path = config_path
+        
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f)
@@ -95,8 +98,11 @@ class BaseWindow(QMainWindow):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         
+        # Get the actual config path used
+        config_path = self._get_config_path()
+        
         # Create sidebar
-        self.sidebar = SidebarWidget(self)
+        self.sidebar = SidebarWidget(self, config_path)
         self.sidebar.item_clicked.connect(self._on_sidebar_item_clicked)
         
         # Create content area
@@ -104,6 +110,10 @@ class BaseWindow(QMainWindow):
         
         # Set central widget
         self.setCentralWidget(self.central_widget)
+    
+    def _get_config_path(self):
+        """Get the config path used to initialize the window."""
+        return getattr(self, '_config_path', None)
     
     def _setup_content_area(self):
         """Set up the main content area."""

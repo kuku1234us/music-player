@@ -1,0 +1,34 @@
+app:
+  title: "Music Player"
+  icon: "fa5s.music"
+  icon_path: "music_player/resources/play.png"
+  window:
+    width: 1200
+    height: 800
+    min_width: 800
+    min_height: 600
+
+sidebar:
+  title: "Music Player"
+  icon: "fa5s.music"
+  sections:
+    - title: "Main"
+      items:
+        - id: "dashboard"
+          title: "Dashboard"
+          icon: "fa5s.home"
+          page: "DashboardPage"
+        - id: "player"
+          title: "Player"
+          icon: "fa5s.play"
+          page: "PlayerPage"
+        - id: "playlists"
+          title: "Playlists"
+          icon: "fa5s.list"
+          page: "PlaylistsPage"
+    - title: "Settings"
+      items:
+        - id: "preferences"
+          title: "Preferences"
+          icon: "fa5s.cog"
+          page: "PreferencesPage"

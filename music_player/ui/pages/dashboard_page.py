@@ -1,12 +1,26 @@
 """
 Dashboard page for the Music Player application.
 """
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout
-from PyQt6.QtCore import Qt
-import qtawesome as qta
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QGridLayout, QSizePolicy
+)
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QFont, QIcon
 
-# Import all needed components from card.py
-from music_player.ui.components import DashboardCard, StatsCard, ActivityItem
+# Try to import qtawesome for icons
+try:
+    import qtawesome as qta
+    HAS_QTAWESOME = True
+except ImportError:
+    HAS_QTAWESOME = False
+
+# Import BaseCard from the framework
+from qt_base_app.components.base_card import BaseCard
+from qt_base_app.theme.theme_manager import ThemeManager
+
+# Keep import for ActivityItem which we still need
+from music_player.ui.components import ActivityItem
 
 
 class DashboardPage(QWidget):
@@ -17,13 +31,10 @@ class DashboardPage(QWidget):
         super().__init__(parent)
         # Set widget properties
         self.setObjectName("dashboardPage")
+        self.setProperty('page_id', 'dashboard')
         
-        # Update to use modern styles
-        self.setStyleSheet("""
-            #dashboardPage {
-                background-color: #09090b !important;
-            }
-        """)
+        # Get theme manager instance
+        self.theme = ThemeManager.instance()
         
         self.setup_ui()
     
@@ -37,16 +48,16 @@ class DashboardPage(QWidget):
         # Welcome message
         self.welcome_label = QLabel("Welcome to your Music Player")
         self.welcome_label.setObjectName("welcomeLabel")
-        self.welcome_label.setStyleSheet("""
-            color: #fafafa;
+        self.welcome_label.setStyleSheet(f"""
+            color: {self.theme.get_color('text', 'primary')};
             font-size: 24px;
             font-weight: bold;
         """)
         self.main_layout.addWidget(self.welcome_label)
         
-        self.description_label = QLabel("The quick brown fox jumps over the lazy dog. 1234567890")
-        self.description_label.setStyleSheet("""
-            color: #a1a1aa;
+        self.description_label = QLabel("Enjoy your favorite music with this feature-rich audio player.")
+        self.description_label.setStyleSheet(f"""
+            color: {self.theme.get_color('text', 'secondary')};
             font-size: 16px;
             margin-bottom: 16px;
         """)
@@ -58,10 +69,10 @@ class DashboardPage(QWidget):
         self.stats_grid.setContentsMargins(0, 0, 0, 0)
         self.stats_grid.setSpacing(16)
         
-        # Replace custom stats cards with StatsCard from card.py
-        self.songs_card = StatsCard("Total Songs", "1,254", "fa5s.music", color="#4f46e5")
-        self.albums_card = StatsCard("Albums", "87", "fa5s.compact-disc", color="#ec4899")
-        self.playlists_card = StatsCard("Playlists", 12, "fa5s.list", color="#f59e0b")
+        # Create stats cards using BaseCard
+        self.songs_card = self._create_stats_card("Total Songs", "1,254", "fa5s.music", "#4f46e5")
+        self.albums_card = self._create_stats_card("Albums", "87", "fa5s.compact-disc", "#ec4899")
+        self.playlists_card = self._create_stats_card("Playlists", "12", "fa5s.list", "#f59e0b")
         
         # Add stats cards to grid
         self.stats_grid.addWidget(self.songs_card, 0, 0)
@@ -70,9 +81,8 @@ class DashboardPage(QWidget):
         
         self.main_layout.addWidget(self.stats_section)
         
-        # Replace custom section cards with DashboardCard
-        # Recent Activity section
-        self.recent_activity = DashboardCard("Recent Activity")
+        # Recent Activity section using BaseCard
+        self.recent_activity = BaseCard("Recent Activity")
         
         # Add activity items
         self.recent_activity.add_widget(
@@ -89,12 +99,12 @@ class DashboardPage(QWidget):
         
         self.main_layout.addWidget(self.recent_activity)
         
-        # Recommended content
-        self.recommended_card = DashboardCard("Recommended For You")
+        # Recommended content using BaseCard
+        self.recommended_card = BaseCard("Recommended For You")
         
         # Add description
         description_label = QLabel("Based on your listening history, we think you might enjoy these tracks.")
-        description_label.setStyleSheet("color: #a1a1aa;")
+        description_label.setStyleSheet(f"color: {self.theme.get_color('text', 'secondary')};")
         self.recommended_card.add_widget(description_label)
         
         # Add recommended tracks
@@ -109,4 +119,50 @@ class DashboardPage(QWidget):
         self.main_layout.addWidget(self.recommended_card)
         
         # Add a stretch to push everything up
-        self.main_layout.addStretch() 
+        self.main_layout.addStretch()
+    
+    def _create_stats_card(self, title, value, icon_name, icon_color):
+        """
+        Create a statistics card with an icon and value.
+        
+        Args:
+            title: The title of the card
+            value: The value to display
+            icon_name: Font Awesome icon name
+            icon_color: Color for the icon
+        
+        Returns:
+            BaseCard: A card with the statistics information
+        """
+        # Create card with a slightly different styling - no border and a subtle background
+        card = BaseCard(
+            title,
+            border_style="none",
+            background_style=f"{self.theme.get_color('background', 'tertiary')}"
+        )
+        
+        # Create content widget
+        content = QWidget()
+        content_layout = QHBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(16)
+        
+        # Add icon if qtawesome is available
+        if HAS_QTAWESOME:
+            icon_label = QLabel()
+            icon = qta.icon(icon_name, color=icon_color)
+            icon_label.setPixmap(icon.pixmap(48, 48))
+            content_layout.addWidget(icon_label)
+        
+        # Add value
+        value_label = QLabel(value)
+        value_label.setStyleSheet(f"""
+            color: {self.theme.get_color('text', 'primary')};
+            font-size: 24px;
+            font-weight: bold;
+        """)
+        content_layout.addWidget(value_label)
+        content_layout.addStretch()
+        
+        card.add_widget(content)
+        return card 

@@ -186,6 +186,10 @@ class SettingsManager:
         if isinstance(value, (list, dict, datetime, Path)):
             value = self._serialize_value(value)
             
+        # Special handling for boolean values to ensure consistent storage
+        if isinstance(value, bool):
+            value = 1 if value else 0
+            
         self._settings.setValue(key, value)
         
     def get(self, key: str, default: Any = None, setting_type: Optional[Union[SettingType, Type]] = None) -> Any:
@@ -204,6 +208,16 @@ class SettingsManager:
         
         if value is None:
             return default
+        
+        # Special handling for boolean values from QSettings
+        if setting_type == SettingType.BOOL or setting_type == bool:
+            # QSettings sometimes stores booleans as strings, handle both cases
+            if isinstance(value, str):
+                # Case-insensitive comparison for string representations
+                return value.lower() in ('true', '1', 'yes', 'y', 'on')
+            else:
+                # Otherwise, convert to bool directly
+                return bool(value)
             
         if setting_type:
             if isinstance(setting_type, SettingType):

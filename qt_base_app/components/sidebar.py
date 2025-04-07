@@ -16,6 +16,7 @@ from PyQt6.QtGui import QColor, QPalette
 import qtawesome as qta
 
 from ..theme.theme_manager import ThemeManager
+from ..models.settings_manager import SettingsManager, SettingType
 
 
 class MenuItem(QPushButton):
@@ -34,11 +35,11 @@ class MenuItem(QPushButton):
         # Create a layout for the button content
         self.button_layout = QHBoxLayout(self)
         self.button_layout.setContentsMargins(16, 4, 16, 4)
-        self.button_layout.setSpacing(8)  # Add spacing between icon and text
+        self.button_layout.setSpacing(0)  # Reduced from 8 to 4 to decrease the gap
         
         # Central widget to hold icon for better centering
         self.icon_container = QWidget()
-        self.icon_container.setFixedWidth(28)
+        self.icon_container.setFixedWidth(22)
         icon_layout = QHBoxLayout(self.icon_container)
         icon_layout.setContentsMargins(0, 0, 0, 0)
         icon_layout.setSpacing(0)
@@ -56,7 +57,7 @@ class MenuItem(QPushButton):
         """)
         # Center the icon in the button
         self.icon_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.icon_button.setIconSize(QSize(20, 20))
+        self.icon_button.setIconSize(QSize(14, 14))
         # Connect the icon button's click to the parent button's click
         self.icon_button.clicked.connect(self.click)
         self.update_icon(self.theme.get_color('text', 'secondary'))
@@ -95,7 +96,7 @@ class MenuItem(QPushButton):
             icon = qta.icon(self.icon_name, color=color, options=[{'antialiasing': True, 'scale_factor': 1.0}])
             if hasattr(self, 'icon_button'):
                 self.icon_button.setIcon(icon)
-                self.icon_button.setIconSize(QSize(20, 20))
+                self.icon_button.setIconSize(QSize(14, 14))
 
     def setText(self, text):
         """Override setText to update our custom label."""
@@ -152,18 +153,23 @@ class SidebarWidget(QWidget):
     # Signal emitted when sidebar is toggled
     toggled = pyqtSignal(bool)  # is_expanded
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, config_path=None):
         super().__init__(parent)
         self.parent = parent
         self.theme = ThemeManager.instance()
-        self.expanded = True  # Start expanded
+        self.settings = SettingsManager.instance()
+        
+        # Set expanded state from settings
+        self.expanded = self.settings.get('ui/sidebar/expanded', True, SettingType.BOOL)
+        
         self.animation = None
         self.menu_items = {}
+        self.config_path = config_path
         
         # Set fixed width when expanded
         self.expanded_width = self.theme.get_dimension('sidebar', 'expanded_width')
         self.collapsed_width = self.theme.get_dimension('sidebar', 'collapsed_width')
-        self.setFixedWidth(self.expanded_width)
+        self.setFixedWidth(self.expanded_width if self.expanded else self.collapsed_width)
         
         # Set object name for styling
         self.setObjectName("sidebar")
@@ -212,13 +218,16 @@ class SidebarWidget(QWidget):
     def setup_title(self):
         """Set up the title section of the sidebar."""
         # Get title and icon from config
-        config_path = Path(__file__).parent.parent / 'config' / 'app_config.yaml'
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-                title = config.get('sidebar', {}).get('title', 'Application')
-                icon_name = config.get('sidebar', {}).get('icon', 'fa5s.bars')
-        except Exception:
+        if self.config_path:
+            try:
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                    title = config.get('sidebar', {}).get('title', 'Application')
+                    icon_name = config.get('sidebar', {}).get('icon', 'fa5s.bars')
+            except Exception:
+                title = "Application"
+                icon_name = "fa5s.bars"
+        else:
             title = "Application"
             icon_name = "fa5s.bars"
         
@@ -261,12 +270,14 @@ class SidebarWidget(QWidget):
                 item.widget().deleteLater()
         
         # Load sections and items from config
-        config_path = Path(__file__).parent.parent / 'config' / 'app_config.yaml'
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-                sections = config.get('sidebar', {}).get('sections', [])
-        except Exception:
+        if self.config_path:
+            try:
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                    sections = config.get('sidebar', {}).get('sections', [])
+            except Exception:
+                sections = []
+        else:
             sections = []
         
         for section_data in sections:
@@ -348,10 +359,17 @@ class SidebarWidget(QWidget):
         """Toggle the sidebar between expanded and collapsed states."""
         self.expanded = not self.expanded
         
+        # Save the state to settings
+        self.settings.set('ui/sidebar/expanded', self.expanded, SettingType.BOOL)
+        self.settings.sync()  # Ensure settings are saved immediately
+        
         if self.expanded:
             self._expand_sidebar()
         else:
             self._collapse_sidebar()
+        
+        # Emit signal with the new expanded state
+        self.toggled.emit(self.expanded)
     
     def _expand_sidebar(self):
         """Expand the sidebar."""

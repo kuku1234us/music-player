@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from .player_widget import PlayerWidget
 from .hotkey_handler import HotkeyHandler
 from music_player.models.vlc_backend import VLCBackend
-from music_player.models.settings_manager import SettingsManager, SettingType
+from qt_base_app.models.settings_manager import SettingsManager, SettingType
 
 
 class MainPlayer(QWidget):
@@ -345,12 +345,55 @@ class MainPlayer(QWidget):
             float: Current playback rate (1.0 is normal speed)
         """
         return self.backend.get_rate()
+        
+    def seek_relative(self, seconds):
+        """
+        Seek the current track forward or backward by the specified number of seconds.
+        
+        Args:
+            seconds (float): Number of seconds to seek (positive for forward, negative for backward)
+        """
+        current_position = self.backend.get_current_position()
+        if current_position is not None:
+            # Convert seconds to milliseconds
+            seek_offset = int(seconds * 1000)
+            new_position = max(0, current_position + seek_offset)
+            self.backend.seek(new_position)
+            
+            # Update UI
+            self.player_widget.set_position(new_position)
     
     def _apply_saved_volume(self):
-        """Apply the saved volume setting"""
+        """Apply saved volume setting from settings manager"""
         volume = self.settings.get('player/volume', 100, SettingType.INT)
-        self.player_widget.set_volume(volume)
+        self.set_volume(volume)
+        # Update the UI to match
+        if hasattr(self.player_widget, 'set_volume'):
+            self.player_widget.set_volume(volume)
+    
+    def load_media(self):
+        """Open a file dialog and load the selected media file"""
+        from PyQt6.QtWidgets import QFileDialog
         
-        # Also set in backend (using capped value)
-        backend_volume = min(100, volume)
-        self.backend.set_volume(backend_volume) 
+        # Get the last directory used or default to home directory
+        last_dir = self.settings.get('player/last_directory', str(os.path.expanduser('~')), SettingType.STRING)
+        
+        # Open file dialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, 
+            "Open Media File",
+            last_dir,
+            "Media Files (*.mp3 *.wav *.ogg *.flac *.m4a *.aac);;All Files (*.*)"
+        )
+        
+        if file_path:
+            # Save the directory for next time
+            self.settings.set('player/last_directory', os.path.dirname(file_path), SettingType.STRING)
+            self.settings.sync()
+            
+            # Load the file in the backend
+            self.backend.load_media(file_path)
+            
+            # Auto-play the media
+            self.backend.play()
+            self._set_app_state(self.STATE_PLAYING) 
