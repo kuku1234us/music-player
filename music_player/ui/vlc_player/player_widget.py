@@ -1,8 +1,12 @@
 """
 Main Player Widget that contains all playback related UI components.
 """
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QSizePolicy, QSlider
+)
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont
 
 from .player_controls import PlayerControls
 from .player_timeline import PlayerTimeline
@@ -25,9 +29,10 @@ class PlayerWidget(QWidget):
     volume_changed = pyqtSignal(int)
     rate_changed = pyqtSignal(float)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, persistent=False):
         super().__init__(parent)
         self.setObjectName("playerWidget")
+        self.persistent = persistent
         
         # UI Components
         self.album_art = AlbumArtDisplay(self)
@@ -36,13 +41,102 @@ class PlayerWidget(QWidget):
         self.volume_control = VolumeControl(self)
         self.speed_overlay = SpeedOverlay(self)
         
+        # Track info components
+        self.track_title = QLabel("No Track")
+        self.track_artist = QLabel("No Artist")
+        
         # Connect signals from UI components
         self._connect_signals()
         
+        # Set up UI based on mode
         self._setup_ui()
         
     def _setup_ui(self):
-        """Set up the player widget layout"""
+        """Set up the player widget layout based on mode"""
+        if self.persistent:
+            self._setup_persistent_ui()
+        else:
+            self._setup_standard_ui()
+    
+    def _setup_persistent_ui(self):
+        """Set up horizontal layout for persistent player bar"""
+        # Create a vertical layout to hold track info (top), timeline (middle) and controls (bottom)
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 5, 0, 5)  # Original padding
+        main_layout.setSpacing(5)  # Original spacing
+        
+        # Add track info at top (song title and artist)
+        track_info = QWidget()
+        track_info_layout = QHBoxLayout(track_info)
+        track_info_layout.setContentsMargins(10, 0, 10, 0)
+        track_info_layout.setSpacing(5)
+        
+        # Style the track info labels (keep original styling)
+        self.track_title.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
+        self.track_artist.setStyleSheet("color: #cccccc; font-size: 14px;")
+        
+        # Add track info to layout
+        track_info_layout.addWidget(self.track_title, 1)  # Give track title stretch
+        track_info_layout.addWidget(self.track_artist)
+        
+        # Add track info widget to main layout
+        main_layout.addWidget(track_info)
+        
+        # Add timeline below track info
+        main_layout.addWidget(self.timeline)
+        
+        # Create horizontal layout for controls row with three sections for proper centering
+        controls_row = QHBoxLayout()
+        controls_row.setContentsMargins(10, 0, 10, 0)
+        controls_row.setSpacing(10)
+        
+        # Set fixed size for thumbnail
+        self.album_art.setFixedSize(40, 40)
+        self.album_art.setMinimumSize(40, 40)
+        self.album_art.image_label.setMinimumSize(40, 40)
+        
+        # Left section: Album art
+        left_section = QHBoxLayout()
+        left_section.addWidget(self.album_art)
+        left_section.addStretch(1)  # Push art to the left
+        
+        # Center section: Playback controls in a centered container
+        center_section = QHBoxLayout()
+        center_section.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        center_section.addWidget(self.controls)
+        
+        # Right section: Volume control
+        right_section = QHBoxLayout()
+        right_section.addStretch(1)  # Push volume to the right
+        right_section.addWidget(self.volume_control)
+        
+        # Add the three sections to the controls row with equal weight
+        controls_row.addLayout(left_section, 1)
+        controls_row.addLayout(center_section, 1)
+        controls_row.addLayout(right_section, 1)
+        
+        # Add the controls row to the main layout
+        main_layout.addLayout(controls_row)
+        
+        # Set the main layout for this widget
+        if self.layout():
+            # Remove existing layout if any
+            QWidget().setLayout(self.layout())
+        self.setLayout(main_layout)
+        
+        # Hide the speed overlay initially, but position it centrally
+        self.speed_overlay.hide()
+        
+        # Apply styling
+        self.setStyleSheet("""
+            QWidget#playerWidget {
+                background-color: #1a1a1a;
+                border-top: 1px solid #333333;
+            }
+        """)
+    
+    def _setup_standard_ui(self):
+        """Set up the standard player widget layout (no longer used)"""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(10)
@@ -68,9 +162,9 @@ class PlayerWidget(QWidget):
         
         self.setLayout(main_layout)
         
-        # Position the speed overlay in the top-right corner with margins
+        # Position the speed overlay centered at the top of the widget
         self.speed_overlay.setGeometry(
-            self.width() - 120, 20,  # X, Y
+            (self.width() - 100) // 2, 20,  # X, Y - centered horizontally
             100, 40  # Width, Height
         )
         
@@ -85,12 +179,23 @@ class PlayerWidget(QWidget):
     def resizeEvent(self, event):
         """Handle resize events to reposition the speed overlay"""
         super().resizeEvent(event)
-        # Make sure the speed overlay stays in the top-right corner
-        self.speed_overlay.setGeometry(
-            self.width() - 120, 20,  # X, Y
-            100, 40  # Width, Height
-        )
         
+        # Update the speed overlay position whether in persistent mode or not
+        if self.persistent:
+            # In persistent mode, position it at the track title level
+            track_rect = self.track_title.geometry()
+            self.speed_overlay.setGeometry(
+                (self.width() - 100) // 2,  # X: centered horizontally
+                track_rect.top(),  # Y: aligned with the track title
+                100, 40  # Width, Height
+            )
+        else:
+            # Position it centered at the top of the widget for standard mode
+            self.speed_overlay.setGeometry(
+                (self.width() - 100) // 2, 20,  # X, Y - centered horizontally
+                100, 40  # Width, Height
+            )
+            
     def _connect_signals(self):
         """Connect internal signals between UI components"""
         # Connect control signals to widget signals
@@ -109,9 +214,13 @@ class PlayerWidget(QWidget):
         """Update displayed track information"""
         if artwork_path:
             self.album_art.set_image(artwork_path)
+        else:
+            # Explicitly set placeholder when no artwork is provided
+            self.album_art._set_placeholder()
         
-        # Update UI elements with track info
-        self.timeline.set_track_info(title, artist)
+        # Update track info labels
+        self.track_title.setText(title)
+        self.track_artist.setText(artist)
         
     def set_duration(self, duration_ms):
         """Set the track duration in milliseconds"""
@@ -142,5 +251,22 @@ class PlayerWidget(QWidget):
         """
         # Update the speed overlay
         self.speed_overlay.show_speed(rate)
+        
+        # Ensure the overlay is properly positioned when shown
+        if self.persistent:
+            # In persistent mode, position it at the track title level
+            track_rect = self.track_title.geometry()
+            self.speed_overlay.setGeometry(
+                (self.width() - 100) // 2,  # X: centered horizontally
+                track_rect.top(),  # Y: aligned with the track title
+                100, 40  # Width, Height
+            )
+        else:
+            # Standard positioning for non-persistent mode
+            self.speed_overlay.setGeometry(
+                (self.width() - 100) // 2, 20,  # X, Y - centered horizontally
+                100, 40  # Width, Height
+            )
+        
         # Emit the rate changed signal for the backend
         self.rate_changed.emit(rate) 

@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QStackedWidget
+    QLabel, QPushButton, QStackedWidget, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon, QColor
@@ -91,60 +91,71 @@ class BaseWindow(QMainWindow):
             self.setWindowIcon(qta.icon(icon_name))
     
     def _setup_ui(self):
-        """Set up the main UI layout."""
-        # Main layout setup
+        """Set up the main UI layout by creating widgets and then assembling them."""
+        # Create central widget
         self.central_widget = QWidget()
-        self.main_layout = QHBoxLayout(self.central_widget)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(0)
         
         # Get the actual config path used
         config_path = self._get_config_path()
         
-        # Create sidebar
-        self.sidebar = SidebarWidget(self, config_path)
-        self.sidebar.item_clicked.connect(self._on_sidebar_item_clicked)
+        # Create sidebar - but don't add to layout yet
+        self.sidebar = self._create_sidebar(config_path)
         
-        # Create content area
-        self._setup_content_area()
+        # Create content widgets - but don't add to layout yet
+        self._create_content_widgets()
+        
+        # Now let subclasses assemble the layout
+        self._assemble_layout()
         
         # Set central widget
         self.setCentralWidget(self.central_widget)
     
-    def _get_config_path(self):
-        """Get the config path used to initialize the window."""
-        return getattr(self, '_config_path', None)
+    def _create_sidebar(self, config_path):
+        """Create the sidebar widget with proper size policies."""
+        sidebar = SidebarWidget(self, config_path)
+        
+        # Set size policy - fixed width but can expand vertically
+        sidebar.setSizePolicy(
+            QSizePolicy.Policy.Fixed,  # Horizontal: fixed width
+            QSizePolicy.Policy.Expanding  # Vertical: can expand
+        )
+        
+        # Connect signals
+        sidebar.item_clicked.connect(self._on_sidebar_item_clicked)
+        
+        return sidebar
     
-    def _setup_content_area(self):
-        """Set up the main content area."""
+    def _create_content_widgets(self):
+        """Create all content area widgets but don't assemble layout."""
+        # Main content widget - should expand in both directions
         self.content_widget = QWidget()
         self.content_widget.setObjectName("contentArea")
-        self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(0, 0, 0, 0)
-        self.content_layout.setSpacing(0)
+        self.content_widget.setSizePolicy(
+            QSizePolicy.Policy.Expanding,  # Horizontal: expand to fill
+            QSizePolicy.Policy.Expanding   # Vertical: expand to fill
+        )
         
-        # Header with sidebar trigger
-        self._setup_header()
+        # Header with sidebar toggle
+        self.header = self._create_header()
         
-        # Content stack
+        # Content stack - should expand to fill available space
         self.content_stack = QStackedWidget()
-        self.content_layout.addWidget(self.content_stack)
-        
-        # Add to main layout
-        self.main_layout.addWidget(self.sidebar)
-        self.main_layout.addWidget(self.content_widget)
+        self.content_stack.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding
+        )
     
-    def _setup_header(self):
-        """Set up the header area with sidebar toggle and page title."""
-        self.header = QWidget()
-        self.header.setObjectName("contentHeader")
-        self.header.setFixedHeight(self.theme.get_dimension('header', 'height'))
+    def _create_header(self):
+        """Create the header area with sidebar toggle and page title."""
+        header = QWidget()
+        header.setObjectName("contentHeader")
+        header.setFixedHeight(self.theme.get_dimension('header', 'height'))
         
-        self.header_layout = QHBoxLayout(self.header)
-        self.header_layout.setContentsMargins(16, 0, 16, 0)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(16, 0, 16, 0)
         
         # Toggle button
-        self.toggle_btn = self._create_sidebar_toggle()
+        toggle_btn = self._create_sidebar_toggle()
         
         # Page title
         typography = self.theme.get_typography('title')
@@ -156,11 +167,11 @@ class BaseWindow(QMainWindow):
             font-weight: {typography['weight']};
         """)
         
-        self.header_layout.addWidget(self.toggle_btn)
-        self.header_layout.addWidget(self.page_title)
-        self.header_layout.addStretch()
+        header_layout.addWidget(toggle_btn)
+        header_layout.addWidget(self.page_title)
+        header_layout.addStretch()
         
-        self.content_layout.addWidget(self.header)
+        return header
     
     def _create_sidebar_toggle(self) -> QPushButton:
         """Create the sidebar toggle button."""
@@ -188,6 +199,33 @@ class BaseWindow(QMainWindow):
         """)
         
         return toggle_btn
+    
+    def _get_config_path(self):
+        """Get the config path used to initialize the window."""
+        return getattr(self, '_config_path', None)
+    
+    def _assemble_layout(self):
+        """
+        Assemble the default layout with sidebar on left and content on right.
+        Subclasses can override this method to create custom layouts.
+        """
+        # Main layout for central widget
+        self.main_layout = QHBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        
+        # Create content layout
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setSpacing(0)
+        
+        # Add header and content stack to content layout
+        self.content_layout.addWidget(self.header)
+        self.content_layout.addWidget(self.content_stack, 1)  # Give stretch to content stack
+        
+        # Add sidebar and content area to main layout
+        self.main_layout.addWidget(self.sidebar, 0)  # No stretch - fixed width
+        self.main_layout.addWidget(self.content_widget, 1)  # Give stretch to content
     
     def _toggle_sidebar(self):
         """Toggle the sidebar visibility."""

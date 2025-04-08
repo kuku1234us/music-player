@@ -29,39 +29,15 @@ class PlayerTimeline(QWidget):
         self.position_slider = CustomSlider(self)
         self.current_time_label = QLabel("00:00:00", self)
         self.total_time_label = QLabel("00:00:00", self)
-        self.track_title_label = QLabel("No track playing", self)
-        self.track_artist_label = QLabel("", self)
         
         self._setup_ui()
         self._connect_signals()
         
     def _setup_ui(self):
         """Set up the timeline UI layout and styling"""
-        main_layout = QVBoxLayout(self)
+        main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(10, 0, 10, 0)
-        main_layout.setSpacing(5)
-        
-        # Track info layout
-        track_info_layout = QHBoxLayout()
-        
-        # Configure track info labels
-        title_font = QFont()
-        title_font.setPointSize(12)
-        title_font.setBold(True)
-        self.track_title_label.setFont(title_font)
-        
-        artist_font = QFont()
-        artist_font.setPointSize(10)
-        self.track_artist_label.setFont(artist_font)
-        
-        # Add track info to layout
-        track_info_layout.addWidget(self.track_title_label, 1)
-        track_info_layout.addStretch(1)
-        track_info_layout.addWidget(self.track_artist_label)
-        
-        # Timeline layout
-        timeline_layout = QHBoxLayout()
-        timeline_layout.setSpacing(10)
+        main_layout.setSpacing(10)
         
         # Configure time labels
         time_font = QFont()
@@ -70,17 +46,13 @@ class PlayerTimeline(QWidget):
         self.current_time_label.setFont(time_font)
         self.total_time_label.setFont(time_font)
         
-        # Position slider is now a CustomSlider
+        # Position slider
         self.position_slider.setRange(0, 1000)
         
-        # Add widgets to timeline layout
-        timeline_layout.addWidget(self.current_time_label)
-        timeline_layout.addWidget(self.position_slider, 1)
-        timeline_layout.addWidget(self.total_time_label)
-        
-        # Add layouts to main layout
-        main_layout.addLayout(track_info_layout)
-        main_layout.addLayout(timeline_layout)
+        # Add widgets to layout
+        main_layout.addWidget(self.current_time_label)
+        main_layout.addWidget(self.position_slider, 1)
+        main_layout.addWidget(self.total_time_label)
         
         self.setLayout(main_layout)
         
@@ -129,11 +101,6 @@ class PlayerTimeline(QWidget):
                 self.position_slider.setValue(slider_value)
                 self.position_slider.blockSignals(False)
             self._update_time_labels()
-            
-    def set_track_info(self, title, artist):
-        """Set the track title and artist"""
-        self.track_title_label.setText(title)
-        self.track_artist_label.setText(artist)
             
     def _update_time_labels(self, position_ms=None, duration_ms=None):
         """Update the time labels with current time and total time"""

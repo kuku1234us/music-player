@@ -2,13 +2,16 @@
 Main player module that integrates the UI components with the VLC backend.
 """
 import os
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QFileDialog
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
+import vlc
 
 from .player_widget import PlayerWidget
 from .hotkey_handler import HotkeyHandler
 from music_player.models.vlc_backend import VLCBackend
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
+
+from .enums import STATE_PLAYING, STATE_PAUSED, STATE_STOPPED, STATE_ENDED, STATE_ERROR
 
 
 class MainPlayer(QWidget):
@@ -17,33 +20,33 @@ class MainPlayer(QWidget):
     This serves as the main interface between the UI and the media playback.
     """
     
-    # Playback states
-    STATE_PLAYING = "playing"
-    STATE_PAUSED = "paused"
-    STATE_STOPPED = "stopped"
-    STATE_ENDED = "ended"
-    STATE_ERROR = "error"
-    
     # Signals
     track_changed = pyqtSignal(dict)  # Emits track metadata
     playback_state_changed = pyqtSignal(str)  # "playing", "paused", "stopped", "error"
+    media_changed = pyqtSignal(str, str, str, str)  # title, artist, album, artwork_path
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, persistent_mode=False):
         super().__init__(parent)
         self.setObjectName("mainPlayer")
         
         # Enable background styling for the widget (needed for border visibility)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         
+        # Store persistent mode flag
+        self.persistent_mode = persistent_mode
+        
         # Get settings manager instance
         self.settings = SettingsManager.instance()
         
         # Internal state tracking
-        self.app_state = self.STATE_STOPPED
+        self.app_state = STATE_STOPPED
         self.current_request_position = None
+        self.current_media = None
+        self.block_position_updates = False  # Flag to temporarily block position updates
+        self.last_metadata = None  # Store the last received metadata
         
         # UI Components
-        self.player_widget = PlayerWidget(self)
+        self.player_widget = PlayerWidget(self, persistent=persistent_mode)
         
         # Backend
         self.backend = VLCBackend(self)
@@ -62,9 +65,9 @@ class MainPlayer(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         
     def _setup_ui(self):
-        """Set up the main player UI layout"""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        """Set up the main player UI layout using horizontal layout for persistent player"""
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 5, 10, 5)  # Reduced margins for compact display
         layout.addWidget(self.player_widget)
         self.setLayout(layout)
         
@@ -72,7 +75,7 @@ class MainPlayer(QWidget):
         self.setStyleSheet("""
             QWidget#mainPlayer {
                 background-color: #1e1e1e;
-                border-radius: 8px;
+                border-radius: 0px;
             }
         """)
         
@@ -86,8 +89,8 @@ class MainPlayer(QWidget):
         self.player_widget.rate_changed.connect(self._on_rate_changed)
         
         # Connect backend to UI
-        self.backend.media_loaded.connect(self._on_media_loaded)
-        self.backend.position_changed.connect(self.player_widget.set_position)
+        self.backend.media_loaded.connect(self.on_media_changed)
+        self.backend.position_changed.connect(self._on_backend_position_changed)
         self.backend.duration_changed.connect(self.player_widget.set_duration)
         self.backend.state_changed.connect(self._on_backend_state_changed)
         self.backend.end_reached.connect(self._on_end_reached)
@@ -151,13 +154,13 @@ class MainPlayer(QWidget):
         """
         # Map backend state to app state
         if state == "playing":
-            self._set_app_state(self.STATE_PLAYING)
+            self._set_app_state(STATE_PLAYING)
         elif state == "paused":
-            self._set_app_state(self.STATE_PAUSED)
+            self._set_app_state(STATE_PAUSED)
         elif state == "stopped":
-            self._set_app_state(self.STATE_STOPPED)
+            self._set_app_state(STATE_STOPPED)
         elif state == "error":
-            self._set_app_state(self.STATE_ERROR)
+            self._set_app_state(STATE_ERROR)
         
     def _show_error(self, error_message):
         """
@@ -172,30 +175,47 @@ class MainPlayer(QWidget):
         """Handle play requested from UI"""
         # Check if we have a pending position request
         if self.current_request_position is not None:
-            # Apply the position first if we have one pending
+            # Store the position
             position = self.current_request_position
             self.current_request_position = None
             
-            # Was the player in ended state?
-            if self.app_state == self.STATE_ENDED or not self.backend.is_playing:
-                # Need to reset and restart playback
-                self.backend.stop()
-                self.backend.play()
-                self.backend.seek(position)
-            else:
-                # Just seek and continue
-                self.backend.seek(position)
+            # Block position updates during operations to prevent UI jitter
+            self.block_position_updates = True
+            
+            try:
+                # Was the player in ended state?
+                if self.app_state == STATE_ENDED or not self.backend.is_playing:
+                    # Need to reset and restart playback
+                    self.backend.stop()
+                    self.backend.play()
+                    self.backend.seek(position)
+                else:
+                    # Just seek and continue
+                    self.backend.seek(position)
+                
+                # Update UI position directly
+                self.player_widget.set_position(position)
+            finally:
+                # Always unblock position updates when done
+                self.block_position_updates = False
         else:
             # Normal play
             self.backend.play()
+        
+        # Set focus to this player to ensure hotkeys work
+        self.setFocus()
             
         # Update app state
-        self._set_app_state(self.STATE_PLAYING)
+        self._set_app_state(STATE_PLAYING)
         
     def _on_pause_requested(self):
         """Handle pause requested from UI"""
         self.backend.pause()
-        self._set_app_state(self.STATE_PAUSED)
+        
+        # Set focus to this player to ensure hotkeys work
+        self.setFocus()
+        
+        self._set_app_state(STATE_PAUSED)
         
     def _set_app_state(self, state):
         """
@@ -207,7 +227,7 @@ class MainPlayer(QWidget):
         self.app_state = state
         
         # Update UI
-        if state == self.STATE_PLAYING:
+        if state == STATE_PLAYING:
             self.player_widget.set_playing_state(True)
         else:
             self.player_widget.set_playing_state(False)
@@ -221,7 +241,7 @@ class MainPlayer(QWidget):
         Ensures the UI correctly reflects that playback has ended.
         """
         # Set app state to ended
-        self._set_app_state(self.STATE_ENDED)
+        self._set_app_state(STATE_ENDED)
         
     def _on_position_changed(self, position_ms):
         """
@@ -236,13 +256,13 @@ class MainPlayer(QWidget):
         self.current_request_position = position_ms
         
         # Different behavior based on current app state
-        if self.app_state == self.STATE_ENDED:
+        if self.app_state == STATE_ENDED:
             # For ended state: Only update UI state, no backend operations
-            self.app_state = self.STATE_PAUSED
+            self.app_state = STATE_PAUSED
             self.player_widget.set_playing_state(False)
             self.player_widget.set_position(position_ms)
-            self.playback_state_changed.emit(self.STATE_PAUSED)
-        elif self.app_state == self.STATE_PLAYING:
+            self.playback_state_changed.emit(STATE_PAUSED)
+        elif self.app_state == STATE_PLAYING:
             # Only perform backend operations if actually playing
             self.backend.seek(position_ms)
             if not self.backend.is_playing:
@@ -253,23 +273,52 @@ class MainPlayer(QWidget):
         
     def play(self):
         """Start or resume playback"""
-        result = self.backend.play()
+        # Check if we have a pending position request, similar to _on_play_requested
+        if self.current_request_position is not None:
+            # Store position before operations
+            position = self.current_request_position
+            self.current_request_position = None
+            
+            # Block position updates during operations to prevent UI jitter
+            self.block_position_updates = True
+            
+            try:
+                # Was the player in ended state?
+                if self.app_state == STATE_ENDED or not self.backend.is_playing:
+                    # Need to reset and restart playback
+                    self.backend.stop()
+                    result = self.backend.play()
+                    self.backend.seek(position)
+                else:
+                    # Just seek and continue
+                    self.backend.seek(position)
+                    result = self.backend.play()
+                    
+                # Update UI position directly instead of relying on backend updates
+                self.player_widget.set_position(position)
+            finally:
+                # Always unblock position updates when done
+                self.block_position_updates = False
+        else:
+            # Normal play
+            result = self.backend.play()
+            
         if result:
-            self._set_app_state(self.STATE_PLAYING)
+            self._set_app_state(STATE_PLAYING)
         return result
         
     def pause(self):
         """Pause playback"""
         result = self.backend.pause()
         if result:
-            self._set_app_state(self.STATE_PAUSED)
+            self._set_app_state(STATE_PAUSED)
         return result
         
     def stop(self):
         """Stop playback"""
         result = self.backend.stop()
         if result:
-            self._set_app_state(self.STATE_STOPPED)
+            self._set_app_state(STATE_STOPPED)
         return result
         
     def set_volume(self, volume_percent):
@@ -284,7 +333,7 @@ class MainPlayer(QWidget):
         
     def is_playing(self):
         """Check if application is in playing state"""
-        return self.app_state == self.STATE_PLAYING
+        return self.app_state == STATE_PLAYING
         
     def cleanup(self):
         """Clean up resources"""
@@ -318,24 +367,16 @@ class MainPlayer(QWidget):
         
     def set_rate(self, rate):
         """
-        Set the playback rate.
+        Set the playback rate without affecting pitch.
         
         Args:
-            rate (float): New playback rate (e.g., 1.0 for normal, 1.5 for 50% faster)
-            
-        Returns:
-            float: The actual rate that was set
+            rate (float): Playback rate (e.g., 1.0 for normal, 1.5 for 50% faster)
         """
-        # Clamp rate to reasonable bounds (0.25 to 2.0)
-        clamped_rate = max(0.25, min(2.0, rate))
-        
         # Update UI
-        self.player_widget.set_rate(clamped_rate)
+        self.player_widget.set_rate(rate)
         
-        # Update backend
-        self.backend.set_rate(clamped_rate)
-        
-        return clamped_rate
+        # Send to backend
+        self.backend.set_rate(rate)
         
     def get_rate(self):
         """
@@ -372,28 +413,95 @@ class MainPlayer(QWidget):
             self.player_widget.set_volume(volume)
     
     def load_media(self):
-        """Open a file dialog and load the selected media file"""
-        from PyQt6.QtWidgets import QFileDialog
-        
-        # Get the last directory used or default to home directory
-        last_dir = self.settings.get('player/last_directory', str(os.path.expanduser('~')), SettingType.STRING)
+        """Open a file dialog to select and load media"""
+        # Get the last used directory from settings, or default to home directory
+        last_dir = self.settings.get('player/last_directory', os.path.expanduser("~"), SettingType.STRING)
         
         # Open file dialog
         file_path, _ = QFileDialog.getOpenFileName(
-            self, 
+            self,
             "Open Media File",
             last_dir,
-            "Media Files (*.mp3 *.wav *.ogg *.flac *.m4a *.aac);;All Files (*.*)"
+            "Media Files (*.mp3 *.wav *.ogg *.flac *.aac *.m4a *.mp4 *.avi *.mkv *.mov)"
         )
         
         if file_path:
             # Save the directory for next time
             self.settings.set('player/last_directory', os.path.dirname(file_path), SettingType.STRING)
-            self.settings.sync()
             
-            # Load the file in the backend
+            # Load the media file
             self.backend.load_media(file_path)
             
-            # Auto-play the media
-            self.backend.play()
-            self._set_app_state(self.STATE_PLAYING) 
+            # Set focus to this player to ensure hotkeys work
+            self.setFocus()
+            
+            # Start playback automatically
+            self.app_state = STATE_PLAYING
+            
+            return True
+            
+        return False
+
+    def on_media_changed(self, media):
+        """Handle media change event - receives metadata dict from backend"""
+        if not media:
+            return
+
+        # Reset UI state
+        self.player_widget.set_playing_state(False)
+        
+        # Get metadata from the dict
+        title = media.get('title', os.path.basename(media.get('path', 'Unknown Track')))
+        artist = media.get('artist', 'Unknown Artist')
+        album = media.get('album', 'Unknown Album')
+        artwork_path = media.get('artwork_path')
+        
+        # Update the player widget with track info
+        self.player_widget.update_track_info(title, artist, album, artwork_path)
+        
+        # Emit signal for other components to update
+        self.media_changed.emit(title, artist, album, artwork_path)
+        
+        # Set focus to this player to ensure hotkeys work
+        self.setFocus()
+        
+        # Start playback automatically when media changes
+        self.backend.play()
+        self.app_state = STATE_PLAYING
+        
+        # Store the metadata
+        self.last_metadata = media
+        
+        # Explicitly emit track_changed signal with metadata
+        self.track_changed.emit(media)
+
+    def _on_backend_position_changed(self, position_ms):
+        """
+        Handle position change events from the backend.
+        Respects the blocking flag to prevent UI jitter during operations.
+        
+        Args:
+            position_ms (int): Position in milliseconds
+        """
+        if not self.block_position_updates:
+            self.player_widget.set_position(position_ms)
+
+    def get_current_track_metadata(self):
+        """
+        Return the metadata of the currently loaded track.
+
+        Returns:
+            dict or None: The metadata dictionary or None if no track is loaded.
+        """
+        return self.last_metadata
+        
+    def get_current_artwork_path(self):
+        """
+        Return the artwork path of the currently loaded track.
+        
+        Returns:
+            str or None: The artwork path or None if no artwork available
+        """
+        if self.last_metadata:
+            return self.last_metadata.get('artwork_path')
+        return None

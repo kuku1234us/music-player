@@ -6,6 +6,7 @@ This module centralizes keyboard shortcuts for controlling the music player.
 from PyQt6.QtCore import Qt, QObject, QTimer
 from PyQt6.QtGui import QKeyEvent
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
+from .enums import STATE_PLAYING, STATE_PAUSED
 
 
 class HotkeyHandler(QObject):
@@ -34,6 +35,24 @@ class HotkeyHandler(QObject):
         self.seek_timer.timeout.connect(self._apply_accumulated_seek)
         self.seek_debounce_time = 100  # ms to wait before applying accumulated seeks
         
+        # Define hotkeys and their actions
+        self.hotkeys = {
+            Qt.Key.Key_Space: self._toggle_play_pause,
+            Qt.Key.Key_MediaPlay: self._play,
+            Qt.Key.Key_MediaPause: self._pause,
+            Qt.Key.Key_MediaStop: self._stop,
+            Qt.Key.Key_Left: self._seek_backward,
+            Qt.Key.Key_Right: self._seek_forward,
+            Qt.Key.Key_Up: self._volume_up,
+            Qt.Key.Key_Down: self._volume_down,
+            Qt.Key.Key_Plus: self._volume_up,     # Add + key for volume up
+            Qt.Key.Key_Minus: self._volume_down,  # Add - key for volume down
+            Qt.Key.Key_BracketLeft: self._decrease_playback_speed,  # [ key to decrease speed
+            Qt.Key.Key_BracketRight: self._increase_playback_speed, # ] key to increase speed
+            Qt.Key.Key_0: self._reset_playback_speed,  # 0 key to reset speed to normal
+            # Add more hotkeys as needed
+        }
+        
     def handle_key_press(self, event: QKeyEvent) -> bool:
         """
         Handle a key press event.
@@ -44,64 +63,62 @@ class HotkeyHandler(QObject):
         Returns:
             bool: True if the event was handled, False otherwise
         """
-        if event.key() == Qt.Key.Key_Space:
-            # Toggle play/pause
-            if self.main_player.app_state == self.main_player.STATE_PLAYING:
-                self.main_player.pause()
-            else:
-                self.main_player.play()
-            return True
-            
-        elif event.key() == Qt.Key.Key_Left:
-            # Seek backward
-            seek_interval = self.settings.get('preferences/seek_interval', 3, SettingType.INT)
-            self.seek_accumulator -= seek_interval
-            self._schedule_seek()
-            return True
-            
-        elif event.key() == Qt.Key.Key_Right:
-            # Seek forward
-            seek_interval = self.settings.get('preferences/seek_interval', 3, SettingType.INT)
-            self.seek_accumulator += seek_interval
-            self._schedule_seek()
-            return True
-            
-        # Up arrow key to increase volume
-        elif event.key() == Qt.Key.Key_Up:
-            self._increase_volume()
-            return True
-            
-        # Down arrow key to decrease volume
-        elif event.key() == Qt.Key.Key_Down:
-            self._decrease_volume()
-            return True
-            
-        # "+" key to increase volume
-        elif event.key() == Qt.Key.Key_Plus:
-            self._increase_volume()
-            return True
-            
-        # "-" key to decrease volume
-        elif event.key() == Qt.Key.Key_Minus:
-            self._decrease_volume()
-            return True
-            
-        # ']' key to increase playback speed
-        elif event.key() == Qt.Key.Key_BracketRight:
-            self._increase_playback_speed()
-            return True
-            
-        # '[' key to decrease playback speed
-        elif event.key() == Qt.Key.Key_BracketLeft:
-            self._decrease_playback_speed()
-            return True
-            
-        # '0' key to reset playback speed
-        elif event.key() == Qt.Key.Key_0:
-            self._reset_playback_speed()
-            return True
+        key = event.key()
+        
+        # Handle left/right seeking only in playing state
+        if key in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+            if self.main_player.app_state == STATE_PLAYING:
+                action = self.hotkeys.get(key)
+                if action:
+                    action()
+                    return True
+        # Handle other hotkeys regardless of state
+        elif key in self.hotkeys:
+            action = self.hotkeys.get(key)
+            if action:
+                action()
+                return True
         
         return False
+        
+    def _toggle_play_pause(self):
+        """Toggle between play and pause"""
+        if self.main_player.app_state == STATE_PLAYING:
+            self.main_player.pause()
+        else:
+            self.main_player.play()
+            
+    def _play(self):
+        """Play the current track"""
+        self.main_player.play()
+        
+    def _pause(self):
+        """Pause the current track"""
+        self.main_player.pause()
+        
+    def _stop(self):
+        """Stop playback"""
+        self.main_player.stop()
+        
+    def _seek_backward(self):
+        """Seek backward by 5 seconds"""
+        self.main_player.seek_relative(-5)
+        
+    def _seek_forward(self):
+        """Seek forward by 5 seconds"""
+        self.main_player.seek_relative(5)
+        
+    def _volume_up(self):
+        """Increase volume by 5%"""
+        volume = self.main_player.player_widget.volume_control.get_volume()
+        new_volume = min(volume + 5, 200)  # Allow up to 200% volume
+        self.main_player.set_volume(new_volume)
+        
+    def _volume_down(self):
+        """Decrease volume by 5%"""
+        volume = self.main_player.player_widget.volume_control.get_volume()
+        new_volume = max(volume - 5, 0)
+        self.main_player.set_volume(new_volume)
         
     def _schedule_seek(self):
         """Schedule a seek operation after accumulating multiple seek requests"""
@@ -133,13 +150,11 @@ class HotkeyHandler(QObject):
     def _increase_volume(self):
         """Increase volume by 10%"""
         current_volume = self.main_player.player_widget.get_volume()
-        new_volume = min(200, current_volume + 10)  # Ensure we don't exceed 200%
-        self.main_player.player_widget.set_volume(new_volume)
-        self.main_player._on_volume_changed(new_volume)
+        new_volume = min(current_volume + 10, 200)  # Ensure we don't exceed 200%
+        self.main_player.set_volume(new_volume)
         
     def _decrease_volume(self):
         """Decrease volume by 10%"""
         current_volume = self.main_player.player_widget.get_volume()
-        new_volume = max(0, current_volume - 10)  # Ensure we don't go below 0%
-        self.main_player.player_widget.set_volume(new_volume)
-        self.main_player._on_volume_changed(new_volume) 
+        new_volume = max(current_volume - 10, 0)  # Ensure we don't go below 0%
+        self.main_player.set_volume(new_volume) 
