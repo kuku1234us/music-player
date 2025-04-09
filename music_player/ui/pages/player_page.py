@@ -1,7 +1,7 @@
 """
 Player page for the music player application.
 """
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSizePolicy
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QIcon
 
@@ -39,26 +39,51 @@ class PlayerPage(QWidget):
         
         # Find the persistent player from the dashboard
         self.persistent_player = None
-        # We'll connect to it in showEvent
+        # We'll connect to it later
         
         self.setup_ui()
     
     def setup_ui(self):
         """Set up the user interface."""
-        # Main layout
+        # Main layout - No margins for full bleed album art
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(24, 24, 24, 24)
-        self.main_layout.setSpacing(24)
+        self.main_layout.setContentsMargins(0, 0, 0, 0) # Remove margins
+        self.main_layout.setSpacing(0) # Remove spacing
         
-        # Create Open File button without any container card
-        self.open_file_button = QPushButton()
+        # Album art display - Takes up all space, no rounded corners
+        self.album_art = AlbumArtDisplay(self, corner_radius=0) # Parent is self, radius 0
+        self.album_art.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.album_art.setMinimumSize(300, 300) # Keep a minimum size
+        self.main_layout.addWidget(self.album_art, 1) # Add directly with stretch factor
+        
+        # Create Open File button
+        self.open_file_button = QPushButton(self) # Parent is now self
         self.open_file_button.setObjectName("openFileButton")
         self.open_file_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.open_file_button.setFixedSize(48, 48)
+        
+        # Get the base color and set background with lower opacity using rgba
+        tertiary_bg_hex = self.theme.get_color('background', 'tertiary')
+        # Convert hex #RRGGBB to rgba(R, G, B, A)
+        rgb_tuple = None
+        if tertiary_bg_hex.startswith('#') and len(tertiary_bg_hex) == 7:
+            hex_color = tertiary_bg_hex.lstrip('#')
+            try:
+                # Convert hex pairs to integers for R, G, B
+                rgb_tuple = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+            except ValueError:
+                rgb_tuple = (45, 45, 45) # Fallback color if hex is invalid
+        else:
+            rgb_tuple = (45, 45, 45) # Fallback color if not a valid hex
+            
+        alpha = 0.5 # Desired opacity (50%)
+        rgba_color = f"rgba({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]}, {alpha})"
+        
         self.open_file_button.setStyleSheet(f"""
-            background-color: {self.theme.get_color('background', 'tertiary')};
+            background-color: {rgba_color};
             border-radius: 24px;
             padding: 8px;
+            border: none; /* Remove border */
         """)
         
         # Add icon if qtawesome is available
@@ -75,53 +100,15 @@ class PlayerPage(QWidget):
         
         self.open_file_button.clicked.connect(self._on_open_file_clicked)
         
-        # Create a container for the button that aligns it to the left
-        button_container = QWidget()
-        button_layout = QHBoxLayout(button_container)
-        button_layout.setContentsMargins(0, 0, 0, 0)
-        button_layout.addWidget(self.open_file_button)  # Add button first (left-aligned)
-        button_layout.addStretch()  # Add stretch after button to push it left
-        
-        # Create a simple card for album art with no title
-        self.album_art_card = BaseCard("")  # Create with empty title
-        
-        # Create a large album art display to fill the entire card
-        self.album_art = AlbumArtDisplay()
-        self.album_art.setMinimumSize(300, 300)
-        
-        # Add album art directly to the card
-        self.album_art_card.add_widget(self.album_art)
-        
-        # Create speed overlay for the album art
-        self.speed_overlay = SpeedOverlay(self.album_art_card)
+        # Create speed overlay
+        self.speed_overlay = SpeedOverlay(self) # Parent is now self
         self.speed_overlay.hide()  # Initially hidden
         
-        # Modify the card's content margin
-        card_content = None
-        for i in range(self.album_art_card.layout.count()):
-            item = self.album_art_card.layout.itemAt(i)
-            if item.widget() and item.widget().objectName() == "cardContent":
-                card_content = item.widget()
-                if card_content.layout():
-                    card_content.layout().setContentsMargins(0, 0, 0, 0)
-                    card_content.layout().setSpacing(0)
+        # Initial positioning will be done in resizeEvent
         
-        # Hidden track info (for storage only)
-        self.track_info_container = QWidget()
-        self.track_info_container.hide()
-        track_info_layout = QVBoxLayout(self.track_info_container)
-        track_info_layout.setContentsMargins(0, 0, 0, 0)
+        # Connect album art click to toggle play/pause
+        self.album_art.clicked.connect(self._toggle_play_pause)
         
-        self.track_title_label = QLabel("No Track Playing")
-        self.track_artist_label = QLabel("")
-        
-        track_info_layout.addWidget(self.track_title_label)
-        track_info_layout.addWidget(self.track_artist_label)
-        
-        # Add components to main layout
-        self.main_layout.addWidget(button_container)
-        self.main_layout.addWidget(self.album_art_card, 1)  # Give album art card more space
-    
     def _on_open_file_clicked(self):
         """Handle open file button click by delegating to the persistent player"""
         if self.persistent_player:
@@ -137,18 +124,9 @@ class PlayerPage(QWidget):
             # Force the album art display to be visible and update
             self.album_art.setVisible(True)
             self.album_art.update()
-            self.album_art_card.setVisible(True)
-            self.album_art_card.update()
         else:
             # Set placeholder for no artwork
             self.album_art._set_placeholder()
-        
-        # Still store track info in the labels in case we need it later
-        title = metadata.get('title', 'Unknown Track')
-        artist = metadata.get('artist', 'Unknown Artist')
-        
-        self.track_title_label.setText(title)
-        self.track_artist_label.setText(artist)
         
     def showEvent(self, event):
         """
@@ -228,46 +206,48 @@ class PlayerPage(QWidget):
                 self.album_art.set_image(artwork_path)
                 self.album_art.setVisible(True)
                 self.album_art.update()
-                self.album_art_card.setVisible(True)
-                self.album_art_card.update()
                 
         # Force an update
         self.update()
         QTimer.singleShot(100, self.update)  # Schedule another update after event processing
 
     def resizeEvent(self, event):
-        """Handle resize event to adjust album art size"""
+        """Handle resize event to adjust album art size and reposition overlays"""
         super().resizeEvent(event)
         
-        # Dynamically adjust album art size based on window size
-        window_size = self.size()
-        min_dimension = min(window_size.width(), window_size.height()) - 100
-        self.album_art.setMinimumSize(min_dimension, min_dimension)
+        # Optional: Adjust minimum album art size based on window size if desired
+        # window_size = self.size()
+        # min_dimension = min(window_size.width(), window_size.height()) - 100
+        # self.album_art.setMinimumSize(min_dimension, min_dimension)
         
-        # Position the speed overlay in the top-right corner of the album art card
+        # Position Open File button overlay in top-left corner
+        margin = 20
+        self.open_file_button.move(margin, margin)
+        
+        # Position the speed overlay (top-right)
         self._update_speed_overlay_position()
         
     def _update_speed_overlay_position(self):
-        """Update the position of the speed overlay"""
-        # Position the speed overlay in the top-right corner with balanced margins
-        top_margin = 30     # Increased top margin for better vertical spacing
-        right_margin = 10   # Decreased right margin for better horizontal spacing
+        """Update the position of the speed overlay relative to the PlayerPage"""
+        top_margin = 30
+        right_margin = 20 # Adjusted for consistency with button margin
         
-        # Get the actual album art dimensions and position
-        art_rect = self.album_art.geometry()
-        
-        # Set the overlay position relative to the album art
-        # The overlay is a child of the album_art_card, so we position it using card coordinates
-        self.speed_overlay.setGeometry(
-            art_rect.right() - self.speed_overlay.width() - right_margin,  # X: right aligned
-            art_rect.top() + top_margin,  # Y: top aligned with increased margin
-            100,  # Width
-            40   # Height
+        # Position relative to the PlayerPage bounds
+        self.speed_overlay.move(
+            self.width() - self.speed_overlay.width() - right_margin,
+            top_margin
         )
-        
+
     def _on_rate_changed(self, rate):
         """Handle rate change from player"""
         # Show the speed overlay with the current rate
         self.speed_overlay.show_speed(rate)
-        # Update position in case it's the first time showing
-        QTimer.singleShot(10, self._update_speed_overlay_position) 
+        self.speed_overlay.raise_() # Ensure overlay is on top
+
+    def _toggle_play_pause(self):
+        """Toggle play/pause state of the persistent player."""
+        if self.persistent_player:
+            if self.persistent_player.is_playing():
+                self.persistent_player.pause()
+            else:
+                self.persistent_player.play() 

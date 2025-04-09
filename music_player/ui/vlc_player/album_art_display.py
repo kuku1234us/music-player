@@ -2,8 +2,8 @@
 Album art display component for showing track/album artwork.
 """
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QSizePolicy
-from PyQt6.QtCore import Qt, QSize, QPointF, QRectF
-from PyQt6.QtGui import QPixmap, QPainter, QPainterPath, QBrush, QColor, QPen
+from PyQt6.QtCore import Qt, QSize, QPointF, QRectF, pyqtSignal
+from PyQt6.QtGui import QPixmap, QPainter, QPainterPath, QBrush, QColor, QPen, QMouseEvent
 from PyQt6.QtSvg import QSvgRenderer
 from io import BytesIO
 
@@ -12,14 +12,18 @@ class AlbumArtDisplay(QWidget):
     """
     Widget for displaying album artwork with rounded corners and
     placeholder for when no image is available.
+    Emits a 'clicked' signal when the widget is clicked.
     """
+    
+    clicked = pyqtSignal()  # Signal emitted when the widget is clicked
     
     # SVG music icon as a string
     MUSIC_ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-music-icon lucide-music"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, corner_radius: int | None = None):
         super().__init__(parent)
         self.setObjectName("albumArtDisplay")
+        self._corner_radius = corner_radius # Store the requested radius (None means use default logic)
         
         # Default size (but this can be overridden by parent)
         self.setMinimumSize(200, 200)
@@ -90,6 +94,18 @@ class AlbumArtDisplay(QWidget):
         if size.width() <= 0 or size.height() <= 0:
             size = QSize(200, 200)
             
+        # Determine the effective corner radius
+        effective_radius = 0 # Default to 0 if overridden
+        if self._corner_radius is None:
+            # Default logic: Small thumbnail uses smaller radius
+            if size.width() <= 100 or size.height() <= 100:
+                effective_radius = 5
+            else:
+                effective_radius = 10
+        elif self._corner_radius > 0:
+            effective_radius = self._corner_radius
+            # If self._corner_radius is 0, effective_radius remains 0
+
         # Create a placeholder pixmap with gray background
         pixmap = QPixmap(size)
         pixmap.fill(QColor("#383838"))  # Dark gray background
@@ -135,20 +151,27 @@ class AlbumArtDisplay(QWidget):
         if size.width() <= 0 or size.height() <= 0:
             size = QSize(200, 200)
         
-        # Small thumbnail uses smaller corner radius
-        corner_radius = 10
-        if size.width() <= 100 or size.height() <= 100:
-            corner_radius = 5
-        
+        # Determine the effective corner radius
+        effective_radius = 0 # Default to 0 if overridden
+        if self._corner_radius is None:
+            # Default logic: Small thumbnail uses smaller radius
+            if size.width() <= 100 or size.height() <= 100:
+                effective_radius = 5
+            else:
+                effective_radius = 10
+        elif self._corner_radius > 0:
+            effective_radius = self._corner_radius
+            # If self._corner_radius is 0, effective_radius remains 0
+
         # Create a new pixmap with the widget's size
-        rounded_pixmap = QPixmap(size)
-        rounded_pixmap.fill(Qt.GlobalColor.transparent)
+        final_pixmap = QPixmap(size)
+        final_pixmap.fill(Qt.GlobalColor.transparent)
         
         # Create a rounded rect path for clipping
-        painter = QPainter(rounded_pixmap)
+        painter = QPainter(final_pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         path = QPainterPath()
-        path.addRoundedRect(0, 0, size.width(), size.height(), corner_radius, corner_radius)
+        path.addRoundedRect(0, 0, size.width(), size.height(), effective_radius, effective_radius)
         painter.setClipPath(path)
         
         # Scale the image to fill (cover) the entire area
@@ -183,7 +206,7 @@ class AlbumArtDisplay(QWidget):
         painter.end()
         
         # Set the rounded pixmap to the label
-        self.image_label.setPixmap(rounded_pixmap)
+        self.image_label.setPixmap(final_pixmap)
         
     def resizeEvent(self, event):
         """Handle resize events to update the display"""
@@ -194,4 +217,10 @@ class AlbumArtDisplay(QWidget):
         
     def sizeHint(self):
         """Provide a size hint for the widget"""
-        return QSize(300, 300) 
+        return QSize(300, 300)
+
+    def mousePressEvent(self, event: QMouseEvent):
+        """Handle mouse press events to emit the clicked signal."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event) 
