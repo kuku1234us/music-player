@@ -1,11 +1,12 @@
 """
 Playlists page for the Music Player application.
+Handles switching between Dashboard and Play modes.
 """
 import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QMessageBox, QInputDialog,
-    QFileDialog, QMenu
+    QFileDialog, QMenu, QStackedWidget
 )
 from PyQt6.QtCore import Qt, QSettings, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon, QAction, QColor
@@ -17,423 +18,319 @@ from qt_base_app.components.base_card import BaseCard
 from qt_base_app.theme.theme_manager import ThemeManager
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 
-
-class PlaylistItem(QListWidgetItem):
-    """
-    Custom list item for displaying playlists.
-    """
-    def __init__(self, playlist_name, playlist_path, parent=None):
-        super().__init__(parent)
-        self.playlist_name = playlist_name
-        self.playlist_path = playlist_path
-        self.setText(playlist_name)
-        
-        # Set icon for the playlist
-        self.setIcon(QIcon(qta.icon('fa5s.list', color='#a1a1aa').pixmap(32, 32)))
+# Import playlist specific components
+from music_player.models.playlist import Playlist, PlaylistManager
+from music_player.ui.components.playlist_components.playlist_dashboard import PlaylistDashboardWidget
+# Import Play mode widget later when created
+# from .components.playlist_components.playlist_edit import PlaylistEditWidget
 
 
 class PlaylistsPage(QWidget):
     """
-    Page for managing music playlists.
+    Page for managing music playlists. Switches between modes.
     """
     # Signal emitted when a playlist is selected to play
-    playlist_selected = pyqtSignal(str)  # playlist_path
-    
+    playlist_selected_for_playback = pyqtSignal(Playlist) # Emits the Playlist object
+
     def __init__(self, parent=None):
         super().__init__(parent)
         # Set widget properties
         self.setObjectName("playlistsPage")
         self.setProperty('page_id', 'playlists')
-        
+
         # Initialize settings and theme
         self.settings = SettingsManager.instance()
         self.theme = ThemeManager.instance()
-        
+        self.playlist_manager = PlaylistManager() # Instantiate manager
+
+        # Internal state
+        self._current_mode = "dashboard" # "dashboard" or "play"
+        self._current_playlist_in_edit = None
+
         self.setup_ui()
-        
+        self._connect_signals()
+        self.load_playlists_into_dashboard()
+
     def setup_ui(self):
-        """Set up the UI for the playlists page."""
-        # Main layout
+        """Set up the UI with a stacked widget for modes."""
+        # Main layout - Takes margins from parent dashboard
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(24, 24, 24, 24)
-        self.main_layout.setSpacing(24)
-        
-        # Buttons card
-        self.buttons_card = BaseCard("Actions")
-        buttons_container = QWidget()
-        self.buttons_layout = QHBoxLayout(buttons_container)
-        self.buttons_layout.setContentsMargins(0, 0, 0, 0)
-        self.buttons_layout.setSpacing(16)
-        
-        # Create new playlist button
-        self.new_playlist_button = QPushButton("New Playlist")
-        self.new_playlist_button.setIcon(QIcon(qta.icon('fa5s.plus', color=self.theme.get_color('text', 'primary')).pixmap(16, 16)))
-        self.new_playlist_button.clicked.connect(self.create_new_playlist)
-        self.new_playlist_button.setStyleSheet(f"""
-            background-color: {self.theme.get_color('background', 'tertiary')};
-            color: {self.theme.get_color('text', 'primary')};
-            border-radius: 4px;
-            padding: 8px 16px;
-            font-weight: bold;
-        """)
-        self.buttons_layout.addWidget(self.new_playlist_button)
-        
-        # Import playlist button
-        self.import_playlist_button = QPushButton("Import Playlist")
-        self.import_playlist_button.setIcon(QIcon(qta.icon('fa5s.file-import', color=self.theme.get_color('text', 'primary')).pixmap(16, 16)))
-        self.import_playlist_button.clicked.connect(self.import_playlist)
-        self.import_playlist_button.setStyleSheet(f"""
-            background-color: {self.theme.get_color('background', 'tertiary')};
-            color: {self.theme.get_color('text', 'primary')};
-            border-radius: 4px;
-            padding: 8px 16px;
-            font-weight: bold;
-        """)
-        self.buttons_layout.addWidget(self.import_playlist_button)
-        
-        self.buttons_layout.addStretch(1)
-        
-        # Refresh playlists button
-        self.refresh_button = QPushButton("Refresh")
-        self.refresh_button.setIcon(QIcon(qta.icon('fa5s.sync', color=self.theme.get_color('text', 'primary')).pixmap(16, 16)))
-        self.refresh_button.clicked.connect(self.load_playlists)
-        self.refresh_button.setStyleSheet(f"""
-            background-color: {self.theme.get_color('background', 'tertiary')};
-            color: {self.theme.get_color('text', 'primary')};
-            border-radius: 4px;
-            padding: 8px 16px;
-            font-weight: bold;
-        """)
-        self.buttons_layout.addWidget(self.refresh_button)
-        
-        self.buttons_card.add_widget(buttons_container)
-        self.main_layout.addWidget(self.buttons_card)
-        
-        # Playlists list
-        self.playlists_card = BaseCard(
-            "My Playlists", 
-            border_style=f"1px solid {self.theme.get_color('accent', 'secondary')}",
-            background_style=f"{self.theme.get_color('background', 'tertiary')}20"  # 20% opacity
-        )
-        
-        # Playlists container
-        playlists_container = QWidget()
-        playlists_container_layout = QVBoxLayout(playlists_container)
-        playlists_container_layout.setContentsMargins(0, 0, 0, 0)
-        playlists_container_layout.setSpacing(16)
-        
-        self.playlists_list = QListWidget()
-        self.playlists_list.setMinimumHeight(300)
-        self.playlists_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.playlists_list.customContextMenuRequested.connect(self.show_context_menu)
-        self.playlists_list.itemDoubleClicked.connect(self.on_playlist_double_clicked)
-        self.playlists_list.setStyleSheet(f"""
-            background-color: {self.theme.get_color('background', 'tertiary')};
-            color: {self.theme.get_color('text', 'primary')};
-            border: 1px solid {self.theme.get_color('border', 'primary')};
-            border-radius: 4px;
-            padding: 8px;
-        """)
-        
-        playlists_container_layout.addWidget(self.playlists_list)
-        
-        # Empty state label
-        self.empty_label = QLabel("No playlists found. Create a new playlist or set a playlists directory in Preferences.")
-        self.empty_label.setStyleSheet(f"color: {self.theme.get_color('text', 'tertiary')}; font-style: italic;")
-        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        playlists_container_layout.addWidget(self.empty_label)
-        
-        self.playlists_card.add_widget(playlists_container)
-        self.main_layout.addWidget(self.playlists_card)
-        
-        # Add a stretch at the end to push all content to the top
-        self.main_layout.addStretch(1)
-        
-        # Load playlists
-        self.load_playlists()
-        
-    def load_playlists(self):
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+
+        # Stacked widget to switch between modes
+        self.stacked_widget = QStackedWidget(self)
+
+        # --- Dashboard Mode Widget --- 
+        self.dashboard_widget = PlaylistDashboardWidget(self)
+        self.stacked_widget.addWidget(self.dashboard_widget)
+
+        # --- Play Mode Widget (Placeholder) --- 
+        # self.play_mode_widget = PlaylistEditWidget(self)
+        # self.stacked_widget.addWidget(self.play_mode_widget)
+        # TODO: Create PlaylistEditWidget later
+        placeholder_play_mode = QLabel("Play Mode - Coming Soon") # Placeholder
+        placeholder_play_mode.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.stacked_widget.addWidget(placeholder_play_mode)
+
+        self.main_layout.addWidget(self.stacked_widget)
+
+        # Set initial mode
+        self.stacked_widget.setCurrentWidget(self.dashboard_widget)
+
+    def _connect_signals(self):
+        """Connect signals from child widgets to page slots."""
+        # Dashboard Widget Signals
+        self.dashboard_widget.create_new_playlist_requested.connect(self.create_new_playlist)
+        self.dashboard_widget.import_playlist_requested.connect(self.import_playlist)
+        self.dashboard_widget.refresh_playlists_requested.connect(self.load_playlists_into_dashboard)
+        self.dashboard_widget.playlist_selected.connect(self._handle_playlist_selected)
+        # Context menu signals will need connections once context menu is in dashboard widget
+        # self.dashboard_widget.edit_playlist_requested.connect(self.edit_playlist)
+        # self.dashboard_widget.rename_playlist_requested.connect(self.rename_playlist)
+        # self.dashboard_widget.delete_playlist_requested.connect(self.delete_playlist)
+
+        # TODO: Connect signals for PlayModeWidget when created
+        # self.play_mode_widget.back_requested.connect(self._enter_dashboard_mode)
+
+    # --- Mode Switching --- 
+    def _enter_dashboard_mode(self):
+        self._current_mode = "dashboard"
+        self._current_playlist_in_edit = None
+        self.stacked_widget.setCurrentWidget(self.dashboard_widget)
+        self.load_playlists_into_dashboard() # Refresh list when returning
+
+    def _enter_play_mode(self, playlist: Playlist):
+        self._current_mode = "play"
+        self._current_playlist_in_edit = playlist
+        # TODO: Update and switch to the actual play_mode_widget
+        # self.play_mode_widget.load_playlist(playlist)
+        # self.stacked_widget.setCurrentWidget(self.play_mode_widget)
+        print(f"Entering play mode for: {playlist.name}") # Placeholder
+        self.stacked_widget.setCurrentIndex(1) # Switch to placeholder
+
+        # Emit signal to start playback
+        self.playlist_selected_for_playback.emit(playlist)
+
+    # --- Playlist Management Logic --- 
+    def load_playlists_into_dashboard(self):
         """
-        Load playlists from the configured directory.
+        Loads playlists using PlaylistManager and populates the dashboard list.
         """
-        self.playlists_list.clear()
-        
-        # Get playlists directory from settings
-        playlists_dir = self.settings.get('preferences/playlists_dir', str(Path.home()), SettingType.PATH)
-        
-        if not playlists_dir or not os.path.exists(str(playlists_dir)):
-            self.empty_label.setText("No playlists directory set. Please configure it in Preferences.")
-            self.empty_label.setVisible(True)
+        list_widget = self.dashboard_widget.get_playlist_list_widget()
+        list_widget.clear()
+        playlists = self.playlist_manager.load_playlists()
+
+        if not playlists:
+            self.dashboard_widget.set_empty_message("No playlists found. Create or import one.")
+            self.dashboard_widget.show_empty_message(True)
             return
-        
-        # Scan for playlist files (.m3u, .m3u8, .pls)
-        playlist_extensions = ['.m3u', '.m3u8', '.pls']
-        found_playlists = False
-        
-        for filename in os.listdir(str(playlists_dir)):
-            file_path = os.path.join(str(playlists_dir), filename)
-            if os.path.isfile(file_path) and any(filename.lower().endswith(ext) for ext in playlist_extensions):
-                # Extract playlist name (without extension)
-                playlist_name = os.path.splitext(filename)[0]
-                
-                # Create playlist item
-                item = PlaylistItem(playlist_name, file_path)
-                self.playlists_list.addItem(item)
-                found_playlists = True
-        
-        # Show or hide the empty state message
-        self.empty_label.setVisible(not found_playlists)
-        if not found_playlists:
-            self.empty_label.setText("No playlists found. Create a new playlist or import one.")
-    
+
+        self.dashboard_widget.show_empty_message(False)
+        for playlist in playlists:
+            # Use simple QListWidgetItem for now, storing Playlist object
+            item = QListWidgetItem(playlist.name)
+            item.setData(Qt.ItemDataRole.UserRole, playlist) # Store object
+            item.setIcon(QIcon(qta.icon('fa5s.list', color='#a1a1aa').pixmap(32, 32)))
+            list_widget.addItem(item)
+
     def create_new_playlist(self):
         """
-        Create a new empty playlist file.
+        Handles the request to create a new playlist.
         """
-        # Get playlists directory from settings
-        playlists_dir = self.settings.get('preferences/playlists_dir', str(Path.home()), SettingType.PATH)
-        
-        if not playlists_dir or not os.path.exists(str(playlists_dir)):
-            QMessageBox.warning(
-                self,
-                "Playlists Directory Not Set",
-                "Please set a playlists directory in Preferences before creating playlists."
-            )
-            return
-        
-        # Ask for playlist name
         playlist_name, ok = QInputDialog.getText(
-            self, 
+            self,
             "Create New Playlist",
             "Enter a name for the new playlist:"
         )
-        
+
         if ok and playlist_name:
-            # Create a new .m3u8 file
-            file_path = os.path.join(str(playlists_dir), f"{playlist_name}.m3u8")
-            
-            # Check if file already exists
-            if os.path.exists(file_path):
-                QMessageBox.warning(
-                    self,
-                    "Playlist Already Exists",
-                    f"A playlist named '{playlist_name}' already exists."
-                )
+            new_playlist_path = self.playlist_manager.get_playlist_path(playlist_name)
+            if new_playlist_path.exists():
+                QMessageBox.warning(self, "Playlist Exists", f"A playlist named '{playlist_name}' already exists.")
                 return
-            
-            # Create an empty playlist file with UTF-8 encoding header
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write("#EXTM3U\n")
-                f.write("#Created by Music Player\n")
-            
-            # Refresh the list
-            self.load_playlists()
-    
+
+            try:
+                new_playlist = Playlist(name=playlist_name)
+                if self.playlist_manager.save_playlist(new_playlist):
+                    self.load_playlists_into_dashboard()
+                else:
+                    QMessageBox.critical(self, "Error", "Failed to save the new playlist file.")
+            except ValueError as e:
+                 QMessageBox.warning(self, "Invalid Name", str(e))
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
+
     def import_playlist(self):
         """
-        Import an existing playlist file.
+        Handles the request to import playlist files.
         """
-        # Get playlists directory from settings
-        playlists_dir = self.settings.get('preferences/playlists_dir', str(Path.home()), SettingType.PATH)
-        
-        if not playlists_dir or not os.path.exists(str(playlists_dir)):
-            QMessageBox.warning(
-                self,
-                "Playlists Directory Not Set",
-                "Please set a playlists directory in Preferences before importing playlists."
-            )
-            return
-        
         # Open file dialog to select playlist files
         files, _ = QFileDialog.getOpenFileNames(
             self,
             "Import Playlist Files",
             str(Path.home()),
-            "Playlist files (*.m3u *.m3u8 *.pls)"
+            "Playlist files (*.m3u *.m3u8 *.pls *.json)" # Add JSON
         )
-        
+
         if not files:
-            return  # User canceled
-        
+            return # User canceled
+
         import_count = 0
-        for file_path in files:
-            # Get filename and check if it already exists in the target directory
-            filename = os.path.basename(file_path)
-            target_path = os.path.join(str(playlists_dir), filename)
-            
-            if os.path.exists(target_path):
-                # Ask if user wants to overwrite
+        skipped_count = 0
+        error_count = 0
+        target_dir = self.playlist_manager.playlist_dir
+
+        for file_path_str in files:
+            file_path = Path(file_path_str)
+            target_name = file_path.stem # Use filename without extension as potential name
+            target_path = self.playlist_manager.get_playlist_path(target_name, target_dir)
+
+            # Check if a playlist with the sanitized target name already exists
+            if target_path.exists():
                 reply = QMessageBox.question(
                     self,
                     "File Already Exists",
-                    f"The file '{filename}' already exists. Overwrite?",
+                    f"A playlist derived from '{file_path.name}' (named '{target_path.stem}') already exists. Overwrite?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     QMessageBox.StandardButton.No
                 )
-                
                 if reply != QMessageBox.StandardButton.Yes:
-                    continue  # Skip this file
-            
-            # Copy the file to the playlists directory
+                    skipped_count += 1
+                    continue # Skip this file
+
+            # Handle different import types
             try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as src:
-                    content = src.read()
-                
-                with open(target_path, 'w', encoding='utf-8') as dst:
-                    dst.write(content)
-                
-                import_count += 1
+                imported_playlist = None
+                if file_path.suffix.lower() == '.json':
+                    # Directly load our format
+                    imported_playlist = Playlist.load_from_file(file_path)
+                    if imported_playlist:
+                         # Ensure it gets saved to the managed directory with correct name/path
+                         imported_playlist.filepath = None # Clear old path
+                         imported_playlist.name = target_path.stem # Use sanitized name
+                         if not self.playlist_manager.save_playlist(imported_playlist):
+                             raise IOError("Failed to save imported JSON playlist.")
+
+                # TODO: Add parsing logic for M3U, PLS if needed
+                # elif file_path.suffix.lower() in ['.m3u', '.m3u8']:
+                #    # Parse M3U, create Playlist object
+                #    pass
+                # elif file_path.suffix.lower() == '.pls':
+                #    # Parse PLS, create Playlist object
+                #    pass
+                else:
+                    # Simple copy for now if not JSON (basic fallback)
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as src, \
+                         open(target_path, 'w', encoding='utf-8') as dst:
+                        # Basic copy, doesn't guarantee internal format is useful later
+                        dst.write(src.read())
+                    print(f"Warning: Copied non-JSON playlist '{file_path.name}'. Internal parsing not implemented.")
+                    # Create a placeholder Playlist object if needed for UI update
+                    # imported_playlist = Playlist(name=target_path.stem, filepath=target_path)
+
+                # If parsing/saving was successful (or basic copy done)
+                # For JSON, save_playlist handles the success check
+                if file_path.suffix.lower() == '.json':
+                    if imported_playlist:
+                        import_count += 1
+                    else:
+                        error_count +=1 # Failed to load/save JSON
+                else: # Assume basic copy succeeded if no exception
+                    import_count += 1
+
             except Exception as e:
+                error_count += 1
                 QMessageBox.warning(
                     self,
                     "Import Error",
-                    f"Failed to import '{filename}': {str(e)}"
+                    f"Failed to import '{file_path.name}': {str(e)}"
                 )
-        
-        if import_count > 0:
-            # Refresh the list
-            self.load_playlists()
-            QMessageBox.information(
-                self,
-                "Import Successful",
-                f"Successfully imported {import_count} playlist(s)."
-            )
-    
-    def show_context_menu(self, position):
+
+        if import_count > 0 or error_count > 0 or skipped_count > 0:
+            self.load_playlists_into_dashboard()
+            message = f"Import finished:\n- Imported: {import_count}\n- Skipped: {skipped_count}\n- Errors: {error_count}"
+            QMessageBox.information(self, "Import Complete", message)
+
+    def _handle_playlist_selected(self, item: QListWidgetItem):
         """
-        Show context menu for playlist items.
-        
-        Args:
-            position: Position where right-click occurred
+        Handles when a playlist is selected (e.g., double-clicked) in the dashboard.
+        Switches to Play Mode.
         """
-        item = self.playlists_list.itemAt(position)
-        if not item:
-            return
-        
-        context_menu = QMenu(self)
-        
-        # Play action
-        play_action = QAction(QIcon(qta.icon('fa5s.play', color=self.theme.get_color('text', 'primary'))), "Play", self)
-        play_action.triggered.connect(lambda: self.on_playlist_double_clicked(item))
-        context_menu.addAction(play_action)
-        
-        # Edit action
-        edit_action = QAction(QIcon(qta.icon('fa5s.edit', color=self.theme.get_color('text', 'primary'))), "Edit", self)
-        edit_action.triggered.connect(lambda: self.edit_playlist(item))
-        context_menu.addAction(edit_action)
-        
-        # Rename action
-        rename_action = QAction(QIcon(qta.icon('fa5s.font', color=self.theme.get_color('text', 'primary'))), "Rename", self)
-        rename_action.triggered.connect(lambda: self.rename_playlist(item))
-        context_menu.addAction(rename_action)
-        
-        # Delete action
-        delete_action = QAction(QIcon(qta.icon('fa5s.trash-alt', color=self.theme.get_color('text', 'primary'))), "Delete", self)
-        delete_action.triggered.connect(lambda: self.delete_playlist(item))
-        context_menu.addAction(delete_action)
-        
-        # Show the context menu
-        context_menu.exec(self.playlists_list.mapToGlobal(position))
-    
-    def on_playlist_double_clicked(self, item):
-        """
-        Handle double-click on a playlist item.
-        
-        Args:
-            item: The clicked PlaylistItem
-        """
-        self.playlist_selected.emit(item.playlist_path)
-    
-    def edit_playlist(self, item):
-        """
-        Open external editor for the playlist file.
-        
-        Args:
-            item: The PlaylistItem to edit
-        """
-        # This is a placeholder - in a real application,
-        # you would implement a proper playlist editor
-        QMessageBox.information(
-            self, 
-            "Edit Playlist",
-            f"Editing playlist: {item.playlist_name}\n\nThis feature is not yet implemented."
-        )
-    
-    def rename_playlist(self, item):
-        """
-        Rename the selected playlist.
-        
-        Args:
-            item: The PlaylistItem to rename
-        """
-        # Get playlists directory from settings
-        playlists_dir = self.settings.get('preferences/playlists_dir', str(Path.home()), SettingType.PATH)
-        
-        # Ask for new playlist name
+        playlist = item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(playlist, Playlist):
+            self._enter_play_mode(playlist)
+        else:
+            print(f"Error: Could not retrieve Playlist object from selected item: {item.text()}")
+
+    # --- Placeholder methods for context menu actions --- 
+    # These will eventually be connected to signals from PlaylistDashboardWidget
+    def edit_playlist(self, item: QListWidgetItem):
+        playlist = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(playlist, Playlist): return
+        QMessageBox.information(self, "Edit Playlist", f"Editing: {playlist.name}\n(Not Implemented Yet)")
+
+    def rename_playlist(self, item: QListWidgetItem):
+        playlist = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(playlist, Playlist): return
+
+        old_name = playlist.name
+        old_path = playlist.filepath
+
         new_name, ok = QInputDialog.getText(
-            self, 
+            self,
             "Rename Playlist",
-            "Enter new name for the playlist:",
-            text=item.playlist_name
+            "Enter new name:",
+            text=old_name
         )
-        
-        if ok and new_name and new_name != item.playlist_name:
-            # Get file extension from original file
-            _, ext = os.path.splitext(item.playlist_path)
-            
-            # Create new file path
-            new_path = os.path.join(str(playlists_dir), f"{new_name}{ext}")
-            
-            # Check if file already exists
-            if os.path.exists(new_path):
-                QMessageBox.warning(
-                    self,
-                    "Playlist Already Exists",
-                    f"A playlist named '{new_name}' already exists."
-                )
-                return
-            
+
+        if ok and new_name and new_name != old_name:
             try:
-                # Rename the file
-                os.rename(item.playlist_path, new_path)
-                
-                # Refresh the list
-                self.load_playlists()
+                new_path = self.playlist_manager.get_playlist_path(new_name)
+                if new_path.exists():
+                    raise FileExistsError(f"A playlist named '{new_name}' already exists.")
+
+                # Rename file if it exists
+                if old_path and old_path.exists():
+                    os.rename(old_path, new_path)
+
+                # Update playlist object and save its new state (name and path)
+                playlist.name = new_name
+                playlist.filepath = new_path
+                if not self.playlist_manager.save_playlist(playlist):
+                     # Attempt to revert rename if save fails?
+                     if old_path and new_path.exists(): os.rename(new_path, old_path)
+                     raise IOError("Failed to save renamed playlist file.")
+
+                self.load_playlists_into_dashboard() # Refresh view
+            except FileExistsError as e:
+                QMessageBox.warning(self, "Rename Error", str(e))
+            except (OSError, IOError) as e:
+                QMessageBox.critical(self, "Rename Error", f"Failed to rename playlist file: {str(e)}")
             except Exception as e:
-                QMessageBox.warning(
-                    self,
-                    "Rename Error",
-                    f"Failed to rename playlist: {str(e)}"
-                )
-    
-    def delete_playlist(self, item):
-        """
-        Delete the selected playlist.
-        
-        Args:
-            item: The PlaylistItem to delete
-        """
-        # Confirm deletion
+                 QMessageBox.critical(self, "Rename Error", f"An unexpected error occurred: {str(e)}")
+
+    def delete_playlist(self, item: QListWidgetItem):
+        playlist = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(playlist, Playlist): return
+
         reply = QMessageBox.question(
             self,
             "Confirm Deletion",
-            f"Are you sure you want to delete the playlist '{item.playlist_name}'?",
+            f"Are you sure you want to delete the playlist '{playlist.name}'?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
-        
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        
-        try:
-            # Delete the file
-            os.remove(item.playlist_path)
-            
-            # Refresh the list
-            self.load_playlists()
-        except Exception as e:
-            QMessageBox.warning(
-                self,
-                "Delete Error",
-                f"Failed to delete playlist: {str(e)}"
-            ) 
+
+        if reply == QMessageBox.StandardButton.Yes:
+            if self.playlist_manager.delete_playlist(playlist):
+                self.load_playlists_into_dashboard()
+            else:
+                QMessageBox.critical(self, "Delete Error", f"Failed to delete playlist '{playlist.name}'.")
+
+    # --- Drag and Drop Handling --- 
+    # TODO: Implement dragEnterEvent, dragMoveEvent, dropEvent here
+    # These should likely check the current mode and delegate to
+    # self.play_mode_widget.selection_pool_widget if in play mode.
+

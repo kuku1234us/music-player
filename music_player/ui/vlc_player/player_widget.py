@@ -13,6 +13,7 @@ from .player_timeline import PlayerTimeline
 from .album_art_display import AlbumArtDisplay
 from .volume_control import VolumeControl
 from .speed_overlay import SpeedOverlay
+from .repeat_button import RepeatButton
 
 
 class PlayerWidget(QWidget):
@@ -28,6 +29,7 @@ class PlayerWidget(QWidget):
     position_changed = pyqtSignal(int)
     volume_changed = pyqtSignal(int)
     rate_changed = pyqtSignal(float)
+    repeat_state_changed = pyqtSignal(str)  # Signal for repeat mode changes
     
     def __init__(self, parent=None, persistent=False):
         super().__init__(parent)
@@ -40,6 +42,7 @@ class PlayerWidget(QWidget):
         self.timeline = PlayerTimeline(self)
         self.volume_control = VolumeControl(self)
         self.speed_overlay = SpeedOverlay(self)
+        self.repeat_button = RepeatButton(self, size=29)  # Increased size to compensate for 20% growth inside the component
         
         # Track info components
         self.track_title = QLabel("No Track")
@@ -105,9 +108,10 @@ class PlayerWidget(QWidget):
         center_section.setAlignment(Qt.AlignmentFlag.AlignCenter)
         center_section.addWidget(self.controls)
         
-        # Right section: Volume control
+        # Right section: Repeat button and Volume control
         right_section = QHBoxLayout()
-        right_section.addStretch(1)  # Push volume to the right
+        right_section.addStretch(1)  # Push controls to the right
+        right_section.addWidget(self.repeat_button)  # Add repeat button to the right section
         right_section.addWidget(self.volume_control)
         
         # Add the three sections to the controls row with equal weight
@@ -153,7 +157,16 @@ class PlayerWidget(QWidget):
         # Add the three sections to maintain proper centering
         bottom_layout.addWidget(left_spacer)
         bottom_layout.addWidget(self.controls, 1)  # Center section expands
-        bottom_layout.addWidget(self.volume_control)
+        
+        # Create right section to hold repeat button and volume control
+        right_section = QHBoxLayout()
+        right_section.addWidget(self.repeat_button)
+        right_section.addWidget(self.volume_control)
+        
+        # Create right widget to hold the right section
+        right_widget = QWidget()
+        right_widget.setLayout(right_section)
+        bottom_layout.addWidget(right_widget)
         
         # Add components to main layout
         main_layout.addWidget(self.album_art, 1)
@@ -203,6 +216,9 @@ class PlayerWidget(QWidget):
         self.controls.pause_clicked.connect(self.pause_requested)
         self.controls.next_clicked.connect(self.next_requested)
         self.controls.previous_clicked.connect(self.previous_requested)
+        
+        # Connect repeat button signals
+        self.repeat_button.state_changed.connect(self.repeat_state_changed)
         
         # Connect volume signals
         self.volume_control.volume_changed.connect(self.volume_changed)

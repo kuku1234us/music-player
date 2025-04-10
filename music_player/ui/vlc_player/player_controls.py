@@ -10,6 +10,7 @@ from PyQt6.QtGui import QIcon, QFont, QPainter, QColor, QPen, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 
 from .play_button import PlayButton
+from .repeat_button import RepeatButton
 
 
 class PlayerControls(QWidget):
@@ -21,6 +22,7 @@ class PlayerControls(QWidget):
     pause_clicked = pyqtSignal()
     next_clicked = pyqtSignal()
     previous_clicked = pyqtSignal()
+    repeat_state_changed = pyqtSignal(str)  # Signal for repeat mode change ("no_repeat", "repeat_all", "repeat_one")
     
     def __init__(self, parent=None):
         super().__init__(parent)

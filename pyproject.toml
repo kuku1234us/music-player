@@ -14,7 +14,8 @@ dependencies = [
     "qt-material (>=2.14,<3.0)",
     "qtawesome (>=1.4.0,<2.0.0)",
     "pyyaml (>=6.0.1,<7.0.0)",
-    "python-vlc (>=3.0.21203,<4.0.0)"
+    "python-vlc (>=3.0.21203,<4.0.0)",
+    "requests (>=2.32.3,<3.0.0)"
 ]
 
 

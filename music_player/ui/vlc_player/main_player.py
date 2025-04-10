@@ -87,6 +87,7 @@ class MainPlayer(QWidget):
         self.player_widget.position_changed.connect(self._on_position_changed)
         self.player_widget.volume_changed.connect(self._on_volume_changed)
         self.player_widget.rate_changed.connect(self._on_rate_changed)
+        self.player_widget.repeat_state_changed.connect(self._on_repeat_state_changed)
         
         # Connect backend to UI
         self.backend.media_loaded.connect(self.on_media_changed)
@@ -422,7 +423,7 @@ class MainPlayer(QWidget):
             self,
             "Open Media File",
             last_dir,
-            "Media Files (*.mp3 *.wav *.ogg *.flac *.aac *.m4a *.mp4 *.avi *.mkv *.mov)"
+            "Media Files (*.mp3 *.wav *.ogg *.flac *.aac *.m4a *.mp4 *.avi *.mkv *.mov *.webm *.m3u)"
         )
         
         if file_path:
@@ -505,3 +506,14 @@ class MainPlayer(QWidget):
         if self.last_metadata:
             return self.last_metadata.get('artwork_path')
         return None
+
+    def _on_repeat_state_changed(self, state):
+        """
+        Handle repeat state changes from the UI.
+        
+        Args:
+            state (str): Repeat state, "repeat_one" or "repeat_all"
+        """
+        # For now just log the state change, actual repeat functionality will be implemented later
+        print(f"Repeat state changed to: {state}")
+        # Will be connected to VLCBackend's repeat functionality when implemented

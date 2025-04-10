@@ -383,4 +383,31 @@ class VLCBackend(QObject):
         
     def __del__(self):
         """Destructor to ensure cleanup"""
-        self.cleanup() 
+        self.cleanup()
+        
+    def get_current_media_path(self):
+        """
+        Get the path of the currently loaded media file.
+        
+        Returns:
+            str: Path to the current media file, or None if no media is loaded
+        """
+        if not self.current_media:
+            return None
+            
+        try:
+            mrl = self.current_media.get_mrl()
+            if mrl.startswith('file:///'):
+                # Remove 'file:///' prefix and handle URL encoding
+                from urllib.parse import unquote
+                file_path = unquote(mrl[8:])
+                
+                # For Windows paths that start with a drive letter
+                if os.name == 'nt' and file_path.startswith('/'):
+                    file_path = file_path[1:]
+                    
+                return file_path
+        except Exception as e:
+            print(f"Error getting media path: {e}")
+            
+        return None 

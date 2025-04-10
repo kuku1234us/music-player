@@ -1,7 +1,7 @@
 """
 Player page for the music player application.
 """
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSizePolicy
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSizePolicy, QMessageBox
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QIcon
 
@@ -19,6 +19,9 @@ from qt_base_app.theme.theme_manager import ThemeManager
 # Import AlbumArtDisplay for large album art view
 from music_player.ui.vlc_player.album_art_display import AlbumArtDisplay
 from music_player.ui.vlc_player.speed_overlay import SpeedOverlay
+from music_player.ui.components.round_button import RoundButton
+from music_player.ui.components.upload_status_overlay import UploadStatusOverlay
+from music_player.services.oplayer_service import OPlayerService
 
 
 class PlayerPage(QWidget):
@@ -37,12 +40,23 @@ class PlayerPage(QWidget):
         # Enable background styling for the widget (needed for border visibility)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         
+        # Initialize OPlayer service
+        self.oplayer_service = OPlayerService(self)
+        self._connect_oplayer_signals()
+        
         # Find the persistent player from the dashboard
         self.persistent_player = None
         # We'll connect to it later
         
         self.setup_ui()
     
+    def _connect_oplayer_signals(self):
+        """Connect to OPlayer service signals"""
+        self.oplayer_service.upload_started.connect(self._on_upload_started)
+        self.oplayer_service.upload_progress.connect(self._on_upload_progress)
+        self.oplayer_service.upload_completed.connect(self._on_upload_completed)
+        self.oplayer_service.upload_failed.connect(self._on_upload_failed)
+        
     def setup_ui(self):
         """Set up the user interface."""
         # Main layout - No margins for full bleed album art
@@ -56,52 +70,31 @@ class PlayerPage(QWidget):
         self.album_art.setMinimumSize(300, 300) # Keep a minimum size
         self.main_layout.addWidget(self.album_art, 1) # Add directly with stretch factor
         
-        # Create Open File button
-        self.open_file_button = QPushButton(self) # Parent is now self
-        self.open_file_button.setObjectName("openFileButton")
-        self.open_file_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.open_file_button.setFixedSize(48, 48)
-        
-        # Get the base color and set background with lower opacity using rgba
-        tertiary_bg_hex = self.theme.get_color('background', 'tertiary')
-        # Convert hex #RRGGBB to rgba(R, G, B, A)
-        rgb_tuple = None
-        if tertiary_bg_hex.startswith('#') and len(tertiary_bg_hex) == 7:
-            hex_color = tertiary_bg_hex.lstrip('#')
-            try:
-                # Convert hex pairs to integers for R, G, B
-                rgb_tuple = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-            except ValueError:
-                rgb_tuple = (45, 45, 45) # Fallback color if hex is invalid
-        else:
-            rgb_tuple = (45, 45, 45) # Fallback color if not a valid hex
-            
-        alpha = 0.5 # Desired opacity (50%)
-        rgba_color = f"rgba({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]}, {alpha})"
-        
-        self.open_file_button.setStyleSheet(f"""
-            background-color: {rgba_color};
-            border-radius: 24px;
-            padding: 8px;
-            border: none; /* Remove border */
-        """)
-        
-        # Add icon if qtawesome is available
-        if HAS_QTAWESOME:
-            self.open_file_button.setIcon(qta.icon("fa5s.folder-open", color=self.theme.get_color('text', 'primary')))
-            self.open_file_button.setIconSize(QSize(24, 24))
-        else:
-            # Fallback to text if icons not available
-            self.open_file_button.setText("📂")
-            self.open_file_button.setStyleSheet(self.open_file_button.styleSheet() + """
-                font-size: 24px;
-                font-weight: bold;
-            """)
-        
+        # Create Open File button using RoundButton
+        self.open_file_button = RoundButton(
+            parent=self,
+            icon_name="fa5s.folder-open",  # Use folder icon if available
+            text="📂",                     # Fallback text if icons not available
+            size=48,
+            icon_size=24,
+            bg_opacity=0.5
+        )
         self.open_file_button.clicked.connect(self._on_open_file_clicked)
         
+        # Create OPlayer upload button
+        self.oplayer_button = RoundButton(
+            parent=self,
+            text="OP",
+            size=48,
+            bg_opacity=0.5
+        )
+        self.oplayer_button.clicked.connect(self._on_oplayer_upload_clicked)
+        
+        # Create upload status overlay
+        self.upload_status = UploadStatusOverlay(self)
+        
         # Create speed overlay
-        self.speed_overlay = SpeedOverlay(self) # Parent is now self
+        self.speed_overlay = SpeedOverlay(self)
         self.speed_overlay.hide()  # Initially hidden
         
         # Initial positioning will be done in resizeEvent
@@ -114,6 +107,63 @@ class PlayerPage(QWidget):
         if self.persistent_player:
             self.persistent_player.load_media()
     
+    def _on_oplayer_upload_clicked(self):
+        """Handle OPlayer upload button click"""
+        if not self.persistent_player:
+            print("[PlayerPage] Error: No persistent player available")
+            return
+            
+        # Get current media path - access through backend
+        media_path = self.persistent_player.backend.get_current_media_path()
+        print(f"[PlayerPage] Current media path: {media_path}")
+        
+        if not media_path:
+            error_msg = "No media currently playing. Please select a file to upload."
+            print(f"[PlayerPage] Error: {error_msg}")
+            QMessageBox.warning(
+                self,
+                "Upload Error",
+                error_msg
+            )
+            return
+            
+        # Test connection before attempting upload
+        print("[PlayerPage] Testing connection to OPlayer device...")
+        if not self.oplayer_service.test_connection():
+            error_msg = "Could not connect to OPlayer device. Please check your network connection and device status."
+            print(f"[PlayerPage] Error: {error_msg}")
+            QMessageBox.critical(
+                self,
+                "Connection Error",
+                error_msg
+            )
+            return
+            
+        # Start upload
+        print(f"[PlayerPage] Starting upload of: {media_path}")
+        self.oplayer_service.upload_file(media_path)
+        
+    def _on_upload_started(self, filename):
+        """Handle upload started signal"""
+        print(f"[PlayerPage] Upload started: {filename}")
+        self.upload_status.show_upload_started(filename)
+        self._update_upload_status_position()
+        
+    def _on_upload_progress(self, percentage):
+        """Handle upload progress signal"""
+        print(f"[PlayerPage] Upload progress: {percentage}%")
+        self.upload_status.show_upload_progress(percentage)
+        
+    def _on_upload_completed(self, filename):
+        """Handle upload completed signal"""
+        print(f"[PlayerPage] Upload completed: {filename}")
+        self.upload_status.show_upload_completed(filename)
+        
+    def _on_upload_failed(self, error_msg):
+        """Handle upload failed signal"""
+        print(f"[PlayerPage] Upload failed: {error_msg}")
+        self.upload_status.show_upload_failed(error_msg)
+        
     def _update_track_info(self, metadata):
         """Update just the album art when track changes"""
         artwork_path = metadata.get('artwork_path')
@@ -215,17 +265,22 @@ class PlayerPage(QWidget):
         """Handle resize event to adjust album art size and reposition overlays"""
         super().resizeEvent(event)
         
-        # Optional: Adjust minimum album art size based on window size if desired
-        # window_size = self.size()
-        # min_dimension = min(window_size.width(), window_size.height()) - 100
-        # self.album_art.setMinimumSize(min_dimension, min_dimension)
-        
         # Position Open File button overlay in top-left corner
         margin = 20
+        button_spacing = 10  # Space between buttons
         self.open_file_button.move(margin, margin)
+        
+        # Position OPlayer button to the right of the open file button
+        self.oplayer_button.move(
+            margin + self.open_file_button.width() + button_spacing,
+            margin
+        )
         
         # Position the speed overlay (top-right)
         self._update_speed_overlay_position()
+        
+        # Position the upload status overlay
+        self._update_upload_status_position()
         
     def _update_speed_overlay_position(self):
         """Update the position of the speed overlay relative to the PlayerPage"""
@@ -251,3 +306,11 @@ class PlayerPage(QWidget):
                 self.persistent_player.pause()
             else:
                 self.persistent_player.play() 
+
+    def _update_upload_status_position(self):
+        """Update the position of the upload status overlay"""
+        # Center horizontally, position near the top
+        status_x = (self.width() - self.upload_status.width()) // 2
+        status_y = 100  # Position below the top buttons
+        self.upload_status.move(status_x, status_y)
+        self.upload_status.raise_()  # Ensure it's on top 
