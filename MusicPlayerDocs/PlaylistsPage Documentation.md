@@ -2,128 +2,133 @@
 
 ## 1. Introduction
 
-This document outlines the design and implementation plan for the `PlaylistsPage` within the Music Player application. The goal of this page is to provide users with a comprehensive interface for creating, managing, viewing, and playing music playlists.
+This document outlines the design and implementation of the `PlaylistsPage` within the Music Player application. The goal of this page is to provide users with an interface for creating, managing, viewing, and potentially playing music playlists.
+
+Currently, the page primarily features a **Dashboard Mode** for managing the list of playlists. A **Play Mode** for viewing and editing individual playlist contents, including a **Selection Pool** feature, is planned as described below.
 
 ## 2. Core Concepts
 
-*   **Modes:** The page operates in two distinct modes:
-    *   **Dashboard Mode:** Provides an overview of all existing playlists, allowing users to add, delete, or select a playlist to view/play.
-    *   **Play Mode:** Displays the contents of a single, selected playlist. Allows editing of the playlist and serves as the source for playback initiated from this page.
-*   **Current Playing Playlist:** A globally accessible reference (likely managed by the `MusicPlayerDashboard` or a dedicated service) to the `Playlist` object that is currently loaded for playback. This is updated when a playlist is opened in "Play Mode" and potentially cleared or changed when a single file is opened elsewhere (e.g., from `PlayerPage`).
-*   **Selection Pool:** A temporary holding area within the "Play Mode" view. It contains a list of tracks (file paths) that can be easily added to the currently viewed playlist. Tracks in the pool are unique.
+*   **Modes:** The page is designed to operate in two distinct modes:
+    *   **Dashboard Mode (Implemented):** Provides an overview of all existing playlists located in the configured working directory. Allows users to create, import, rename, delete, or select a playlist. Selecting a playlist transitions the view to Play Mode.
+    *   **Play Mode (Partially Implemented - Layout and Basic Functionality):** Displays the contents (tracks) of a single, selected playlist. It allows users to manage the tracks within that playlist and interact with a temporary "Selection Pool" to stage tracks before adding them.
+*   **Current Playing Playlist (Global Reference - Implemented):** When a playlist is selected in Dashboard Mode and the application enters Play Mode, a global variable (`current_playing_playlist` in `playlists_page.py`) is updated to hold a reference to the selected `Playlist` object. This allows other components, like the main player, to access the currently active playlist for playback. The `playlist_selected_for_playback` signal is also emitted. Playback itself starts immediately upon entering Play Mode.
+*   **Selection Pool (Planned Functionality within Play Mode):** A key feature of the Play Mode. The Selection Pool acts as a temporary staging area or clipboard for track file paths. Users can populate this pool by dragging files/folders from their operating system, using a "Browse" button to select a folder, or by removing tracks from the currently viewed playlist. Tracks from the pool can then be added back into the current playlist. This facilitates easier playlist editing and track management.
 
 ## 3. UI Structure and Layout
 
-The `PlaylistsPage` widget will contain a `QStackedWidget` to manage switching between the two modes.
+The `PlaylistsPage` widget contains a `QStackedWidget` to manage switching between the different views (Dashboard and Play Mode).
 
-### 3.1 Dashboard Mode Layout
+### 3.1 Dashboard Mode Layout (Implemented)
 
 *   **View Container:** A `QWidget` subclass (`PlaylistDashboardWidget`).
-*   **Layout:** Likely a `QVBoxLayout`.
-*   **Components:**
-    *   **Playlist List (`PlaylistListView`):** A `QListWidget` (or custom view) displaying the names of all saved playlists.
-    *   **Action Buttons:** Buttons for "Add New Playlist" and "Delete Selected Playlist".
+*   **Layout:** A `QVBoxLayout` containing:
+    *   **Playlist List (`PlaylistListView`):** A `QListWidget` displaying the names of all saved playlists found in the configured directory (`<Working Directory>/playlists/`).
+    *   **Empty Message (`QLabel`):** Shown when no playlists are found.
+    *   **Floating Add Button (`RoundButton`):** A '+' button positioned at the bottom center to trigger new playlist creation.
 
-### 3.2 Play Mode Layout
+### 3.2 Play Mode Layout (Implemented for Breadcrumb and List; Selection Pool Planned)
 
-*   **View Container:** A `QWidget` subclass (`PlaylistEditWidget`).
-*   **Layout:** Likely a `QVBoxLayout` containing:
-    *   **Top Section:** A `QHBoxLayout` containing:
-        *   A "Back" button (to return to Dashboard Mode).
-        *   A `QLabel` displaying the current playlist's name.
-        *   Stretch/Spacer.
-    *   **Main Content Area:** A `QSplitter` (horizontal) dividing the space between:
-        *   **Left Pane (Playlist Tracks):** A `TrackListView` component displaying the tracks currently in the playlist. Allows reordering (optional) and deletion.
-        *   **Right Pane (Selection Pool):** A `SelectionPoolWidget` containing:
-            *   An "Add Selected to Playlist" button (`+`).
-            *   A `TrackListView` displaying tracks in the selection pool. Allows multi-selection. May include inline "+" buttons per track.
+*   **View Container:** A `QWidget` subclass (`PlaylistPlaymodeWidget`).
+*   **Layout:** Currently uses absolute positioning for the breadcrumb and content area.
+    *   **Breadcrumb Container (`QWidget`):** Positioned at the top (0, 0).
+        *   **Layout:** `QHBoxLayout`.
+        *   **Back Button (`QPushButton`):** '<' button to return to Dashboard Mode.
+        *   **Playlist Name (`QLabel`):** Displays the name of the current playlist.
+    *   **Content Container (`QWidget`):** Positioned below the breadcrumb.
+        *   **Layout:** `QVBoxLayout` containing:
+            *   **Playlist Tracks (`QListWidget`):** Displays the filenames of tracks currently in the loaded playlist. *(Scrollable by default)*.
+            *   **Empty Message (`QLabel`):** Shown when the playlist has no tracks.
+            *   **(Planned): Selection Pool Area:**
+                *   **Header/Title (`QLabel`, `QHBoxLayout`):** Likely a label "Selection Pool" and potentially action buttons (like the planned "Browse" button).
+                *   **Selection Pool List (`SelectionPoolWidget`):** A distinct area (likely another `QListWidget` or similar) below the header, displaying the filenames staged in the pool.
 
 ## 4. Components Breakdown
 
-*   **`PlaylistsPage` (Main Widget):**
+*   **`PlaylistsPage` (Main Widget - Implemented):**
     *   Owns the `QStackedWidget`.
-    *   Owns instances of `PlaylistDashboardWidget` and `PlaylistEditWidget`.
-    *   Manages switching between modes (`_enter_dashboard_mode`, `_enter_play_mode`).
-    *   Communicates with the `PlaylistManager` (or equivalent) to load/save/delete playlists.
-    *   Updates the global "Current Playing Playlist" state when entering Play Mode.
-    *   Handles Drag and Drop events for the entire page (delegating to the Selection Pool if in Play Mode).
+    *   Owns instances of `PlaylistDashboardWidget` and `PlaylistPlaymodeWidget`.
+    *   Manages switching between Dashboard and Play Modes (`_enter_dashboard_mode`, `_enter_play_mode`).
+    *   Communicates with `PlaylistManager` for playlist operations.
+    *   Updates the global `current_playing_playlist` variable.
+    *   Emits `playlist_selected_for_playback` signal.
+    *   **(Planned):** Will need to handle Drag and Drop events (specifically `dragEnterEvent`, `dragMoveEvent`, `dropEvent`) when in Play Mode to accept files/folders dropped onto the page, adding relevant tracks to the `SelectionPoolWidget`.
 
-*   **`PlaylistDashboardWidget`:**
-    *   Contains the `PlaylistListView` and action buttons.
-    *   Emits signals when "Add", "Delete" are clicked, or when a playlist is selected/double-clicked in the list view.
+*   **`PlaylistDashboardWidget` (Implemented):**
+    *   Contains the `PlaylistListView`, empty message label, and the floating Add button.
+    *   Emits signals for user actions (create, import, select).
+    *   **(Planned):** Needs UI (e.g., context menu) to trigger edit/rename/delete signals.
 
-*   **`PlaylistListView` (`QListWidget` or Custom):**
-    *   Displays playlist names.
-    *   Handles single selection for deletion.
-    *   Handles double-click or Enter key press to trigger opening a playlist.
+*   **`PlaylistListView` (`QListWidget` subclass - Implemented):**
+    *   Displays playlist names in Dashboard Mode.
+    *   Stores the `Playlist` object with each item.
+    *   Handles double-click to trigger entering Play Mode.
+    *   **(Planned):** Needs context menus for edit/rename/delete actions.
 
-*   **`PlaylistEditWidget`:**
+*   **`PlaylistPlaymodeWidget` (Implemented for Breadcrumb and Track List):**
     *   Container for the Play Mode UI.
-    *   Displays the playlist title.
-    *   Owns the `QSplitter`, `TrackListView` (for playlist), and `SelectionPoolWidget`.
-    *   Connects signals/slots between the playlist view, selection pool, and underlying playlist data.
-    *   Handles the "Back" button action.
+    *   Displays the breadcrumb (Back button, Playlist name).
+    *   Contains the `QListWidget` (`tracks_list`) to display tracks of the loaded playlist.
+    *   Loads playlist data via `load_playlist` method.
+    *   Emits `back_requested` signal.
+    *   **(Planned):** Will contain the `SelectionPoolWidget` and its associated header/buttons (including "Browse"). Will need methods to interact with the pool (add tracks, get selected tracks from pool) and to handle actions like removing tracks from its `tracks_list` (which should add them to the pool). Will likely trigger the folder browsing action when the "Browse" button is clicked.
 
-*   **`TrackListView` (`QListWidget` or Custom):**
-    *   Displays track information (e.g., title, maybe artist/duration fetched later). Needs to store the full file path associated with each item.
-    *   Supports single and multi-selection (`QAbstractItemView.ExtendedSelection`).
-    *   Handles deletion of items (for the playlist view).
-    *   Optionally supports drag-and-drop reordering within the playlist view.
-    *   May display an inline "+" button for each item when used in the Selection Pool.
+*   **`SelectionPoolWidget` (Planned / Not Implemented - File `selection_pool.py` created):**
+    *   Planned component for managing and displaying the track selection pool in Play Mode.
+    *   Likely a `QListWidget` or custom view, placed below a header containing its title and action buttons (like "Browse").
+    *   Needs methods to add tracks (individually or list), remove tracks, get selected tracks, and clear the pool.
+    *   Will need to handle user interaction for selecting items to be added back to the main playlist.
 
-*   **`SelectionPoolWidget`:**
-    *   Contains the "Add Selected" button and the `TrackListView` for the pool.
-    *   Manages the internal list of unique track file paths in the pool.
-    *   Provides methods to add tracks/folders (`add_paths_to_pool`), ensuring uniqueness.
-    *   Handles Drag and Drop events specifically for adding items to the pool.
-    *   Emits a signal when "Add Selected" is clicked, passing the list of selected file paths.
-    *   Connects to the playlist's track deletion signal to add deleted tracks back to the pool.
+*   **`TrackListView` (`QListWidget` or Custom - Name used conceptually, current implementation uses plain `QListWidget` in `PlaylistPlaymodeWidget`):**
+    *   Component for displaying tracks within the playlist in Play Mode.
+    *   **(Planned):** Needs context menus or buttons to allow track removal (which adds to Selection Pool) and potentially reordering via DND within the list itself.
 
 ## 5. State Management
 
-*   **Mode Switching:** `PlaylistsPage` will have an internal state variable (e.g., `self._mode`) and use `self.stacked_widget.setCurrentWidget()` to change the visible view.
-*   **Current Playlist (in Play Mode):** `PlaylistEditWidget` will hold a reference to the currently loaded `Playlist` object for display and modification.
-*   **Current Playing Playlist (Global):**
-    *   When `_enter_play_mode` is called, `PlaylistsPage` needs to update a central state manager or emit a signal indicating the new playlist to be used for playback. The `MainPlayer` should listen for this change.
-    *   When the user initiates playback elsewhere (e.g., "Open File" in `PlayerPage`), the central state manager should clear the "Current Playing Playlist" or update it accordingly.
-*   **Selection Pool State:** `SelectionPoolWidget` maintains its own list of file paths. This state is transient and might be cleared when switching playlists or modes, or persisted across sessions (TBD). For simplicity, let's assume it's cleared when leaving Play Mode initially.
+*   **Mode Switching (Implemented):** `PlaylistsPage` uses `self.stacked_widget.setCurrentWidget()`.
+*   **Current Playlist (in Play Mode - Implemented):** `PlaylistsPage` stores `_current_playlist_in_edit`, and `PlaylistPlaymodeWidget` stores `current_playlist`.
+*   **Current Playing Playlist (Global - Implemented):** The global variable `current_playing_playlist` in `playlists_page.py` holds the reference for playback. Updated when entering Play Mode. Accessible via `PlaylistsPage.get_current_playing_playlist()`.
+*   **Selection Pool State (Planned / Not Implemented):** This state (list of track file paths) will likely be managed within the `SelectionPoolWidget` itself, or potentially held in the parent `PlaylistPlaymodeWidget` or even `PlaylistsPage` if complex interactions are needed.
 
 ## 6. Workflow and Interaction
 
-*   **Viewing Playlists:** User navigates to `PlaylistsPage`, sees Dashboard Mode by default. `PlaylistListView` is populated.
-*   **Adding Playlist:** User clicks "Add", a dialog prompts for a name, a new empty `Playlist` object is created and saved (via `PlaylistManager`), list view updates.
-*   **Deleting Playlist:** User selects a playlist, clicks "Delete", confirmation dialog, playlist is deleted (via `PlaylistManager`), list view updates.
-*   **Opening Playlist:** User double-clicks a playlist item.
-    1.  `PlaylistsPage` calls `_enter_play_mode(playlist_object)`.
-    2.  Switches `QStackedWidget` to `PlaylistEditWidget`.
-    3.  Loads playlist tracks into the playlist's `TrackListView`.
-    4.  Updates the playlist title label.
-    5.  Updates the global "Current Playing Playlist" reference.
-    6.  Signals `MainPlayer` to start playing the first track of this playlist.
-    7.  Clears the `SelectionPoolWidget`.
-*   **Adding to Selection Pool (DND Files):** User drags media files onto `SelectionPoolWidget`.
-    1.  `SelectionPoolWidget` accepts the drop event.
-    2.  Extracts file paths from the event's MIME data.
-    3.  Calls `add_paths_to_pool` for each valid media file path.
-*   **Adding to Selection Pool (DND Folders):** User drags folders onto `SelectionPoolWidget`.
-    1.  `SelectionPoolWidget` accepts the drop event.
-    2.  Extracts folder paths.
-    3.  Recursively scans each folder for valid media files.
-    4.  Calls `add_paths_to_pool` for each found media file path.
-*   **Adding to Selection Pool (From Other Playlist):** (Requires UI element, e.g., a button "Import from Playlist...") User selects another playlist, its tracks are added via `add_paths_to_pool`.
-*   **Adding to Selection Pool (From Deletion):** User selects track(s) in the playlist's `TrackListView` and triggers deletion.
-    1.  `PlaylistEditWidget` handles the deletion action.
-    2.  Calls `playlist_object.remove_track(track_path)`.
-    3.  Calls `selection_pool_widget.add_paths_to_pool([track_path])`.
-    4.  Updates the playlist's `TrackListView`.
-*   **Adding Track from Pool to Playlist:**
-    *   **Single:** User clicks inline "+" on a track in the pool's `TrackListView`. `SelectionPoolWidget` emits signal with the single track path.
-    *   **Multiple:** User selects multiple tracks in the pool's `TrackListView`, clicks the main "Add Selected" button. `SelectionPoolWidget` emits signal with the list of selected track paths.
-    *   `PlaylistEditWidget` receives the signal, calls `playlist_object.add_track(path)` for each path, updates the playlist's `TrackListView`.
+*   **Viewing Playlists (Implemented):** Navigate to `PlaylistsPage` -> Dashboard Mode -> `PlaylistManager` loads -> List populated.
+*   **Adding Playlist (Implemented):** Click '+' -> Prompt -> Save via `PlaylistManager` -> Refresh list.
+*   **Importing Playlist (Implemented for JSON copy/other copy):** Trigger import -> File Dialog -> Overwrite check -> `Playlist.load_from_file` for JSON / Simple copy for others -> Save via `PlaylistManager` -> Refresh list.
+*   **Renaming Playlist (Implemented Logic, No UI Trigger):** Needs context menu. Logic: Prompt -> Check conflict -> Rename file -> Update `Playlist` object -> Save -> Refresh list.
+*   **Deleting Playlist (Implemented Logic, No UI Trigger):** Needs context menu. Logic: Confirm -> `PlaylistManager.delete_playlist` -> Refresh list.
+*   **Opening Playlist (Implemented):** Double-click item -> `_enter_play_mode` called -> Global playlist ref updated -> `PlaylistPlaymodeWidget` loaded -> `playlist_selected_for_playback` emitted -> `MainPlayer` (or other listener) should start playback. View switches to `PlaylistPlaymodeWidget`.
+*   **Returning to Dashboard (Implemented):** Click '<' in Play Mode breadcrumb -> `_enter_dashboard_mode` called -> View switches to `PlaylistDashboardWidget`. *Playback continues.*
+*   **Adding to Selection Pool via DND (Planned):**
+    1.  User drags file(s) or folder(s) from Explorer onto the `PlaylistsPage` while in Play Mode.
+    2.  `PlaylistsPage.dropEvent` (or similar DND handlers) receives the event.
+    3.  If folders are dropped, recursively find all media files within them.
+    4.  Extract file paths.
+    5.  Call a method on `SelectionPoolWidget` (e.g., `add_tracks(list_of_paths)`) to add the valid media file paths to the pool.
+*   **Adding to Selection Pool via Browse Button (Planned):**
+    1.  User clicks the "Browse" button located near the Selection Pool in Play Mode.
+    2.  A folder selection dialog (`QFileDialog.getExistingDirectory`) opens.
+    3.  User selects a folder and confirms.
+    4.  The application recursively scans the selected folder for media files (e.g., based on extensions like `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`).
+    5.  The list of found media file paths is passed to the `SelectionPoolWidget` (`add_tracks(list_of_paths)`).
+*   **Adding to Selection Pool via Deletion (Planned):**
+    1.  User selects a track in the `PlaylistPlaymodeWidget.tracks_list`.
+    2.  User triggers deletion (e.g., via context menu or 'Delete' key - needs implementation).
+    3.  The track is removed from the `Playlist` object (`current_playlist.remove_track`).
+    4.  The `Playlist` object is saved (`current_playlist.save()`).
+    5.  The removed track's path is added to the `SelectionPoolWidget` (`add_tracks([removed_path])`).
+    6.  The `PlaylistPlaymodeWidget.tracks_list` is refreshed.
+*   **Adding from Selection Pool to Playlist (Planned):**
+    1.  User selects one or more tracks in the `SelectionPoolWidget`.
+    2.  User triggers an "Add to Playlist" action (e.g., button, context menu, DND onto track list - needs implementation).
+    3.  Get selected track paths from `SelectionPoolWidget`.
+    4.  Add these paths to the `Playlist` object (`current_playlist.add_track`).
+    5.  Save the `Playlist` object (`current_playlist.save()`).
+    6.  Optionally, remove added tracks from the `SelectionPoolWidget`.
+    7.  Refresh `PlaylistPlaymodeWidget.tracks_list`.
 
-## 7. Data Model (`playlist.py`)
+## 7. Data Model (`playlist.py` - Implemented)
 
-A new file `./music_player/models/playlist.py` defines the core data structures for managing playlists. It contains the `Playlist` class to represent individual playlists and a `PlaylistManager` class to handle interactions with the filesystem.
+A file `./music_player/models/playlist.py` defines the core data structures.
 
 ### 7.1 `Playlist` Class
 
@@ -131,57 +136,58 @@ A new file `./music_player/models/playlist.py` defines the core data structures 
 
 **Key Attributes:**
 
-*   `name (str)`: The user-defined name of the playlist.
-*   `filepath (Optional[Path])`: The absolute path to the `.json` file where this playlist is stored on disk. If `None`, the playlist is considered new or unsaved.
-*   `tracks (List[str])`: An ordered list containing the absolute file paths of the tracks included in the playlist.
-*   `_track_set (set[str])`: An internal set containing the same track paths as `tracks`. This is used purely for performance optimization, allowing for quick O(1) checks for track existence (uniqueness) when adding new tracks, rather than iterating through the `tracks` list (O(n)).
+*   `name (str)`: User-defined name.
+*   `filepath (Optional[Path])`: Absolute path to the `.json` file (e.g., `.../WorkingDir/playlists/My Favs.json`). `None` if unsaved.
+*   `tracks (List[str])`: Ordered list of absolute track file paths.
+*   `_track_set (set[str])`: Internal set for quick uniqueness checks.
 
 **Key Methods:**
 
-*   `__init__(self, name, filepath=None, tracks=None)`: Constructor. Initializes the name and track list. If a valid `filepath` is provided and no initial `tracks` are given, it attempts to automatically load the playlist content from the file by calling `_load()`.
-*   `add_track(self, track_path)`: Adds a given track file path to the end of the `tracks` list and `_track_set`. It first checks for existence in the `_track_set` to ensure track uniqueness within the playlist. Returns `True` if the track was added, `False` otherwise.
-*   `remove_track(self, track_path)`: Removes a track path from both the `tracks` list and the `_track_set`. Returns `True` if successful, `False` if the track wasn't found.
-*   `_load(self)`: Private helper method to load playlist data (name and track list) from the JSON file specified by `self.filepath`. Includes error handling for file not found, JSON decoding errors, and basic format validation. It updates the instance's `name` if the file contains a different name.
-*   `save(self, playlist_dir=DEFAULT_PLAYLIST_DIR)`: Saves the playlist's current state (name and track list) to a JSON file. If `self.filepath` is not set (i.e., it's a new playlist), it determines the correct path using `PlaylistManager.get_playlist_path()` within the specified `playlist_dir`. It ensures the target directory exists and handles potential I/O errors.
-*   `load_from_file(filepath)` (staticmethod): A factory method that takes a file path, reads the JSON data, validates it, and returns a new `Playlist` instance. Returns `None` if loading fails.
-*   `__len__(self)`: Returns the number of tracks.
-*   `__repr__(self)`: Provides a developer-friendly string representation.
-*   `__eq__(self, other)`, `__hash__(self)`: Define equality and hashing based primarily on the `filepath` for reliable use in collections when playlists are associated with files. Falls back to name and track content if filepaths are not available.
+*   `__init__`: Initializes name, tracks. Loads from `filepath` if provided and `tracks` is `None`.
+*   `add_track`: Adds unique track path.
+*   `remove_track`: Removes track path.
+*   `_load`: Loads data from `self.filepath`.
+*   `save(self, working_dir=None)`: Saves state to JSON. Determines path within `<working_dir>/playlists/` if `self.filepath` is `None` or points outside. Uses working directory from settings if `working_dir` arg is `None`.
+*   `load_from_file(filepath)` (staticmethod): Factory method to load from a specific path.
+*   `__len__`, `__repr__`, `__eq__`, `__hash__`.
 
 **Design Choices:**
 
-*   Uses JSON for storing playlist data due to its human-readability and ease of parsing in Python.
-*   Maintains both a `list` (for order) and a `set` (for uniqueness check performance) of tracks.
-*   Separates the logic for loading a playlist from a file (`load_from_file`) from the instance initialization (`__init__`).
+*   Uses JSON for internal storage.
+*   Maintains `list` and `set` for tracks.
 
 ### 7.2 `PlaylistManager` Class
 
-**Purpose:** Acts as a service to discover, load, save, and delete `Playlist` objects from a designated directory on the filesystem.
+**Purpose:** Service to discover, load, save, delete `Playlist` objects from the designated playlist directory within the application's working directory.
 
 **Key Attributes:**
 
-*   `playlist_dir (Path)`: The directory managed by this instance, where playlist `.json` files are stored.
+*   `working_dir (Path)`: The root working directory read from settings (`preferences/working_dir`), defaulting to `Path.home()`.
+*   `playlist_dir (Path)`: The specific subdirectory (`<working_dir>/playlists/`) where `.json` files are stored.
 
 **Key Methods:**
 
-*   `__init__(self, playlist_dir=DEFAULT_PLAYLIST_DIR)`: Constructor. Sets the target directory and ensures it exists.
-*   `_sanitize_filename(name)` (staticmethod): A private helper to remove characters from a playlist name that are invalid in filenames across different operating systems.
-*   `get_playlist_path(playlist_name, playlist_dir=DEFAULT_PLAYLIST_DIR)` (staticmethod): Generates the full, absolute path for a playlist file given its name and the target directory, incorporating filename sanitization.
-*   `load_playlists(self)`: Scans the `playlist_dir` for `.json` files, attempts to load each one using `Playlist.load_from_file`, and returns a list of successfully loaded `Playlist` objects.
-*   `save_playlist(self, playlist)`: Saves a given `Playlist` object. It ensures the playlist's `filepath` attribute points within the manager's `playlist_dir`, generating the path if necessary, before calling the `playlist.save()` method.
-*   `delete_playlist(self, playlist)`: Deletes the associated `.json` file for the given `Playlist` object from the filesystem. Checks if the `filepath` attribute exists and handles potential file system errors.
+*   `__init__(self, working_dir=None)`: Initializes paths. Reads working directory setting via `get_default_working_dir()` if `working_dir` arg is `None`. Ensures `<working_dir>/playlists/` exists.
+*   `_sanitize_filename(name)` (staticmethod): Helper to clean names for filenames.
+*   `get_playlist_path(playlist_name, playlist_dir=None)` (staticmethod): Generates the full path within the appropriate `playlist_dir` (calculating default from settings if `playlist_dir` arg is `None`).
+*   `load_playlists(self)`: Scans `self.playlist_dir` for `.json` files and loads them.
+*   `save_playlist(self, playlist)`: Ensures playlist's filepath points within `self.playlist_dir`, then calls `playlist.save(self.working_dir)`.
+*   `delete_playlist(self, playlist)`: Deletes the `.json` file associated with the playlist.
 
 **Design Choices:**
 
-*   Centralizes filesystem interactions related to playlists.
-*   Provides utility methods for generating consistent file paths and sanitizing names.
-*   Decouples the `Playlist` object itself from the knowledge of *where* all playlists are stored system-wide; the `Playlist` only knows its *own* path once saved.
+*   Centralizes filesystem interactions for playlists.
+*   Uses the application's configured working directory setting.
+*   Stores playlists in a dedicated `playlists` subdirectory.
 
-## 8. Future Enhancements (Optional)
+## 8. Future Enhancements (Optional / Planned)
 
-*   Track reordering via Drag and Drop within the playlist view.
-*   Inline editing of playlist names in Dashboard Mode.
-*   Search/filtering within playlist view and selection pool.
-*   Fetching and displaying more track metadata (duration, artist) in the lists.
-*   Saving/Loading Selection Pool state.
-*   Importing/Exporting different playlist formats.
+*   **Implement Selection Pool UI/Logic:** Build `SelectionPoolWidget`, integrate into `PlaylistPlaymodeWidget`, implement add/remove/get methods. Add the "Browse" button and connect its logic.
+*   **Implement DND for Selection Pool:** Add DND handlers to `PlaylistsPage` for adding files/folders.
+*   **Implement Playlist Track Removal/Addition:** Add UI triggers (context menus, buttons) in `PlaylistPlaymodeWidget` and `SelectionPoolWidget` for moving tracks between the playlist and the pool.
+*   **Implement Playlist Playback Logic:** Ensure `MainPlayer` listens to `playlist_selected_for_playback` and correctly loads/plays the `current_playing_playlist`.
+*   **Implement Dashboard Context Menu:** Add right-click menu to `PlaylistListView` to trigger edit/rename/delete actions.
+*   Implement track reordering via Drag and Drop within the playlist track list.
+*   Implement search/filtering within the playlist track list or selection pool.
+*   Fetch and display more track metadata in lists.
+*   Implement import/export for standard formats (M3U, PLS).

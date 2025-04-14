@@ -10,15 +10,16 @@ class PlaylistListView(QListWidget):
         super().__init__(parent)
         self.setObjectName("playlistListView")
 
-        # Basic styling (can be enhanced later)
+        # Updated styling to match page background
         self.setStyleSheet("""
             QListWidget {
-                border: 1px solid #444;
-                border-radius: 4px;
+                background-color: transparent;
+                border: none;
                 padding: 5px;
             }
             QListWidget::item {
                 padding: 5px;
+                border-radius: 4px;
             }
             QListWidget::item:selected {
                 background-color: #555;

@@ -21,9 +21,11 @@ from qt_base_app.models.settings_manager import SettingsManager, SettingType
 # Import playlist specific components
 from music_player.models.playlist import Playlist, PlaylistManager
 from music_player.ui.components.playlist_components.playlist_dashboard import PlaylistDashboardWidget
-# Import Play mode widget later when created
-# from .components.playlist_components.playlist_edit import PlaylistEditWidget
+from music_player.ui.components.playlist_components.playlist_playmode import PlaylistPlaymodeWidget
 
+
+# Global variable to store the current playlist being played
+current_playing_playlist = None
 
 class PlaylistsPage(QWidget):
     """
@@ -41,7 +43,8 @@ class PlaylistsPage(QWidget):
         # Initialize settings and theme
         self.settings = SettingsManager.instance()
         self.theme = ThemeManager.instance()
-        self.playlist_manager = PlaylistManager() # Instantiate manager
+        # Defer PlaylistManager initialization to when it's needed
+        self.playlist_manager = None
 
         # Internal state
         self._current_mode = "dashboard" # "dashboard" or "play"
@@ -65,13 +68,9 @@ class PlaylistsPage(QWidget):
         self.dashboard_widget = PlaylistDashboardWidget(self)
         self.stacked_widget.addWidget(self.dashboard_widget)
 
-        # --- Play Mode Widget (Placeholder) --- 
-        # self.play_mode_widget = PlaylistEditWidget(self)
-        # self.stacked_widget.addWidget(self.play_mode_widget)
-        # TODO: Create PlaylistEditWidget later
-        placeholder_play_mode = QLabel("Play Mode - Coming Soon") # Placeholder
-        placeholder_play_mode.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.stacked_widget.addWidget(placeholder_play_mode)
+        # --- Play Mode Widget ---
+        self.play_mode_widget = PlaylistPlaymodeWidget(self)
+        self.stacked_widget.addWidget(self.play_mode_widget)
 
         self.main_layout.addWidget(self.stacked_widget)
 
@@ -90,24 +89,35 @@ class PlaylistsPage(QWidget):
         # self.dashboard_widget.rename_playlist_requested.connect(self.rename_playlist)
         # self.dashboard_widget.delete_playlist_requested.connect(self.delete_playlist)
 
-        # TODO: Connect signals for PlayModeWidget when created
-        # self.play_mode_widget.back_requested.connect(self._enter_dashboard_mode)
+        # Connect signals for PlayModeWidget
+        self.play_mode_widget.back_requested.connect(self._enter_dashboard_mode)
 
     # --- Mode Switching --- 
     def _enter_dashboard_mode(self):
         self._current_mode = "dashboard"
-        self._current_playlist_in_edit = None
+        # Note: We don't reset _current_playlist_in_edit here so playback can continue
         self.stacked_widget.setCurrentWidget(self.dashboard_widget)
         self.load_playlists_into_dashboard() # Refresh list when returning
 
     def _enter_play_mode(self, playlist: Playlist):
+        global current_playing_playlist
+        
         self._current_mode = "play"
         self._current_playlist_in_edit = playlist
-        # TODO: Update and switch to the actual play_mode_widget
-        # self.play_mode_widget.load_playlist(playlist)
-        # self.stacked_widget.setCurrentWidget(self.play_mode_widget)
-        print(f"Entering play mode for: {playlist.name}") # Placeholder
-        self.stacked_widget.setCurrentIndex(1) # Switch to placeholder
+        
+        # Update the global reference to the current playlist
+        current_playing_playlist = playlist
+        
+        # Load playlist into the play mode widget
+        self.play_mode_widget.load_playlist(playlist)
+        
+        # Make sure the widget is visible
+        self.play_mode_widget.setVisible(True)
+        self.stacked_widget.setCurrentWidget(self.play_mode_widget)
+        
+        # Force update (Can sometimes help with UI refresh issues)
+        self.stacked_widget.update()
+        self.update()
 
         # Emit signal to start playback
         self.playlist_selected_for_playback.emit(playlist)
@@ -116,7 +126,11 @@ class PlaylistsPage(QWidget):
     def load_playlists_into_dashboard(self):
         """
         Loads playlists using PlaylistManager and populates the dashboard list.
+        Ensures the manager uses the current working directory setting.
         """
+        # Initialize/Re-initialize PlaylistManager here to get the latest setting
+        self.playlist_manager = PlaylistManager()
+
         list_widget = self.dashboard_widget.get_playlist_list_widget()
         list_widget.clear()
         playlists = self.playlist_manager.load_playlists()
@@ -138,6 +152,10 @@ class PlaylistsPage(QWidget):
         """
         Handles the request to create a new playlist.
         """
+        # Ensure playlist manager is initialized
+        if not self.playlist_manager:
+            self.playlist_manager = PlaylistManager()
+
         playlist_name, ok = QInputDialog.getText(
             self,
             "Create New Playlist",
@@ -165,11 +183,18 @@ class PlaylistsPage(QWidget):
         """
         Handles the request to import playlist files.
         """
+        # Ensure playlist manager is initialized
+        if not self.playlist_manager:
+            self.playlist_manager = PlaylistManager()
+
+        # Use the configured working directory as the default starting point
+        working_dir = self.settings.get('preferences/working_dir', Path.home(), SettingType.PATH)
+
         # Open file dialog to select playlist files
         files, _ = QFileDialog.getOpenFileNames(
             self,
             "Import Playlist Files",
-            str(Path.home()),
+            str(working_dir), # Start browsing from the working directory
             "Playlist files (*.m3u *.m3u8 *.pls *.json)" # Add JSON
         )
 
@@ -179,6 +204,7 @@ class PlaylistsPage(QWidget):
         import_count = 0
         skipped_count = 0
         error_count = 0
+        # Use the playlist_dir from the manager instance, which is derived from working_dir
         target_dir = self.playlist_manager.playlist_dir
 
         for file_path_str in files:
@@ -267,11 +293,19 @@ class PlaylistsPage(QWidget):
     # --- Placeholder methods for context menu actions --- 
     # These will eventually be connected to signals from PlaylistDashboardWidget
     def edit_playlist(self, item: QListWidgetItem):
+        # Ensure playlist manager is initialized
+        if not self.playlist_manager:
+            self.playlist_manager = PlaylistManager()
+
         playlist = item.data(Qt.ItemDataRole.UserRole)
         if not isinstance(playlist, Playlist): return
         QMessageBox.information(self, "Edit Playlist", f"Editing: {playlist.name}\n(Not Implemented Yet)")
 
     def rename_playlist(self, item: QListWidgetItem):
+        # Ensure playlist manager is initialized
+        if not self.playlist_manager:
+            self.playlist_manager = PlaylistManager()
+
         playlist = item.data(Qt.ItemDataRole.UserRole)
         if not isinstance(playlist, Playlist): return
 
@@ -312,6 +346,10 @@ class PlaylistsPage(QWidget):
                  QMessageBox.critical(self, "Rename Error", f"An unexpected error occurred: {str(e)}")
 
     def delete_playlist(self, item: QListWidgetItem):
+        # Ensure playlist manager is initialized
+        if not self.playlist_manager:
+            self.playlist_manager = PlaylistManager()
+
         playlist = item.data(Qt.ItemDataRole.UserRole)
         if not isinstance(playlist, Playlist): return
 
@@ -329,8 +367,16 @@ class PlaylistsPage(QWidget):
             else:
                 QMessageBox.critical(self, "Delete Error", f"Failed to delete playlist '{playlist.name}'.")
 
-    # --- Drag and Drop Handling --- 
-    # TODO: Implement dragEnterEvent, dragMoveEvent, dropEvent here
-    # These should likely check the current mode and delegate to
-    # self.play_mode_widget.selection_pool_widget if in play mode.
+    # --- Access to current playlist ---
+    @staticmethod
+    def get_current_playing_playlist() -> Playlist:
+        """
+        Returns the current playlist that's being played.
+        This is intended to be used by the main player or other components.
+        
+        Returns:
+            Playlist: The current playlist or None if none is loaded/playing
+        """
+        global current_playing_playlist
+        return current_playing_playlist
 

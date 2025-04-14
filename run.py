@@ -40,7 +40,6 @@ def load_custom_fonts():
     
     # Add custom fonts if available
     if fonts_dir.exists():
-        print("Loading fonts from:", fonts_dir)
         for font_file, category in font_mappings.items():
             font_path = fonts_dir / font_file
             if font_path.exists():
@@ -49,7 +48,6 @@ def load_custom_fonts():
                     families = QFontDatabase.applicationFontFamilies(font_id)
                     if families:
                         font_families[category] = families[0]
-                        print(f"Loaded font: {font_file} as {families[0]}")
     
     return font_families
 
@@ -61,7 +59,6 @@ def apply_application_styles(app, font_families):
         app_font = QFont(font_families["default"])
         app_font.setPointSize(10)  # Set a reasonable default size
         app.setFont(app_font)
-        print(f"Set application-wide font to {font_families['default']}")
         
         # Create stylesheet for specific components
         stylesheet = f"""

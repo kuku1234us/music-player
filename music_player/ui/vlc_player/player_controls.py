@@ -28,8 +28,7 @@ class PlayerControls(QWidget):
         super().__init__(parent)
         self.setObjectName("playerControls")
         
-        # State
-        self.is_playing = False
+        # Remove internal state tracking - MainPlayer is the single source of truth
         
         # SVG Definitions
         self.next_button_svg = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-skip-forward-icon lucide-skip-forward"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></svg>"""
@@ -125,18 +124,34 @@ class PlayerControls(QWidget):
         self.next_button.clicked.connect(self.next_clicked)
         
     def _on_play_pause_clicked(self):
-        """Handle play/pause button click based on current state"""
-        if self.is_playing:
+        """
+        Handle play/pause button click by emitting the appropriate signal based on 
+        the current visual state of the button.
+        """
+        # Check the current state of the PlayButton
+        if self.play_pause_button.is_playing:
+            # Button shows pause icon, so emit pause
             self.pause_clicked.emit()
         else:
+            # Button shows play icon, so emit play
             self.play_clicked.emit()
     
     def set_playing_state(self, is_playing):
-        """Update UI to reflect playing/paused state"""
-        if self.is_playing != is_playing:
-            self.is_playing = is_playing
-            self.play_pause_button.set_playing(is_playing)
+        """
+        Update UI to reflect playing/paused state.
+        This method only updates the visual state without tracking state internally.
+        """
+        # Update PlayButton's visual state
+        self.play_pause_button.set_playing(is_playing)
     
+    def set_next_enabled(self, enabled=True):
+        """Enable or disable the next button"""
+        self.next_button.setEnabled(enabled)
+        
+    def set_prev_enabled(self, enabled=True):
+        """Enable or disable the previous button"""
+        self.prev_button.setEnabled(enabled)
+        
     def enable_controls(self, enabled=True):
         """Enable or disable all control buttons"""
         self.prev_button.setEnabled(enabled)

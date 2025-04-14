@@ -151,6 +151,10 @@ class MusicPlayerDashboard(BaseWindow):
         # Connect PlayerPage to the persistent player
         if hasattr(player_page, 'set_persistent_player'):
             player_page.set_persistent_player(self.player)
+            
+        # Connect PlaylistsPage to the player
+        if hasattr(playlists_page, 'playlist_selected_for_playback') and hasattr(self.player, 'load_playlist'):
+            playlists_page.playlist_selected_for_playback.connect(self.player.load_playlist)
         
         # Show the dashboard page initially
         self.show_page('dashboard')

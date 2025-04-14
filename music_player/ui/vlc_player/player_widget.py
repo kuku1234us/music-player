@@ -25,7 +25,7 @@ class PlayerWidget(QWidget):
     play_requested = pyqtSignal()
     pause_requested = pyqtSignal()
     next_requested = pyqtSignal()
-    previous_requested = pyqtSignal()
+    prev_requested = pyqtSignal()
     position_changed = pyqtSignal(int)
     volume_changed = pyqtSignal(int)
     rate_changed = pyqtSignal(float)
@@ -210,20 +210,18 @@ class PlayerWidget(QWidget):
             )
             
     def _connect_signals(self):
-        """Connect internal signals between UI components"""
-        # Connect control signals to widget signals
+        """Connect internal signals.
+        Connects button clicks and slider changes to appropriate slots or signals.
+        """
         self.controls.play_clicked.connect(self.play_requested)
         self.controls.pause_clicked.connect(self.pause_requested)
         self.controls.next_clicked.connect(self.next_requested)
-        self.controls.previous_clicked.connect(self.previous_requested)
+        self.controls.previous_clicked.connect(self.prev_requested)
         
-        # Connect repeat button signals
         self.repeat_button.state_changed.connect(self.repeat_state_changed)
         
-        # Connect volume signals
         self.volume_control.volume_changed.connect(self.volume_changed)
         
-        # Connect timeline signals
         self.timeline.position_changed.connect(self.position_changed)
         
     def update_track_info(self, title, artist, album, artwork_path=None):
@@ -286,3 +284,16 @@ class PlayerWidget(QWidget):
         
         # Emit the rate changed signal for the backend
         self.rate_changed.emit(rate) 
+
+    def set_next_prev_enabled(self, enabled: bool):
+        """Enable or disable the Next and Previous buttons in the controls."""
+        if hasattr(self.controls, 'set_next_enabled') and hasattr(self.controls, 'set_prev_enabled'):
+            self.controls.set_next_enabled(enabled)
+            self.controls.set_prev_enabled(enabled)
+        else:
+            # Fallback or warning if PlayerControls doesn't have the expected methods
+            print("Warning: PlayerWidget cannot set next/prev state - PlayerControls lacks methods.")
+            # You might need to access buttons directly if the methods don't exist:
+            # if hasattr(self.controls, 'next_button') and hasattr(self.controls, 'prev_button'):
+            #     self.controls.next_button.setEnabled(enabled)
+            #     self.controls.prev_button.setEnabled(enabled) 

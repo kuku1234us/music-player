@@ -2,19 +2,24 @@
 import json
 import os
 import re
+import random # Import random for shuffle
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+from qt_base_app.models.settings_manager import SettingsManager, SettingType
+# Assuming enums are accessible or defined here/imported globally
+# If not, define them or adjust path
+from music_player.ui.vlc_player.enums import REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM
 
-# --- Define a location for playlists ---
-# Ideally, this would use a platform-specific user data directory.
-# For simplicity now, let's put it in the project structure.
-# This should be configured properly later.
-DEFAULT_PLAYLIST_DIR = Path(__file__).parent.parent / "resources" / "playlists"
-DEFAULT_PLAYLIST_DIR.mkdir(parents=True, exist_ok=True) # Ensure directory exists
+# --- Define a default location for the working directory ---
+def get_default_working_dir() -> Path:
+    settings = SettingsManager.instance()
+    # Use the configured working directory, falling back to home
+    return settings.get('preferences/working_dir', Path.home(), SettingType.PATH)
 
 class Playlist:
     """
     Represents a single playlist, containing a name and a list of track file paths.
+    Includes logic for determining next/previous track index based on repeat/shuffle modes.
     """
     def __init__(self, name: str, filepath: Optional[Path] = None, tracks: Optional[List[str]] = None):
         """
@@ -24,6 +29,7 @@ class Playlist:
             name (str): The name of the playlist.
             filepath (Optional[Path]): The absolute path to the playlist file on disk.
                                        If None, it's considered an unsaved playlist.
+                                       Should be within the working directory.
             tracks (Optional[List[str]]): An initial list of absolute track file paths.
         """
         if not name:
@@ -33,10 +39,14 @@ class Playlist:
         # Use a set for quick uniqueness checks, but store as list to maintain order
         self._track_set: set[str] = set(tracks) if tracks else set()
         self.tracks: List[str] = list(tracks) if tracks else []
+        self._current_index: int = -1 # Initialize current index
 
         # If filepath is provided but no tracks, attempt to load
         if self.filepath and self.filepath.exists() and not tracks:
             self._load()
+            # After loading, set index to 0 if tracks exist
+            if self.tracks:
+                self._current_index = 0
 
     def add_track(self, track_path: str) -> bool:
         """
@@ -48,9 +58,11 @@ class Playlist:
         Returns:
             bool: True if the track was added, False if it was already present.
         """
-        if track_path not in self._track_set:
-            self.tracks.append(track_path)
-            self._track_set.add(track_path)
+        # Ensure path normalization for consistency
+        norm_path = os.path.normpath(track_path)
+        if norm_path not in self._track_set:
+            self.tracks.append(norm_path)
+            self._track_set.add(norm_path)
             return True
         return False
 
@@ -64,9 +76,10 @@ class Playlist:
         Returns:
             bool: True if the track was found and removed, False otherwise.
         """
+        norm_path = os.path.normpath(track_path)
         try:
-            self.tracks.remove(track_path)
-            self._track_set.remove(track_path)
+            self.tracks.remove(norm_path)
+            self._track_set.remove(norm_path)
             return True
         except ValueError:
             return False # Track not found in list
@@ -88,7 +101,8 @@ class Playlist:
                     print(f"Warning: Playlist name mismatch in file '{self.filepath}'. Expected '{self.name}', found '{loaded_name}'. Using loaded name.")
                     self.name = loaded_name # Update name from file if different
                 if isinstance(loaded_tracks, list):
-                    self.tracks = [str(track) for track in loaded_tracks] # Ensure strings
+                    # Normalize paths on load
+                    self.tracks = [os.path.normpath(str(track)) for track in loaded_tracks]
                     self._track_set = set(self.tracks)
                 else:
                      print(f"Warning: Invalid track format in {self.filepath}. Expected a list.")
@@ -105,27 +119,38 @@ class Playlist:
              self.tracks = []
              self._track_set = set()
 
-    def save(self, playlist_dir: Path = DEFAULT_PLAYLIST_DIR) -> bool:
+    def save(self, working_dir: Optional[Path] = None) -> bool:
         """
         Saves the playlist tracks to its filepath (JSON format).
-        If filepath is None, generates one based on the name in the specified directory.
+        If filepath is None, generates one based on the name in the specified working directory.
 
         Args:
-            playlist_dir (Path): The directory where playlists should be saved.
-                                 Defaults to DEFAULT_PLAYLIST_DIR.
+            working_dir (Optional[Path]): The directory where playlists should be saved.
+                                          If None, uses the default working directory from settings.
 
         Returns:
             bool: True if saving was successful, False otherwise.
         """
+        if working_dir is None:
+            working_dir = get_default_working_dir()
+
+        # Determine the playlists subdirectory within the working directory
+        playlist_subdir = working_dir / "playlists"
+        playlist_subdir.mkdir(parents=True, exist_ok=True)
+
         if not self.filepath:
-            self.filepath = PlaylistManager.get_playlist_path(self.name, playlist_dir)
+            self.filepath = PlaylistManager.get_playlist_path(self.name, playlist_subdir)
+        elif self.filepath.parent != playlist_subdir:
+            # If the filepath is outside the designated playlist subdir, force it inside
+            print(f"Warning: Playlist filepath '{self.filepath}' is outside the expected directory '{playlist_subdir}'. Correcting path.")
+            self.filepath = PlaylistManager.get_playlist_path(self.name, playlist_subdir)
 
         data: Dict[str, Any] = {
             "name": self.name,
-            "tracks": self.tracks
+            "tracks": self.tracks # Already normalized
         }
         try:
-            # Ensure the directory exists
+            # Ensure the specific directory exists (already done for playlist_subdir, but safe)
             self.filepath.parent.mkdir(parents=True, exist_ok=True)
             with open(self.filepath, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=4) # Use indent for readability
@@ -155,19 +180,167 @@ class Playlist:
             with open(filepath, 'r', encoding='utf-8') as f:
                 data: Dict[str, Any] = json.load(f)
                 name = data.get("name")
-                tracks = data.get("tracks", [])
-                if not name or not isinstance(tracks, list):
+                tracks_raw = data.get("tracks", [])
+                if not name or not isinstance(tracks_raw, list):
                     print(f"Error: Invalid playlist format in {filepath}")
                     return None
+                # Normalize paths on load
+                tracks = [os.path.normpath(str(t)) for t in tracks_raw]
                 # Create playlist instance but pass tracks directly to avoid reload
-                playlist = Playlist(name=name, filepath=filepath, tracks=[str(t) for t in tracks])
+                playlist = Playlist(name=name, filepath=filepath, tracks=tracks)
+                # Initialize index after loading
+                if playlist.tracks:
+                    playlist._current_index = 0
                 return playlist
-        except (json.JSONDecodeError, IOError, TypeError) as e:
-            print(f"Error loading playlist from {filepath}: {e}")
+        except json.JSONDecodeError as je:
+            print(f"Error loading playlist from {filepath}: {type(je).__name__} - {je}")
+            
+            # Try with different encoding as fallback
+            try:
+                with open(filepath, 'r', encoding='latin-1') as f:
+                    data = json.load(f)
+                    name = data.get("name")
+                    tracks_raw = data.get("tracks", [])
+                    if not name or not isinstance(tracks_raw, list):
+                        print(f"Error: Invalid playlist format in {filepath} (latin-1 encoding)")
+                        return None
+                    # Normalize paths on load
+                    tracks = [os.path.normpath(str(t)) for t in tracks_raw]
+                    # Create playlist instance with fallback encoding
+                    playlist = Playlist(name=name, filepath=filepath, tracks=tracks)
+                    # Initialize index after fallback loading
+                    if playlist.tracks:
+                        playlist._current_index = 0
+                    print(f"Successfully loaded playlist with latin-1 encoding: {name}")
+                    return playlist
+            except Exception as alt_e:
+                print(f"Failed alternative encoding attempt: {type(alt_e).__name__} - {alt_e}")
+            return None
+        except (IOError, TypeError) as e:
+            print(f"Error loading playlist from {filepath}: {type(e).__name__} - {e}")
             return None
         except Exception as e: # Catch other potential errors
-             print(f"Unexpected error loading playlist from file {filepath}: {e}")
-             return None
+            print(f"Unexpected error loading playlist from file {filepath}: {type(e).__name__} - {e}")
+            return None
+            
+    # --- Track Access and Navigation Logic ---
+
+    def get_track_at(self, index: int) -> Optional[str]:
+        """Returns the track path at the given index, or None if index is invalid."""
+        if 0 <= index < len(self.tracks):
+            return self.tracks[index]
+        return None
+
+    def get_first_file(self) -> Optional[str]:
+        """Returns the first track in the playlist and sets the internal index."""
+        if not self.tracks:
+            self._current_index = -1
+            return None
+        self._current_index = 0
+        return self.tracks[0]
+
+    def get_next_file(self, repeat_mode: str) -> Optional[str]:
+        """
+        Calculates the path of the next track based on mode and updates internal index.
+
+        Args:
+            repeat_mode (str): REPEAT_ONE, REPEAT_ALL, or REPEAT_RANDOM.
+
+        Returns:
+            Optional[str]: The path of the next track, or None if playback should stop.
+        """
+        num_tracks = len(self.tracks)
+        if num_tracks == 0:
+            self._current_index = -1
+            return None
+
+        current_idx = self._current_index # Use internal index
+
+        if repeat_mode == REPEAT_ONE:
+            # Stay on the current track, just ensure index is valid
+            if 0 <= current_idx < num_tracks:
+                # No change needed to self._current_index
+                return self.tracks[current_idx]
+            else: # Invalid index somehow, reset to first
+                self._current_index = 0
+                return self.tracks[0]
+
+        if repeat_mode == REPEAT_RANDOM:
+            if num_tracks == 1:
+                 self._current_index = 0 # Only one track
+                 return self.tracks[0]
+            next_idx = current_idx
+            while next_idx == current_idx:
+                 next_idx = random.randrange(num_tracks)
+            self._current_index = next_idx
+            return self.tracks[next_idx]
+
+        # --- Linear Navigation (REPEAT_ALL or stop) ---
+        next_idx = current_idx + 1
+
+        if next_idx >= num_tracks: # Reached or passed the end
+            if repeat_mode == REPEAT_ALL:
+                self._current_index = 0 # Wrap around
+                return self.tracks[0]
+            else: # Not REPEAT_ALL (implies stop)
+                # Keep index at the end? Or reset? Resetting seems safer.
+                self._current_index = -1
+                return None
+        else: # Normal advance
+            self._current_index = next_idx
+            return self.tracks[next_idx]
+
+    def get_previous_file(self, repeat_mode: str) -> Optional[str]:
+        """
+        Calculates the path of the previous track based on mode and updates internal index.
+
+        Args:
+            repeat_mode (str): REPEAT_ONE, REPEAT_ALL, or REPEAT_RANDOM.
+                               REPEAT_ONE behaves linearly here.
+
+        Returns:
+            Optional[str]: The path of the previous track, or None if invalid.
+        """
+        num_tracks = len(self.tracks)
+        if num_tracks == 0:
+            self._current_index = -1
+            return None
+
+        current_idx = self._current_index
+
+        if repeat_mode == REPEAT_RANDOM:
+            # Random previous: Pick a random different track
+            if num_tracks == 1:
+                 self._current_index = 0
+                 return self.tracks[0]
+            prev_idx = current_idx
+            while prev_idx == current_idx:
+                 prev_idx = random.randrange(num_tracks)
+            self._current_index = prev_idx
+            return self.tracks[prev_idx]
+
+        # --- Linear Navigation (REPEAT_ALL, REPEAT_ONE behave same way backward) ---
+        prev_idx = current_idx - 1
+
+        if prev_idx < 0:
+             # Wrap around to the end only if REPEAT_ALL or REPEAT_RANDOM implies wrapping is okay
+             # Although REPEAT_RANDOM handled above, keep logic consistent if needed
+             if repeat_mode == REPEAT_ALL: # Wrap only on REPEAT_ALL
+                 self._current_index = num_tracks - 1
+                 return self.tracks[self._current_index]
+             else: # REPEAT_ONE or default stop: Don't wrap, effectively stay at 0 or first item?
+                  # Let's stay at the first item (index 0) if going back from it.
+                  if current_idx == 0: # If already at first, stay there
+                      # No change to self._current_index
+                      return self.tracks[0]
+                  else: # Landed here unexpectedly? Reset to first.
+                      self._current_index = 0
+                      return self.tracks[0]
+        else: # Normal move backward
+            self._current_index = prev_idx
+            return self.tracks[prev_idx]
+
+    # --- Standard Dunder Methods ---
 
     def __len__(self) -> int:
         """Returns the number of tracks in the playlist."""
@@ -199,15 +372,19 @@ class PlaylistManager:
     """
     Manages the loading, saving, and deletion of Playlist objects from disk.
     """
-    def __init__(self, playlist_dir: Path = DEFAULT_PLAYLIST_DIR):
+    def __init__(self, working_dir: Optional[Path] = None):
         """
         Initializes the PlaylistManager.
 
         Args:
-            playlist_dir (Path): The directory to store and load playlist files from.
-                                 Defaults to DEFAULT_PLAYLIST_DIR.
+            working_dir (Optional[Path]): The application's working directory.
+                                          If None, uses the default from settings.
         """
-        self.playlist_dir = Path(playlist_dir)
+        if working_dir is None:
+            working_dir = get_default_working_dir()
+        self.working_dir = working_dir
+        # Playlists are stored in a subdirectory
+        self.playlist_dir = self.working_dir / "playlists"
         self.playlist_dir.mkdir(parents=True, exist_ok=True) # Ensure it exists
 
     @staticmethod
@@ -222,17 +399,24 @@ class PlaylistManager:
         return sanitized
 
     @staticmethod
-    def get_playlist_path(playlist_name: str, playlist_dir: Path = DEFAULT_PLAYLIST_DIR) -> Path:
+    def get_playlist_path(playlist_name: str, playlist_dir: Optional[Path] = None) -> Path:
         """
-        Generates the expected file path for a given playlist name in the directory.
+        Generates the expected file path for a given playlist name in the playlist subdirectory.
 
         Args:
             playlist_name (str): The name of the playlist.
-            playlist_dir (Path): The directory where playlists are stored.
+            playlist_dir (Optional[Path]): The specific directory for playlists.
+                                           If None, uses the default determined from settings.
 
         Returns:
-            Path: The absolute path for the playlist file (e.g., .../playlists/My Favs.json).
+            Path: The absolute path for the playlist file (e.g., .../working_dir/playlists/My Favs.json).
         """
+        if playlist_dir is None:
+            # Determine default playlist dir based on working dir setting
+            default_working = get_default_working_dir()
+            playlist_dir = default_working / "playlists"
+            playlist_dir.mkdir(parents=True, exist_ok=True)
+
         filename = f"{PlaylistManager._sanitize_filename(playlist_name)}.json"
         return playlist_dir / filename
 
@@ -244,16 +428,21 @@ class PlaylistManager:
             List[Playlist]: A list of loaded Playlist objects.
         """
         playlists: List[Playlist] = []
-        for filepath in self.playlist_dir.glob("*.json"):
+        found_files = list(self.playlist_dir.glob("*.json"))
+        
+        for filepath in found_files:
             playlist = Playlist.load_from_file(filepath)
-            if playlist:
+            # Check explicitly for None instead of using boolean evaluation
+            # This ensures empty playlists (0 tracks) are still considered valid
+            if playlist is not None:
                 playlists.append(playlist)
+        
         return playlists
 
     def save_playlist(self, playlist: Playlist) -> bool:
         """
-        Saves a Playlist object to the managed directory.
-        Assigns a filepath based on the name if the playlist doesn't have one.
+        Saves a Playlist object to the managed playlist directory.
+        Assigns a filepath within the correct subdirectory if needed.
 
         Args:
             playlist (Playlist): The playlist object to save.
@@ -261,10 +450,12 @@ class PlaylistManager:
         Returns:
             bool: True if saving was successful, False otherwise.
         """
-        # Ensure the playlist gets saved within the manager's directory
-        if not playlist.filepath or playlist.filepath.parent != self.playlist_dir:
-             playlist.filepath = self.get_playlist_path(playlist.name, self.playlist_dir)
-        return playlist.save(self.playlist_dir) # Use the instance save method
+        # Ensure the playlist gets saved within the manager's playlist directory
+        expected_path = self.get_playlist_path(playlist.name, self.playlist_dir)
+        if playlist.filepath != expected_path:
+             playlist.filepath = expected_path
+        # Use the playlist's save method, providing the working directory (it calculates subdir)
+        return playlist.save(self.working_dir)
 
     def delete_playlist(self, playlist: Playlist) -> bool:
         """

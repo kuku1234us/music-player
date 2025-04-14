@@ -631,3 +631,43 @@ Other flows:
 
 *   (To be defined)
 *   Likely include: code style guide (e.g., PEP 8), branching strategy, testing requirements, pull request process.
+
+## Media State Management
+
+### State Transitions in Our Media Player
+
+Our media player implements a simplified state model compared to the underlying VLC library. The primary states are:
+
+- **Playing**: Media is actively playing
+- **Paused**: Media playback is temporarily suspended but can be resumed
+- **Ended**: Media has reached its natural conclusion
+- **Error**: An error occurred during playback
+
+Notably, our architecture intentionally avoids exposing a "stopped" state to the user interface, as there is no stop button in our application. The "stopped" state exists only as an internal implementation detail in the VLC backend during media loading operations.
+
+### State Flow Diagram
+```
+┌─────────┐     play     ┌─────────┐
+│         │─────────────>│         │
+│ Paused  │              │ Playing │
+│         │<─────────────│         │
+└─────────┘    pause     └─────────┘
+     │                        │
+     │                        │
+     │                        │ (media ends)
+     │                        ▼
+     │                   ┌─────────┐
+     │                   │         │
+     └──────────────────>│  Ended  │
+          load new       │         │
+           media         └─────────┘
+```
+
+### VLC Backend Implementation Notes
+
+The VLC library provides its own set of states that don't perfectly map to our application states. The `VLCBackend` class handles this translation, ensuring that internal VLC states are correctly mapped to our application states.
+
+Important implementation details:
+- When VLC reports an `Ended` state, we emit an "ended" signal
+- The `Stopped` state in VLC is used only during internal operations like loading new media
+- State transitions should always follow the diagram above in normal operation

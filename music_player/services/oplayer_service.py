@@ -100,7 +100,6 @@ class OPlayerService(QObject):
         self.host = self.settings.get("oplayer/ftp_host", self.DEFAULT_HOST, SettingType.STRING)
         self.ftp_port = self.settings.get("oplayer/ftp_port", self.DEFAULT_PORT, SettingType.INT)
         
-        print(f"[OPlayerService] Initialized with FTP server: {self.host}:{self.ftp_port}")
         self.upload_thread = None
         
     def update_connection_settings(self, host=None, port=None):

@@ -36,32 +36,21 @@ class PlaylistDashboardWidget(QWidget):
         layout.setSpacing(24)
 
         # --- Playlists List --- 
-        playlists_card = BaseCard(
-            "My Playlists",
-            border_style=f"1px solid {self.theme.get_color('accent', 'secondary')}",
-            background_style=f"{self.theme.get_color('background', 'tertiary')}20" # 20% opacity
-        )
-        playlists_container = QWidget()
-        playlists_container_layout = QVBoxLayout(playlists_container)
-        playlists_container_layout.setContentsMargins(0, 0, 0, 0)
-        playlists_container_layout.setSpacing(16)
-
+        # Add list view directly to main layout (no card)
         self.playlists_list_view = PlaylistListView() # Use the component
         # Connect signals from the list view to re-emit them
         self.playlists_list_view.itemDoubleClicked.connect(self.playlist_selected)
-        # Need to add context menu handling here or connect to parent
-
-        playlists_container_layout.addWidget(self.playlists_list_view)
+        
+        # Add list view directly to main layout
+        layout.addWidget(self.playlists_list_view)
 
         # Update the empty label with muted gray color
         self.empty_label = QLabel("No playlists found. Create or import one.")
         self.empty_label.setStyleSheet(f"color: #71717a; font-style: italic;") # Muted gray color
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_label.hide() # Initially hidden
-        playlists_container_layout.addWidget(self.empty_label)
-
-        playlists_card.add_widget(playlists_container)
-        layout.addWidget(playlists_card)
+        layout.addWidget(self.empty_label)
+        
         layout.addStretch(1) # Push content to top
 
         # --- Add Floating Button using RoundButton ---
@@ -79,7 +68,7 @@ class PlaylistDashboardWidget(QWidget):
             int((self.width() - self.add_button.size) / 2),
             self.height() - self.add_button.size - 24  # 24px from bottom
         )
-        
+
     def resizeEvent(self, event):
         """Reposition the floating button when the widget is resized"""
         super().resizeEvent(event)

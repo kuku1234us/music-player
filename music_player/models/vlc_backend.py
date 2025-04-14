@@ -75,17 +75,41 @@ class VLCBackend(QObject):
         self.media_list.add_media(self.current_media)
         self.list_player.set_media_list(self.media_list)
         
-        # Parse the media to extract metadata
-        self.current_media.parse()
+        # Register for parse complete event
+        event_manager = self.current_media.event_manager()
+        event_manager.event_attach(vlc.EventType.MediaParsedChanged, self._on_media_parsed)
         
-        # Wait a bit for parsing (non-blocking)
-        QTimer.singleShot(500, self._emit_media_loaded)
+        # Parse the media to extract metadata
+        self.current_media.parse_with_options(vlc.MediaParseFlag.local, -1)
         
         # Play the media
         self.list_player.play_item(self.current_media)
         self.pause()  # Start in paused state
         
         return True
+        
+    def _on_media_parsed(self, event):
+        """
+        Callback triggered when media parsing is complete
+        
+        Args:
+            event: VLC event object
+        """
+        if not self.current_media:
+            return
+            
+        # Check parsing status
+        status = self.current_media.get_parsed_status()
+        
+        if status == vlc.MediaParsedStatus.done:
+            print("[VLCBackend] Media parsing completed successfully")
+            self._emit_media_loaded()
+        elif status == vlc.MediaParsedStatus.failed:
+            print("[VLCBackend] Media parsing failed, attempting to use available metadata")
+            self._emit_media_loaded()
+        elif status == vlc.MediaParsedStatus.timeout:
+            print("[VLCBackend] Media parsing timed out, using partial metadata")
+            self._emit_media_loaded()
         
     def _emit_media_loaded(self):
         """Emit media loaded signal with metadata after parsing"""
@@ -151,27 +175,9 @@ class VLCBackend(QObject):
             if os.path.exists(artwork_path):
                 return artwork_path
                 
-            # Use VLC's internal methods to extract artwork
-            # Create a new media object specifically for parsing
-            media = self.instance.media_new(file_path)
-            media.parse()
-            
-            # Wait for parsing to complete (non-blocking but with timeout)
-            # This is important to ensure metadata is available
-            parse_timeout = 3  # seconds
-            start_time = time.time()
-            while time.time() - start_time < parse_timeout:
-                # In some VLC versions, get_parsed_status() might not exist or work differently
-                # So just wait a bit for parsing to complete
-                time.sleep(0.2)
-                
-                # Try to get artwork data
-                artwork_data = media.get_meta(vlc.Meta.ArtworkURL)
-                if artwork_data and artwork_data.startswith('file://'):
-                    break
-            
-            # Try to get the artwork
-            artwork_data = media.get_meta(vlc.Meta.ArtworkURL)
+            # Try to get the artwork from the current_media object first
+            # Since we've already parsed this media, it should have metadata
+            artwork_data = self.current_media.get_meta(vlc.Meta.ArtworkURL)
             if artwork_data and artwork_data.startswith('file://'):
                 # Convert file URL to path
                 from urllib.parse import unquote
@@ -231,13 +237,13 @@ class VLCBackend(QObject):
         
         # Handle ended state
         if state == vlc.State.Ended:
-            # Only emit end_reached if we haven't already marked playback as stopped
+            # Only emit end_reached if we haven't already marked playback as ended
             if self.is_playing:
                 self.end_reached.emit()
-                self.state_changed.emit("stopped")
                 self.is_playing = False
             return
         elif state == vlc.State.Stopped:
+            print("[Error]:[VLCBackend._update_position] Stopped state detected")
             self.state_changed.emit("stopped")
             self.is_playing = False
             return

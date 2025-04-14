@@ -83,36 +83,36 @@ class PreferencePage(QWidget):
         self.seek_interval_spinbox.setMinimum(1)
         self.seek_interval_spinbox.setMaximum(60)
         self.seek_interval_spinbox.setValue(3)  # Default value
-        self.seek_interval_spinbox.valueChanged.connect(self.save_settings)
+        self.seek_interval_spinbox.valueChanged.connect(self._save_seek_interval)
         self.seek_interval_spinbox.setStyleSheet(input_style)
         
         form_layout.addRow(self.seek_interval_label, self.seek_interval_spinbox)
         
         # --- Library Settings ---
         
-        # Playlists directory setting
-        self.playlists_dir_label = QLabel("Playlists directory:")
-        self.playlists_dir_label.setStyleSheet(label_style)
+        # Working directory setting
+        self.working_dir_label = QLabel("Working Directory:")
+        self.working_dir_label.setStyleSheet(label_style)
         
-        self.playlists_dir_container = QWidget()
-        self.playlists_dir_layout = QHBoxLayout(self.playlists_dir_container)
-        self.playlists_dir_layout.setContentsMargins(0, 0, 0, 0)
-        self.playlists_dir_layout.setSpacing(8)
+        self.working_dir_container = QWidget()
+        self.working_dir_layout = QHBoxLayout(self.working_dir_container)
+        self.working_dir_layout.setContentsMargins(0, 0, 0, 0)
+        self.working_dir_layout.setSpacing(8)
         
-        self.playlists_dir_edit = QLineEdit()
-        self.playlists_dir_edit.setPlaceholderText("Choose playlists directory")
-        self.playlists_dir_edit.setReadOnly(True)
-        self.playlists_dir_edit.setStyleSheet(input_style)
+        self.working_dir_edit = QLineEdit()
+        self.working_dir_edit.setPlaceholderText("Choose working directory")
+        self.working_dir_edit.setReadOnly(True)
+        self.working_dir_edit.setStyleSheet(input_style)
         
-        self.browse_button = QPushButton("Browse...")
-        self.browse_button.setMaximumWidth(100)
-        self.browse_button.clicked.connect(self.browse_playlists_dir)
-        self.browse_button.setStyleSheet(button_style)
+        self.browse_working_dir_button = QPushButton("Browse...")
+        self.browse_working_dir_button.setMaximumWidth(100)
+        self.browse_working_dir_button.clicked.connect(self.browse_working_dir)
+        self.browse_working_dir_button.setStyleSheet(button_style)
         
-        self.playlists_dir_layout.addWidget(self.playlists_dir_edit)
-        self.playlists_dir_layout.addWidget(self.browse_button)
+        self.working_dir_layout.addWidget(self.working_dir_edit)
+        self.working_dir_layout.addWidget(self.browse_working_dir_button)
         
-        form_layout.addRow(self.playlists_dir_label, self.playlists_dir_container)
+        form_layout.addRow(self.working_dir_label, self.working_dir_container)
         
         # --- OPlayer Settings ---
         
@@ -191,8 +191,8 @@ class PreferencePage(QWidget):
         seek_interval = self.settings.get('preferences/seek_interval', 3, SettingType.INT)
         self.seek_interval_spinbox.setValue(seek_interval)
         
-        playlists_dir = self.settings.get('preferences/playlists_dir', str(Path.home()), SettingType.PATH)
-        self.playlists_dir_edit.setText(str(playlists_dir))
+        working_dir = self.settings.get('preferences/working_dir', str(Path.home()), SettingType.PATH)
+        self.working_dir_edit.setText(str(working_dir))
         
         # Load OPlayer settings
         ftp_host = self.settings.get('oplayer/ftp_host', OPlayerService.DEFAULT_HOST, SettingType.STRING)
@@ -201,31 +201,18 @@ class PreferencePage(QWidget):
         ftp_port = self.settings.get('oplayer/ftp_port', OPlayerService.DEFAULT_PORT, SettingType.INT)
         self.ftp_port_spinbox.setValue(ftp_port)
         
-    def save_settings(self):
-        """Save settings to SettingsManager"""
-        # Save seek interval
+    def _save_seek_interval(self):
+        """Save only the seek interval setting."""
         seek_interval = self.seek_interval_spinbox.value()
         self.settings.set('preferences/seek_interval', seek_interval, SettingType.INT)
+        self.settings.sync() # Sync immediately after changing this setting
         
-        # Save playlists directory if it exists
-        playlist_dir_text = self.playlists_dir_edit.text().strip()
-        if playlist_dir_text:
-            try:
-                dir_path = Path(playlist_dir_text)
-                # Make sure the path exists, if not use the home directory
-                if not dir_path.exists():
-                    dir_path = Path.home()
-                    self.playlists_dir_edit.setText(str(dir_path))
-                
-                # Save the directory path
-                self.settings.set('preferences/playlists_dir', dir_path, SettingType.PATH)
-            except Exception as e:
-                print(f"Error saving playlists directory: {e}")
-                # Fall back to home directory
-                self.settings.set('preferences/playlists_dir', Path.home(), SettingType.PATH)
-        
-        # Sync to persist changes
-        self.settings.sync()
+    def save_settings(self):
+        """Save settings to SettingsManager - DEPRECATED/REMOVED: Use specific save methods."""
+        # This method is no longer connected or used for general saving.
+        # Specific controls save their own settings.
+        # Kept temporarily to avoid breaking reset_settings logic, will refactor reset.
+        pass # Do nothing here anymore
         
     def save_oplayer_settings(self):
         """Save OPlayer connection settings when focus leaves the fields"""
@@ -258,42 +245,50 @@ class PreferencePage(QWidget):
             )
         
     def reset_settings(self):
-        """Reset settings to default values"""
+        """Reset settings to default values and save them immediately."""
         # Reset general settings
-        self.seek_interval_spinbox.setValue(3)  # Default seek interval
-        self.playlists_dir_edit.setText(str(Path.home()))  # Default playlists directory
+        default_seek = 3
+        self.seek_interval_spinbox.setValue(default_seek)
+        self.settings.set('preferences/seek_interval', default_seek, SettingType.INT)
+
+        default_working_dir = Path.home()
+        self.working_dir_edit.setText(str(default_working_dir))
+        self.settings.set('preferences/working_dir', default_working_dir, SettingType.PATH)
         
         # Reset OPlayer settings
-        self.ftp_host_edit.setText(OPlayerService.DEFAULT_HOST)
-        self.ftp_port_spinbox.setValue(OPlayerService.DEFAULT_PORT)
+        default_host = OPlayerService.DEFAULT_HOST
+        default_port = OPlayerService.DEFAULT_PORT
+        self.ftp_host_edit.setText(default_host)
+        self.ftp_port_spinbox.setValue(default_port)
+        # Use the service method which also calls settings.set and sync
+        self.oplayer_service.update_connection_settings(host=default_host, port=default_port)
         
-        # Save all settings
-        self.save_settings()
-        self.save_oplayer_settings()
+        # Sync all changes made during reset (oplayer syncs itself)
+        self.settings.sync()
         
-    def browse_playlists_dir(self):
-        """Open directory browser dialog to select playlists directory"""
-        current_dir = self.settings.get('preferences/playlists_dir', str(Path.home()), SettingType.PATH)
+    def browse_working_dir(self):
+        """Open directory browser dialog to select working directory"""
+        current_dir = self.settings.get('preferences/working_dir', str(Path.home()), SettingType.PATH)
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Select Playlists Directory",
+            "Select Working Directory",
             str(current_dir),
             QFileDialog.Option.ShowDirsOnly
         )
         
         if directory:
             # Update the text field
-            self.playlists_dir_edit.setText(directory)
+            self.working_dir_edit.setText(directory)
             
             # Save the new directory path
             try:
                 # Convert to Path object and save
                 path_obj = Path(directory)
-                self.settings.set('preferences/playlists_dir', path_obj, SettingType.PATH)
-                self.settings.sync()
+                self.settings.set('preferences/working_dir', path_obj, SettingType.PATH)
+                self.settings.sync() # Persist changes immediately
             except Exception as e:
                 QMessageBox.warning(
                     self,
                     "Save Error",
-                    f"Failed to save playlists directory setting: {str(e)}"
+                    f"Failed to save working directory setting: {str(e)}"
                 ) 

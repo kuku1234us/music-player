@@ -177,8 +177,8 @@ class PlayButton(QWidget):
             
             # Check if mouse is still inside the button
             if self.rect().contains(event.position().toPoint()):
-                # Toggle state
-                self.is_playing = not self.is_playing
+                # Do NOT toggle state here - only emit the signal
+                # Let the MainPlayer determine the appropriate state
                 self.clicked.emit()
                 
             self.update()
