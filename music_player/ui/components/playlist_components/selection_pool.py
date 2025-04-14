@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 import qtawesome as qta
 
 from qt_base_app.theme.theme_manager import ThemeManager
+from qt_base_app.models.settings_manager import SettingsManager, SettingType
 
 # Define common audio file extensions
 AUDIO_EXTENSIONS = {
@@ -30,6 +31,7 @@ class SelectionPoolWidget(QWidget):
         super().__init__(parent)
         self.setObjectName("selectionPoolWidget")
         self.theme = ThemeManager.instance()
+        self.settings = SettingsManager.instance()
         
         # Keep track of added paths to avoid duplicates in the list view
         self._pool_paths = set()
@@ -178,15 +180,23 @@ class SelectionPoolWidget(QWidget):
     def _browse_folder(self):
         """
         Opens a directory dialog and scans the selected folder for media files.
+        The last used directory is remembered for future sessions.
         """
+        # Get the last used directory from settings, or default to user's home
+        last_dir = self.settings.get('playlists/last_browse_dir', str(Path.home()), SettingType.PATH)
+        
         directory = QFileDialog.getExistingDirectory(
             self,
             "Select Folder to Scan",
-            ".", # Start in current directory or remember last?
+            str(last_dir),  # Convert Path to string for QFileDialog
             QFileDialog.Option.ShowDirsOnly
         )
         
         if directory:
+            # Save the selected directory for next time
+            self.settings.set('playlists/last_browse_dir', directory, SettingType.PATH)
+            self.settings.sync()  # Ensure settings are saved immediately
+            
             found_files = []
             try:
                 for root, _, files in os.walk(directory):

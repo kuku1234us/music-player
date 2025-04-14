@@ -11,6 +11,7 @@ from pathlib import Path
 
 from qt_base_app.theme.theme_manager import ThemeManager
 from music_player.models.playlist import Playlist
+from music_player.models import player_state
 from .selection_pool import SelectionPoolWidget
 
 class PlaylistPlaymodeWidget(QWidget):
@@ -203,6 +204,7 @@ class PlaylistPlaymodeWidget(QWidget):
     def _handle_add_selected_from_pool(self, tracks_to_add: list):
         """
         Handles adding tracks from the selection pool to the current playlist.
+        This function ensures that the global current_playing_playlist reference is maintained.
         
         Args:
             tracks_to_add (list): List of full track file paths.
@@ -215,6 +217,11 @@ class PlaylistPlaymodeWidget(QWidget):
             print("[PlayMode] _handle_add_selected_from_pool: No tracks to add. Aborting.")
             return
             
+        # Make sure we're using the global reference
+        if player_state.get_current_playlist() is not self.current_playlist:
+            print("[PlayMode] Updating global current_playing_playlist reference")
+            player_state.set_current_playlist(self.current_playlist)
+        
         added_count = 0
         for track_path in tracks_to_add:
             if self.current_playlist.add_track(track_path):

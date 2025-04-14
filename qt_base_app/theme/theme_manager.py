@@ -4,6 +4,12 @@ Theme manager for Qt applications.
 from pathlib import Path
 import yaml
 from typing import Dict, Any
+import os
+from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtWidgets import QApplication
+import sys
+
+from ..models.resource_locator import ResourceLocator
 
 
 class ThemeManager:
@@ -13,6 +19,7 @@ class ThemeManager:
     """
     _instance = None
     _theme_data: Dict[str, Any] = {}
+    _initialized = False
 
     def __new__(cls):
         if cls._instance is None:
@@ -27,6 +34,25 @@ class ThemeManager:
             cls._instance = cls()
         return cls._instance
 
+    def __init__(self, config_relative_path=os.path.join("qt_base_app", "theme", "theme.yaml")):
+        """Initialize ThemeManager"""
+        if hasattr(ThemeManager, '_initialized') and ThemeManager._initialized:
+             # Prevent re-initialization if already done
+             return
+             
+        if ThemeManager._instance is not None and ThemeManager._instance != self:
+             raise Exception("ThemeManager is a singleton")
+             
+        ThemeManager._instance = self
+        
+        # Get absolute path using ResourceLocator
+        # Ensure the path uses the correct separator for the OS
+        normalized_relative_path = os.path.normpath(config_relative_path)
+        self.config_path = ResourceLocator.get_path(normalized_relative_path)
+        
+        self.config = self._load_theme_config()
+        ThemeManager._initialized = True # Mark as initialized
+
     def _load_theme(self):
         """Load theme configuration from YAML file."""
         theme_path = Path(__file__).parent / 'theme.yaml'
@@ -36,6 +62,73 @@ class ThemeManager:
         except Exception as e:
             print(f"Error loading theme configuration: {e}")
             self._theme_data = {}
+
+    def _load_theme_config(self):
+        """Load theme configuration from YAML file."""
+        try:
+            # Try multiple possible locations for the theme file
+            possible_paths = [
+                self.config_path,  # Original path
+                os.path.join(os.path.dirname(sys.executable), 'qt_base_app', 'theme', 'theme.yaml'),  # PyInstaller bundle
+                os.path.join(os.path.dirname(__file__), 'theme.yaml'),  # Development environment
+            ]
+            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        config_data = yaml.safe_load(f)
+                        if config_data:
+                            return config_data
+                    
+            print(f"Warning: Theme config not found in any of the expected locations")
+            return self._get_default_theme_config()
+            
+        except Exception as e:
+            print(f"Error loading theme config: {e}")
+            return self._get_default_theme_config()
+
+    def _get_default_theme_config(self):
+        """Provide hardcoded default theme settings if loading fails."""
+        print("Warning: Using default theme configuration.")
+        # Define a basic default theme structure
+        return {
+            "name": "Default Dark",
+            "type": "dark",
+            "colors": {
+                "primary": "#BB86FC",
+                "secondary": "#03DAC6",
+                "background": {
+                    "primary": "#121212",
+                    "secondary": "#1E1E1E",
+                    "tertiary": "#2C2C2C",
+                    "sidebar": "#1A1A1A"
+                },
+                "surface": "#1E1E1E",
+                "error": "#CF6679",
+                "text": {
+                    "primary": "#FFFFFF",
+                    "secondary": "#B3B3B3",
+                    "disabled": "#7F7F7F",
+                    "muted": "#888888"
+                },
+                "border": "#333333",
+                "shadow": "#000000"
+            },
+            "typography": {
+                "default": {"family": "Geist", "size": 10, "weight": "normal"},
+                "title": {"family": "ICA Rubrik", "size": 16, "weight": "bold"},
+                "small": {"family": "Geist", "size": 9, "weight": "normal"},
+                "monospace": {"family": "GeistMono", "size": 9, "weight": "normal"}
+            },
+            "dimensions": {
+                "sidebar": {"expanded_width": 200, "collapsed_width": 60},
+                "header": {"height": 50}
+            },
+            "stylesheets": {
+                "sidebar": "QWidget#sidebar { background-color: #1A1A1A; border-right: 1px solid #333333; }",
+                "header": "QWidget#header { background-color: #1E1E1E; border-bottom: 1px solid #333333; }"
+            }
+        }
 
     def get_color(self, *path: str) -> str:
         """
@@ -48,7 +141,7 @@ class ThemeManager:
         Returns:
             str: The color value or a default if not found
         """
-        current = self._theme_data.get('colors', {})
+        current = self.config.get('colors', {})
         for key in path:
             current = current.get(key, {})
         return current if isinstance(current, str) else "#000000"
@@ -64,7 +157,7 @@ class ThemeManager:
         Returns:
             int: The dimension value or 0 if not found
         """
-        current = self._theme_data.get('dimensions', {})
+        current = self.config.get('dimensions', {})
         for key in path:
             current = current.get(key, {})
         return current if isinstance(current, int) else 0
@@ -80,7 +173,7 @@ class ThemeManager:
         Returns:
             Dict[str, int]: Dictionary with 'size' and 'weight' or defaults
         """
-        current = self._theme_data.get('typography', {})
+        current = self.config.get('typography', {})
         for key in path:
             current = current.get(key, {})
         
@@ -131,3 +224,17 @@ class ThemeManager:
             """
         
         return ""  # Return empty stylesheet for unknown components 
+
+    def apply_theme(self, app: QApplication):
+        """Apply the loaded theme to the application (placeholder)."""
+        # In a full implementation, this would apply stylesheets, palettes, etc.
+        # For now, it primarily ensures the config is loaded.
+        print(f"Theme '{self.config.get('name', 'Unknown')}' loaded.")
+        # Example: app.setStyleSheet(self.get_stylesheet('global'))
+
+    def get_resource_path(self, relative_resource_path: str) -> str:
+        """
+        Gets the absolute path for a resource relative to the application/bundle root.
+        Useful for finding theme-related files like qt_material XML.
+        """
+        return ResourceLocator.get_path(relative_resource_path) 

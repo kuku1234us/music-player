@@ -42,7 +42,7 @@ class PlayerTimeline(QWidget):
         # Configure time labels
         time_font = QFont()
         time_font.setPointSize(9)
-        time_font.setFamily("Monospace")
+
         self.current_time_label.setFont(time_font)
         self.total_time_label.setFont(time_font)
         

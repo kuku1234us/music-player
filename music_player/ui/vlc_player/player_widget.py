@@ -297,3 +297,12 @@ class PlayerWidget(QWidget):
             # if hasattr(self.controls, 'next_button') and hasattr(self.controls, 'prev_button'):
             #     self.controls.next_button.setEnabled(enabled)
             #     self.controls.prev_button.setEnabled(enabled) 
+            
+    def set_repeat_state(self, state: str):
+        """Set the repeat button state directly.
+        
+        Args:
+            state (str): One of REPEAT_ALL, REPEAT_ONE, or REPEAT_RANDOM
+        """
+        if hasattr(self.repeat_button, 'set_state'):
+            self.repeat_button.set_state(state) 

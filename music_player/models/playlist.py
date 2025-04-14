@@ -40,6 +40,11 @@ class Playlist:
         self._track_set: set[str] = set(tracks) if tracks else set()
         self.tracks: List[str] = list(tracks) if tracks else []
         self._current_index: int = -1 # Initialize current index
+        
+        # Add tracking for repeat mode
+        self._current_repeat_mode: str = REPEAT_ALL  # Default to REPEAT_ALL
+        self._shuffled_indices: List[int] = []       # For REPEAT_RANDOM mode
+        self._shuffle_index: int = -1                # Current position in shuffle list
 
         # If filepath is provided but no tracks, attempt to load
         if self.filepath and self.filepath.exists() and not tracks:
@@ -63,6 +68,11 @@ class Playlist:
         if norm_path not in self._track_set:
             self.tracks.append(norm_path)
             self._track_set.add(norm_path)
+            
+            # If we're in REPEAT_RANDOM mode, update the shuffle indices
+            if self._current_repeat_mode == REPEAT_RANDOM:
+                self._regenerate_shuffle_indices()
+                
             return True
         return False
 
@@ -80,6 +90,11 @@ class Playlist:
         try:
             self.tracks.remove(norm_path)
             self._track_set.remove(norm_path)
+            
+            # If we're in REPEAT_RANDOM mode, update the shuffle indices
+            if self._current_repeat_mode == REPEAT_RANDOM:
+                self._regenerate_shuffle_indices()
+                
             return True
         except ValueError:
             return False # Track not found in list
@@ -225,6 +240,82 @@ class Playlist:
             
     # --- Track Access and Navigation Logic ---
 
+    def set_repeat_mode(self, mode: str) -> None:
+        """
+        Sets the repeat mode and updates internal state accordingly.
+        
+        Args:
+            mode (str): One of REPEAT_ONE, REPEAT_ALL, or REPEAT_RANDOM
+        """
+        if mode not in [REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM]:
+            print(f"Warning: Invalid repeat mode '{mode}'. Using REPEAT_ALL.")
+            mode = REPEAT_ALL
+        
+        # If changing to REPEAT_RANDOM, regenerate shuffle indices
+        if mode == REPEAT_RANDOM and (self._current_repeat_mode != REPEAT_RANDOM or not self._shuffled_indices):
+            self._regenerate_shuffle_indices()
+        
+        self._current_repeat_mode = mode
+        
+    def get_repeat_mode(self) -> str:
+        """
+        Gets the current repeat mode.
+        
+        Returns:
+            str: The current repeat mode
+        """
+        return self._current_repeat_mode
+    
+    def _regenerate_shuffle_indices(self, after_completion=False) -> None:
+        """
+        Regenerates the shuffled indices to ensure all tracks are played once 
+        before any track is repeated.
+        
+        Args:
+            after_completion (bool): If True, indicates this regeneration is happening
+                                    after completing a full shuffle cycle, so we should
+                                    avoid repeating the current track at the beginning.
+        """
+        num_tracks = len(self.tracks)
+        if num_tracks == 0:
+            self._shuffled_indices = []
+            self._shuffle_index = -1
+            return
+            
+        # Generate a list of all indices
+        indices = list(range(num_tracks))
+        
+        # If we already have a current index, handle special cases
+        if 0 <= self._current_index < num_tracks and not after_completion:
+            # Only put current track first when not regenerating after completion
+            # Remove current index from list to prevent duplicates
+            if self._current_index in indices:
+                indices.remove(self._current_index)
+            # Shuffle the remaining indices
+            random.shuffle(indices)
+            # Put current index first
+            self._shuffled_indices = [self._current_index] + indices
+        else:
+            # Just shuffle all indices for a completely fresh order
+            random.shuffle(indices)
+            
+            # If regenerating after completion and we have more than 1 track,
+            # make sure the first track in the new shuffle isn't the same as the last track played
+            if after_completion and num_tracks > 1 and 0 <= self._current_index < num_tracks:
+                # If by chance the current/last track ended up first, swap it with another position
+                if indices[0] == self._current_index:
+                    # Find a position to swap with (not the first position)
+                    swap_pos = random.randint(1, num_tracks - 1)
+                    # Swap the first element with the randomly chosen position
+                    indices[0], indices[swap_pos] = indices[swap_pos], indices[0]
+                    print(f"[Playlist] Prevented repeat by swapping first track in new shuffle")
+            
+            self._shuffled_indices = indices
+            
+        # Reset shuffle index to beginning
+        self._shuffle_index = 0
+        print(f"[Playlist] Generated new shuffle order: {self._shuffled_indices}")
+
     def get_track_at(self, index: int) -> Optional[str]:
         """Returns the track path at the given index, or None if index is invalid."""
         if 0 <= index < len(self.tracks):
@@ -236,15 +327,21 @@ class Playlist:
         if not self.tracks:
             self._current_index = -1
             return None
-        self._current_index = 0
-        return self.tracks[0]
+            
+        # For REPEAT_RANDOM, use the first track in shuffle order
+        if self._current_repeat_mode == REPEAT_RANDOM:
+            if not self._shuffled_indices:
+                self._regenerate_shuffle_indices()
+            self._shuffle_index = 0
+            self._current_index = self._shuffled_indices[0]
+        else:
+            self._current_index = 0
+            
+        return self.tracks[self._current_index]
 
-    def get_next_file(self, repeat_mode: str) -> Optional[str]:
+    def get_next_file(self) -> Optional[str]:
         """
-        Calculates the path of the next track based on mode and updates internal index.
-
-        Args:
-            repeat_mode (str): REPEAT_ONE, REPEAT_ALL, or REPEAT_RANDOM.
+        Calculates the path of the next track based on the current repeat mode and updates internal index.
 
         Returns:
             Optional[str]: The path of the next track, or None if playback should stop.
@@ -253,33 +350,43 @@ class Playlist:
         if num_tracks == 0:
             self._current_index = -1
             return None
+            
+        # If only one track, always return it
+        if num_tracks == 1:
+            self._current_index = 0
+            return self.tracks[0]
 
-        current_idx = self._current_index # Use internal index
-
-        if repeat_mode == REPEAT_ONE:
+        if self._current_repeat_mode == REPEAT_ONE:
             # Stay on the current track, just ensure index is valid
-            if 0 <= current_idx < num_tracks:
+            if 0 <= self._current_index < num_tracks:
                 # No change needed to self._current_index
-                return self.tracks[current_idx]
+                return self.tracks[self._current_index]
             else: # Invalid index somehow, reset to first
                 self._current_index = 0
                 return self.tracks[0]
 
-        if repeat_mode == REPEAT_RANDOM:
-            if num_tracks == 1:
-                 self._current_index = 0 # Only one track
-                 return self.tracks[0]
-            next_idx = current_idx
-            while next_idx == current_idx:
-                 next_idx = random.randrange(num_tracks)
-            self._current_index = next_idx
-            return self.tracks[next_idx]
+        if self._current_repeat_mode == REPEAT_RANDOM:
+            # Use our shuffled indices for proper random playback
+            if not self._shuffled_indices:
+                self._regenerate_shuffle_indices()
+                
+            # Increment shuffle index
+            self._shuffle_index += 1
+            
+            # If we've reached the end of our shuffle sequence, regenerate
+            if self._shuffle_index >= len(self._shuffled_indices):
+                self._regenerate_shuffle_indices(after_completion=True)
+                self._shuffle_index = 0
+                
+            # Set current index to the track at current shuffle position
+            self._current_index = self._shuffled_indices[self._shuffle_index]
+            return self.tracks[self._current_index]
 
         # --- Linear Navigation (REPEAT_ALL or stop) ---
-        next_idx = current_idx + 1
+        next_idx = self._current_index + 1
 
         if next_idx >= num_tracks: # Reached or passed the end
-            if repeat_mode == REPEAT_ALL:
+            if self._current_repeat_mode == REPEAT_ALL:
                 self._current_index = 0 # Wrap around
                 return self.tracks[0]
             else: # Not REPEAT_ALL (implies stop)
@@ -290,13 +397,10 @@ class Playlist:
             self._current_index = next_idx
             return self.tracks[next_idx]
 
-    def get_previous_file(self, repeat_mode: str) -> Optional[str]:
+    def get_previous_file(self) -> Optional[str]:
         """
-        Calculates the path of the previous track based on mode and updates internal index.
-
-        Args:
-            repeat_mode (str): REPEAT_ONE, REPEAT_ALL, or REPEAT_RANDOM.
-                               REPEAT_ONE behaves linearly here.
+        Calculates the path of the previous track based on the current repeat mode and updates internal index.
+        REPEAT_ONE behaves linearly when going backward.
 
         Returns:
             Optional[str]: The path of the previous track, or None if invalid.
@@ -305,32 +409,39 @@ class Playlist:
         if num_tracks == 0:
             self._current_index = -1
             return None
+            
+        # If only one track, always return it
+        if num_tracks == 1:
+            self._current_index = 0
+            return self.tracks[0]
 
-        current_idx = self._current_index
-
-        if repeat_mode == REPEAT_RANDOM:
-            # Random previous: Pick a random different track
-            if num_tracks == 1:
-                 self._current_index = 0
-                 return self.tracks[0]
-            prev_idx = current_idx
-            while prev_idx == current_idx:
-                 prev_idx = random.randrange(num_tracks)
-            self._current_index = prev_idx
-            return self.tracks[prev_idx]
+        if self._current_repeat_mode == REPEAT_RANDOM:
+            # Use our shuffled indices for proper random playback
+            if not self._shuffled_indices:
+                self._regenerate_shuffle_indices()
+                
+            # Decrement shuffle index
+            self._shuffle_index -= 1
+            
+            # If we've reached the beginning of our shuffle sequence, wrap around
+            if self._shuffle_index < 0:
+                self._shuffle_index = len(self._shuffled_indices) - 1
+                
+            # Set current index to the track at current shuffle position
+            self._current_index = self._shuffled_indices[self._shuffle_index]
+            return self.tracks[self._current_index]
 
         # --- Linear Navigation (REPEAT_ALL, REPEAT_ONE behave same way backward) ---
-        prev_idx = current_idx - 1
+        prev_idx = self._current_index - 1
 
         if prev_idx < 0:
-             # Wrap around to the end only if REPEAT_ALL or REPEAT_RANDOM implies wrapping is okay
-             # Although REPEAT_RANDOM handled above, keep logic consistent if needed
-             if repeat_mode == REPEAT_ALL: # Wrap only on REPEAT_ALL
+             # Wrap around to the end only if REPEAT_ALL
+             if self._current_repeat_mode == REPEAT_ALL: # Wrap only on REPEAT_ALL
                  self._current_index = num_tracks - 1
                  return self.tracks[self._current_index]
              else: # REPEAT_ONE or default stop: Don't wrap, effectively stay at 0 or first item?
                   # Let's stay at the first item (index 0) if going back from it.
-                  if current_idx == 0: # If already at first, stay there
+                  if self._current_index == 0: # If already at first, stay there
                       # No change to self._current_index
                       return self.tracks[0]
                   else: # Landed here unexpectedly? Reset to first.

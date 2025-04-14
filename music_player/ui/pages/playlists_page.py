@@ -20,12 +20,10 @@ from qt_base_app.models.settings_manager import SettingsManager, SettingType
 
 # Import playlist specific components
 from music_player.models.playlist import Playlist, PlaylistManager
+from music_player.models import player_state
 from music_player.ui.components.playlist_components.playlist_dashboard import PlaylistDashboardWidget
 from music_player.ui.components.playlist_components.playlist_playmode import PlaylistPlaymodeWidget
 
-
-# Global variable to store the current playlist being played
-current_playing_playlist = None
 
 class PlaylistsPage(QWidget):
     """
@@ -100,13 +98,11 @@ class PlaylistsPage(QWidget):
         self.load_playlists_into_dashboard() # Refresh list when returning
 
     def _enter_play_mode(self, playlist: Playlist):
-        global current_playing_playlist
-        
         self._current_mode = "play"
         self._current_playlist_in_edit = playlist
         
         # Update the global reference to the current playlist
-        current_playing_playlist = playlist
+        player_state.set_current_playlist(playlist)
         
         # Load playlist into the play mode widget
         self.play_mode_widget.load_playlist(playlist)
@@ -377,6 +373,5 @@ class PlaylistsPage(QWidget):
         Returns:
             Playlist: The current playlist or None if none is loaded/playing
         """
-        global current_playing_playlist
-        return current_playing_playlist
+        return player_state.get_current_playlist()
 

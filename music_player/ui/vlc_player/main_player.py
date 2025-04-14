@@ -12,6 +12,8 @@ from .hotkey_handler import HotkeyHandler
 from music_player.models.vlc_backend import VLCBackend
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 from music_player.models.playlist import Playlist # Import Playlist
+# Import the player state module for playlist reference
+from music_player.models import player_state
 
 from .enums import STATE_PLAYING, STATE_PAUSED, STATE_ENDED, STATE_ERROR, REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM # REPEAT_NONE removed
 
@@ -193,8 +195,8 @@ class MainPlayer(QWidget):
         if self.app_state == STATE_ENDED:
             # Handle playlist mode
             if self._playback_mode == 'playlist':
-                # Get the next track based on current playlist position and repeat mode
-                next_track_path = self._current_playlist.get_next_file(self._current_repeat_mode)
+                # Get the next track
+                next_track_path = self._current_playlist.get_next_file()
                 if not next_track_path:
                     # If we're at the end and no next track (shouldn't happen with repeat), use first track
                     print("[MainPlayer] No next track available, using first track in playlist")
@@ -298,45 +300,33 @@ class MainPlayer(QWidget):
 
     def _on_end_reached(self):
         """
-        Handle the end of media playback signal from the backend.
-        Determines the next action based on playback mode and repeat mode.
+        Handler for the media end event.
+        Decides what to do when a track finishes playing based on playback mode and repeat settings.
         """
-        print(f"[MainPlayer] End of track reached. Mode: {self._playback_mode}, Repeat: {self._current_repeat_mode}")
-
-        # Case 1: Repeat the current track (REPEAT_ONE or Single File Mode)
-        if self._current_repeat_mode == REPEAT_ONE or self._playback_mode == 'single':
-            print(f"[MainPlayer] Repeating current track: {self.current_media_path}")
-            if self.current_media_path:
-                # Set state directly to playing for responsive UI
-                self._set_app_state(STATE_PLAYING)
-                # Seek to beginning and play
-                self.backend.seek(0)
+        print(f"[MainPlayer] _on_end_reached called with mode {self._playback_mode}")
+        if self._playback_mode == 'single':
+            # In single file mode, we either repeat or stop
+            if self._current_repeat_mode == REPEAT_ONE:
+                self.backend.set_position(0)
                 self.backend.play()
             else:
-                # Should not happen if media was playing, but handle defensively
-                print("[MainPlayer] Error: End reached but no current_media_path found for repeat.")
-                self._set_app_state(STATE_PAUSED) # Fallback state
-            return # Handled
-
-        # Case 2: Playlist Mode with REPEAT_ALL or REPEAT_RANDOM
-        if self._playback_mode == 'playlist' and self._current_playlist:
-            # Ask the playlist for the next file based on the current repeat mode
-            next_file_path = self._current_playlist.get_next_file(self._current_repeat_mode)
+                # For other repeat modes in single file, we just stop
+                self.backend.stop()
+                self.player_widget.set_playing_state(False)
+        elif self._playback_mode == 'playlist' and self._current_playlist:
+            # In playlist mode, get the next track from the playlist
+            # The playlist now handles repeat logic internally based on its own repeat mode
+            next_track_path = self._current_playlist.get_next_file()
             
-            if next_file_path:
-                print(f"[MainPlayer] Playing next track in playlist: {next_file_path}")
-                # Use load_and_play_path which handles state updates and playback
-                self._load_and_play_path(next_file_path)
+            if next_track_path:
+                print(f"[MainPlayer] Playing next track: {next_track_path}")
+                self._load_and_play_path(next_track_path)
             else:
-                # This should only happen if the playlist is empty or repeat logic fails
-                print("[MainPlayer] No next track available from playlist (end reached). Setting state to PAUSED.")
-                self._set_app_state(STATE_PAUSED)
-            return # Handled
-            
-        # Fallback case (should ideally not be reached with current logic)
-        print("[MainPlayer] Warning: _on_end_reached fell through without action. Setting state to PAUSED.")
-        self._set_app_state(STATE_PAUSED)
-        
+                # If there's no next track, stop playback
+                print("[MainPlayer] No more tracks in playlist, stopping playback")
+                self.backend.stop()
+                self.player_widget.set_playing_state(False)
+
     def _on_position_changed(self, position_ms):
         """
         Handle position change from timeline.
@@ -612,10 +602,12 @@ class MainPlayer(QWidget):
         self._current_repeat_mode = repeat_mode
         print(f"[MainPlayer] Applied repeat mode from settings: {self._current_repeat_mode}")
         
-        # Update the UI button state
-        # self.player_widget.set_repeat_state(self._current_repeat_mode) # Commented out to fix AttributeError
+        # Update the playlist's repeat mode if we're in playlist mode
+        if self._playback_mode == 'playlist' and self._current_playlist:
+            self._current_playlist.set_repeat_mode(self._current_repeat_mode)
         
-        # REMOVED: self.backend.set_repeat_mode(repeat_mode) 
+        # Update the UI button state
+        self.player_widget.set_repeat_state(self._current_repeat_mode)
 
     def _on_repeat_state_changed(self, state):
         """
@@ -627,7 +619,7 @@ class MainPlayer(QWidget):
         if state not in [REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM]:
             print(f"Warning: Received invalid repeat state '{state}' from UI. Resetting UI.")
             # Reset UI to match internal state if invalid state received
-            # self.player_widget.set_repeat_state(self._current_repeat_mode) # Commented out to fix AttributeError
+            self.player_widget.set_repeat_state(self._current_repeat_mode)
             self._current_repeat_mode = REPEAT_ALL
             return
             
@@ -635,10 +627,13 @@ class MainPlayer(QWidget):
         if state != self._current_repeat_mode:
             self._current_repeat_mode = state
             print(f"[MainPlayer] Internal repeat mode changed to: {self._current_repeat_mode}")
+            
+            # Update playlist's repeat mode if we're in playlist mode
+            if self._playback_mode == 'playlist' and self._current_playlist:
+                self._current_playlist.set_repeat_mode(self._current_repeat_mode)
+                
             # Save the new state to settings
             self.settings.set('player/repeat_mode', self._current_repeat_mode, SettingType.STRING)
-        
-        # REMOVED: self.backend.set_repeat_mode(state)
 
     def set_playback_mode(self, mode: str):
         """ Sets the playback mode and updates UI elements accordingly. """
@@ -656,25 +651,37 @@ class MainPlayer(QWidget):
 
     @pyqtSlot(Playlist)
     def load_playlist(self, playlist: Optional[Playlist]):
-        """ Loads a Playlist object, sets mode to 'playlist', and starts playing the first track. """
+        """ 
+        Sets the player to use the provided Playlist object. 
+        The player will directly reference the global current_playing_playlist,
+        so any changes made to the playlist elsewhere will be immediately available.
+        """
         print(f"[MainPlayer] load_playlist called with: {playlist}")
         if not playlist:
             # Only show warning if playlist is None, not if it's just empty
             self.set_playback_mode('single')
+            # Use direct reference to global variable rather than keeping a copy
             self._current_playlist = None
             self.player_widget.update_track_info("No Track", "", "", None)
             self.player_widget.timeline.set_duration(0)
             self.player_widget.timeline.set_position(0)
             return
 
-        # Store the playlist and update mode without stopping current playback
-        self._current_playlist = playlist
+        # Store a reference to the global current_playing_playlist
+        # This ensures we always use the most up-to-date playlist state
+        self._current_playlist = player_state.get_current_playlist()
+        
+        # Set the playlist's repeat mode to match the player's mode
+        # This is one of the appropriate times to set the repeat mode
+        if self._current_playlist:
+            self._current_playlist.set_repeat_mode(self._current_repeat_mode)
+        
         self.set_playback_mode('playlist')
         
         # If playlist is empty, just clean the UI and wait - no error
-        if len(playlist) == 0:
-            print(f"[MainPlayer] Playlist '{playlist.name}' is empty, waiting for tracks to be added.")
-            self.player_widget.update_track_info("No Tracks", f"Playlist: {playlist.name}", "", None)
+        if len(self._current_playlist) == 0:
+            print(f"[MainPlayer] Playlist '{self._current_playlist.name}' is empty, waiting for tracks to be added.")
+            self.player_widget.update_track_info("No Tracks", f"Playlist: {self._current_playlist.name}", "", None)
             self.player_widget.timeline.set_duration(0)
             self.player_widget.timeline.set_position(0)
             return
@@ -717,44 +724,34 @@ class MainPlayer(QWidget):
         # Explicitly start playback after media is loaded
         self.backend.play()
 
-    def play_next_track(self, force_advance=False): # Keep force_advance if used by error handling
-        """ Plays the next track using Playlist logic and internal repeat mode. """
-        if self._playback_mode != 'playlist' or not self._current_playlist:
-            return False 
-
-        # Ask the playlist for the next file based on the current repeat mode
-        # Since we're always in one of the three repeat modes, this should never return None
-        # unless the playlist is empty
-        next_file_path = self._current_playlist.get_next_file(self._current_repeat_mode)
-        
-        print(f"[MainPlayer] play_next_track: Internal Repeat: {self._current_repeat_mode}, Force: {force_advance} -> Next file: {next_file_path}")
-
-        if next_file_path:
-            print(f"[MainPlayer] Playing next track: {next_file_path}")
-            self.current_request_position = 0 # Reset position for new track
-            self._load_and_play_path(next_file_path) 
-            return True
-        else:
-            # This should only happen if the playlist is empty
-            print("[MainPlayer] Playlist returned no next track - may be empty.")
-            return False
+    def play_next_track(self):
+        """
+        Plays the next track in the playlist based on the current state and repeat mode.
+        """
+        print("[MainPlayer] play_next_track called")
+        if self._playback_mode == 'playlist' and self._current_playlist:
+            next_track_path = self._current_playlist.get_next_file()
             
+            if next_track_path:
+                print(f"[MainPlayer] Playing next track: {next_track_path}")
+                self._load_and_play_path(next_track_path)
+            else:
+                print("[MainPlayer] No next track available in playlist")
+        else:
+            print("[MainPlayer] Cannot play next track - not in playlist mode or no playlist")
+
     def play_previous_track(self):
-        """ Plays the previous track using Playlist logic and internal repeat mode. """
-        if self._playback_mode != 'playlist' or not self._current_playlist:
-            return False
+        """
+        Plays the previous track in the playlist based on the current state and repeat mode.
+        """
+        print("[MainPlayer] play_previous_track called")
+        if self._playback_mode == 'playlist' and self._current_playlist:
+            prev_track_path = self._current_playlist.get_previous_file()
             
-        # Ask the playlist for the previous file based on the current repeat mode
-        prev_file_path = self._current_playlist.get_previous_file(self._current_repeat_mode)
-        
-        print(f"[MainPlayer] play_previous_track: Internal Repeat: {self._current_repeat_mode} -> Prev file: {prev_file_path}")
-
-        if prev_file_path:
-            print(f"[MainPlayer] Playing previous track: {prev_file_path}")
-            self.current_request_position = 0 # Reset position for new track
-            self._load_and_play_path(prev_file_path) 
-            return True
+            if prev_track_path:
+                print(f"[MainPlayer] Playing previous track: {prev_track_path}")
+                self._load_and_play_path(prev_track_path)
+            else:
+                print("[MainPlayer] No previous track available in playlist")
         else:
-            print("[MainPlayer] Playlist could not determine previous track.")
-            # Optionally show error or just do nothing? Do nothing seems less intrusive.
-            return False
+            print("[MainPlayer] Cannot play previous track - not in playlist mode or no playlist")
