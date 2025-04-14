@@ -13,8 +13,66 @@ from music_player.ui.vlc_player.enums import REPEAT_ONE, REPEAT_ALL, REPEAT_RAND
 # --- Define a default location for the working directory ---
 def get_default_working_dir() -> Path:
     settings = SettingsManager.instance()
-    # Use the configured working directory, falling back to home
-    return settings.get('preferences/working_dir', Path.home(), SettingType.PATH)
+    
+    # Get working directory from settings
+    working_dir = settings.get('preferences/working_dir', None, SettingType.PATH)
+    
+    # Check if the working directory is valid and accessible
+    if working_dir is not None:
+        try:
+            # Verify if the directory exists or can be created
+            if not working_dir.exists():
+                working_dir.mkdir(parents=True, exist_ok=True)
+                
+            # Test if we can write to it
+            test_file = working_dir / ".write_test"
+            test_file.touch()
+            test_file.unlink()  # Remove the test file
+                
+            # If we got this far, the directory is valid
+            return working_dir
+        except Exception as e:
+            print(f"Warning: Invalid working directory from settings '{working_dir}': {e}")
+            # Fall through to default
+    
+    # Use a reliable default location in the user's home directory
+    home_music_dir = Path.home() / ".musicplayer"
+    try:
+        home_music_dir.mkdir(parents=True, exist_ok=True)
+        # Save this as the new default
+        settings.set('preferences/working_dir', home_music_dir, SettingType.PATH)
+        print(f"Created default working directory: {home_music_dir}")
+        return home_music_dir
+    except Exception as e:
+        print(f"Error creating directory in home folder: {e}")
+        # Last resort fallback - use current working directory
+        return Path.cwd()
+
+def is_valid_working_dir(path: Path) -> bool:
+    """Check if a path is valid and accessible for use as a working directory."""
+    if path is None:
+        return False
+        
+    try:
+        # Check if the path exists
+        if not path.exists():
+            try:
+                # Try to create it
+                path.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                return False
+                
+        # Check if we have write permissions
+        test_file = path / ".write_test"
+        try:
+            test_file.touch()
+            test_file.unlink()  # Remove the test file
+            return True
+        except Exception:
+            return False
+    except Exception:
+        # Any other errors (like invalid drive)
+        return False
 
 class Playlist:
     """

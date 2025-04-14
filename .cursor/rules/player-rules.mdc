@@ -1,0 +1,22 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Rules About Playmode
+
+1. In this app, the player is ALWAYS in one of three repeat modes:
+REPEAT_ONE = "repeat_one"
+REPEAT_ALL = "repeat_all"
+REPEAT_RANDOM = "repeat_random"
+
+2. The player is ALWAYS in one of the following states:
+STATE_PLAYING = "playing"
+STATE_PAUSED = "paused"
+STATE_ENDED = "ended"
+STATE_ERROR = "error"
+
+Note 1: There is no "stopped" state.
+Note 2: The STATE_ENDED is only a temporary interim state before one of the "repeat mode" mechanism kicks in, since the player is always in one of the three "repeat modes".
+
+The above values are defined in [enums.py](mdc:music_player/ui/vlc_player/enums.py)](mdc:music_player/ui/vlc_player/enums.py)

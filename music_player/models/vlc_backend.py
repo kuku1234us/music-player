@@ -243,8 +243,8 @@ class VLCBackend(QObject):
                 self.is_playing = False
             return
         elif state == vlc.State.Stopped:
-            print("[Error]:[VLCBackend._update_position] Stopped state detected")
-            self.state_changed.emit("stopped")
+            # Treat stopped state as end of playback, get ready for repeat
+            self.end_reached.emit()
             self.is_playing = False
             return
         elif state == vlc.State.Error:

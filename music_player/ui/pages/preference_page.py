@@ -266,6 +266,12 @@ class PreferencePage(QWidget):
         # Sync all changes made during reset (oplayer syncs itself)
         self.settings.sync()
         
+    def showEvent(self, event):
+        """Reload settings when the page becomes visible"""
+        super().showEvent(event)
+        # Reload settings to ensure we display the most current values
+        self.load_settings()
+        
     def browse_working_dir(self):
         """Open directory browser dialog to select working directory"""
         current_dir = self.settings.get('preferences/working_dir', str(Path.home()), SettingType.PATH)

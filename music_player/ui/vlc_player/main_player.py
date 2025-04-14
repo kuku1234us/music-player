@@ -305,14 +305,9 @@ class MainPlayer(QWidget):
         """
         print(f"[MainPlayer] _on_end_reached called with mode {self._playback_mode}")
         if self._playback_mode == 'single':
-            # In single file mode, we either repeat or stop
-            if self._current_repeat_mode == REPEAT_ONE:
-                self.backend.set_position(0)
-                self.backend.play()
-            else:
-                # For other repeat modes in single file, we just stop
-                self.backend.stop()
-                self.player_widget.set_playing_state(False)
+            # Always repeat in single mode
+            self.backend.seek(0)
+            self.backend.play()
         elif self._playback_mode == 'playlist' and self._current_playlist:
             # In playlist mode, get the next track from the playlist
             # The playlist now handles repeat logic internally based on its own repeat mode

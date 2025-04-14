@@ -374,4 +374,17 @@ class PlaylistsPage(QWidget):
             Playlist: The current playlist or None if none is loaded/playing
         """
         return player_state.get_current_playlist()
+        
+    def showEvent(self, event):
+        """
+        Called when the page becomes visible. 
+        Reloads playlists to show current contents of working directory.
+        """
+        super().showEvent(event)
+        
+        # Only reload playlists if we're in dashboard mode
+        # This prevents disrupting the playback when switching between pages
+        if self._current_mode == "dashboard":
+            self.load_playlists_into_dashboard()
+
 
