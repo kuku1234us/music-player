@@ -97,7 +97,8 @@ class Playlist:
         # Use a set for quick uniqueness checks, but store as list to maintain order
         self._track_set: set[str] = set(tracks) if tracks else set()
         self.tracks: List[str] = list(tracks) if tracks else []
-        self._current_index: int = -1 # Initialize current index
+        # Initialize current index to -1 (no track selected)
+        self._current_index: int = -1
         
         # Add tracking for repeat mode
         self._current_repeat_mode: str = REPEAT_ALL  # Default to REPEAT_ALL
@@ -107,9 +108,6 @@ class Playlist:
         # If filepath is provided but no tracks, attempt to load
         if self.filepath and self.filepath.exists() and not tracks:
             self._load()
-            # After loading, set index to 0 if tracks exist
-            if self.tracks:
-                self._current_index = 0
 
     def add_track(self, track_path: str) -> bool:
         """
@@ -261,9 +259,8 @@ class Playlist:
                 tracks = [os.path.normpath(str(t)) for t in tracks_raw]
                 # Create playlist instance but pass tracks directly to avoid reload
                 playlist = Playlist(name=name, filepath=filepath, tracks=tracks)
-                # Initialize index after loading
-                if playlist.tracks:
-                    playlist._current_index = 0
+                # Initialize index after loading, but leave as -1 for potential random first track
+                # This allows get_first_file() to work correctly for REPEAT_RANDOM mode
                 return playlist
         except json.JSONDecodeError as je:
             print(f"Error loading playlist from {filepath}: {type(je).__name__} - {je}")
@@ -281,9 +278,6 @@ class Playlist:
                     tracks = [os.path.normpath(str(t)) for t in tracks_raw]
                     # Create playlist instance with fallback encoding
                     playlist = Playlist(name=name, filepath=filepath, tracks=tracks)
-                    # Initialize index after fallback loading
-                    if playlist.tracks:
-                        playlist._current_index = 0
                     print(f"Successfully loaded playlist with latin-1 encoding: {name}")
                     return playlist
             except Exception as alt_e:
@@ -388,10 +382,22 @@ class Playlist:
             
         # For REPEAT_RANDOM, use the first track in shuffle order
         if self._current_repeat_mode == REPEAT_RANDOM:
+            # Force a true random shuffle by temporarily setting _current_index to -1
+            # This prevents the current index from influencing the shuffle
+            original_index = self._current_index
+            self._current_index = -1
+            
+            # Regenerate shuffle indices to get a fresh random order
             if not self._shuffled_indices:
                 self._regenerate_shuffle_indices()
+            else:
+                # Force regeneration even if we already have shuffled indices
+                self._regenerate_shuffle_indices()
+                
             self._shuffle_index = 0
+            # Get the first random track from the shuffled indices
             self._current_index = self._shuffled_indices[0]
+            print(f"[Playlist] First random track index: {self._current_index}")
         else:
             self._current_index = 0
             
@@ -508,6 +514,53 @@ class Playlist:
         else: # Normal move backward
             self._current_index = prev_idx
             return self.tracks[prev_idx]
+
+    def select_track_by_filepath(self, filepath: str) -> bool:
+        """
+        Finds the given filepath in the playlist and sets the internal index accordingly.
+        Also handles updating the shuffle index if in REPEAT_RANDOM mode.
+
+        Args:
+            filepath (str): The absolute (and normalized) path of the track to select.
+
+        Returns:
+            bool: True if the track was found and index was set, False otherwise.
+        """
+        norm_path = os.path.normpath(filepath)
+        try:
+            # Find the index in the main track list
+            track_index = self.tracks.index(norm_path)
+            self._current_index = track_index
+            print(f"[Playlist] Selected track index {self._current_index} for path: {norm_path}")
+
+            # If in random mode, update the shuffle index
+            if self._current_repeat_mode == REPEAT_RANDOM:
+                if not self._shuffled_indices:
+                    # Regenerate if shuffle isn't active, ensure current track is first
+                    print("[Playlist] Regenerating shuffle indices for track selection.")
+                    self._regenerate_shuffle_indices() # This now handles putting _current_index first
+                    self._shuffle_index = 0 # We are at the start of the (new) shuffle sequence
+                else:
+                    # Find the position of the selected track_index in the shuffle list
+                    try:
+                        self._shuffle_index = self._shuffled_indices.index(track_index)
+                        print(f"[Playlist] Set shuffle index to {self._shuffle_index}")
+                    except ValueError:
+                        # Should not happen if _regenerate_shuffle_indices is called correctly
+                        # when tracks are added/removed, but handle defensively.
+                        print(f"[Playlist] Warning: Track index {track_index} not found in shuffle indices {self._shuffled_indices}. Regenerating.")
+                        self._regenerate_shuffle_indices()
+                        try:
+                           self._shuffle_index = self._shuffled_indices.index(track_index)
+                        except ValueError:
+                             print(f"[Playlist] Error: Could not find track index {track_index} even after regenerating shuffle.")
+                             self._shuffle_index = 0 # Fallback
+
+            return True
+        except ValueError:
+            print(f"[Playlist] Error: Track path not found in playlist: {norm_path}")
+            self._current_index = -1 # Indicate no valid track selected
+            return False
 
     # --- Standard Dunder Methods ---
 

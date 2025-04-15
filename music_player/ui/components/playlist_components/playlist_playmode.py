@@ -1,18 +1,46 @@
 # ui/components/playlist_components/playlist_playmode.py
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QListWidget, QListWidgetItem, QScrollArea, QPushButton
-)
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon
-import qtawesome as qta
+import os
+import datetime
 from pathlib import Path
 
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+    QPushButton, QScrollArea,
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QMenu, QApplication
+)
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QIcon, QCursor
+import qtawesome as qta
+
 from qt_base_app.theme.theme_manager import ThemeManager
+from qt_base_app.models.settings_manager import SettingsManager, SettingType
 from music_player.models.playlist import Playlist
 from music_player.models import player_state
-from .selection_pool import SelectionPoolWidget
+from .selection_pool import SelectionPoolWidget, format_file_size, format_modified_time
+
+class SizeAwareTableItem(QTableWidgetItem):
+    """Custom QTableWidgetItem that correctly sorts file sizes"""
+    def __init__(self, text, size_bytes):
+        super().__init__(text)
+        self.size_bytes = size_bytes
+        
+    def __lt__(self, other):
+        if isinstance(other, SizeAwareTableItem):
+            return self.size_bytes < other.size_bytes
+        return super().__lt__(other)
+
+class DateAwareTableItem(QTableWidgetItem):
+    """Custom QTableWidgetItem that correctly sorts dates"""
+    def __init__(self, text, timestamp):
+        super().__init__(text)
+        self.timestamp = timestamp
+        
+    def __lt__(self, other):
+        if isinstance(other, DateAwareTableItem):
+            return self.timestamp < other.timestamp
+        return super().__lt__(other)
 
 class PlaylistPlaymodeWidget(QWidget):
     """
@@ -21,12 +49,27 @@ class PlaylistPlaymodeWidget(QWidget):
     """
     # Signals to be emitted to the parent PlaylistsPage
     back_requested = pyqtSignal()  # Signal to go back to Dashboard Mode
+    track_selected_for_playback = pyqtSignal(str) # Emits filepath when a track is selected for playback
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("playlistPlaymodeWidget")
         self.theme = ThemeManager.instance()
+        self.settings = SettingsManager.instance()
         self.current_playlist = None  # The currently loaded playlist
+        
+        # Column indices
+        self.COL_FILENAME = 0
+        self.COL_SIZE = 1
+        self.COL_MODIFIED = 2
+        
+        # Sorting state
+        self.sort_column = self.COL_FILENAME
+        self.sort_order = Qt.SortOrder.AscendingOrder
+        
+        # Sort indicator icons
+        self.sort_up_icon = qta.icon('fa5s.sort-up', color=self.theme.get_color('text', 'secondary'))
+        self.sort_down_icon = qta.icon('fa5s.sort-down', color=self.theme.get_color('text', 'secondary'))
         
         # Allow for absolute positioning of children
         self.setLayout(QVBoxLayout(self))
@@ -35,6 +78,12 @@ class PlaylistPlaymodeWidget(QWidget):
         
         self._setup_ui()
         self._connect_signals() # Connect signals after UI setup
+        
+        # Load column widths from settings
+        self._load_column_widths()
+        
+        # Set initial sort indicator
+        self._update_sort_indicators()
     
     def _setup_ui(self):
         # Create a breadcrumb container that will be positioned absolutely
@@ -97,23 +146,58 @@ class PlaylistPlaymodeWidget(QWidget):
         content_layout.setContentsMargins(16, 8, 16, 16)
         content_layout.setSpacing(16) # Add spacing between list and pool
         
-        # --- Track List ---
-        self.tracks_list = QListWidget()
-        self.tracks_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
-        self.tracks_list.setHorizontalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
-        self.tracks_list.setStyleSheet(f"""
-            QListWidget {{
+        # --- Track Table ---
+        self.tracks_table = QTableWidget()
+        self.tracks_table.setColumnCount(3)
+        self.tracks_table.setHorizontalHeaderLabels(["Filename", "Size", "Modified"])
+        self.tracks_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.tracks_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.tracks_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tracks_table.setAlternatingRowColors(True)
+        self.tracks_table.verticalHeader().setVisible(False)
+        self.tracks_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.tracks_table.horizontalHeader().setStretchLastSection(True)
+        self.tracks_table.horizontalHeader().setSortIndicatorShown(True)
+        self.tracks_table.setSortingEnabled(False)  # Disable automatic sorting
+        self.tracks_table.setShowGrid(False)
+        self.tracks_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        
+        # Set default row height for the vertical header
+        self.tracks_table.verticalHeader().setDefaultSectionSize(22)
+        
+        # Set initial column widths
+        self.tracks_table.setColumnWidth(self.COL_FILENAME, 250)
+        self.tracks_table.setColumnWidth(self.COL_SIZE, 80)
+        
+        self.tracks_table.setStyleSheet(f"""
+            QTableWidget {{
                 background-color: transparent;
+                alternate-background-color: {self.theme.get_color('background', 'alternate_row')};
                 border: none;
                 padding: 5px;
+                selection-background-color: {self.theme.get_color('background', 'selected_row')};
+                selection-color: {self.theme.get_color('text', 'primary')};
             }}
-            QListWidget::item {{
-                padding: 8px;
-                border-radius: 4px;
+            QTableWidget::item {{
+                padding: 0px 8px;
+                height: 22px;
+                min-height: 22px;
             }}
-            QListWidget::item:selected {{
-                background-color: {self.theme.get_color('background', 'secondary')}80;
+            QTableWidget::item:selected {{
+                background-color: {self.theme.get_color('background', 'selected_row')};
                 color: {self.theme.get_color('text', 'primary')};
+                border-radius: 0px;
+            }}
+            QHeaderView::section {{
+                background-color: {self.theme.get_color('background', 'tertiary')};
+                color: {self.theme.get_color('text', 'secondary')};
+                padding: 0px 5px;
+                height: 22px;
+                border: none;
+                border-right: 1px solid {self.theme.get_color('border', 'secondary')};
+            }}
+            QHeaderView::section:hover {{
+                background-color: {self.theme.get_color('background', 'quaternary')};
             }}
         """)
         
@@ -124,7 +208,7 @@ class PlaylistPlaymodeWidget(QWidget):
         self.empty_label.hide()
         
         # Add components to content layout
-        content_layout.addWidget(self.tracks_list)
+        content_layout.addWidget(self.tracks_table)
         content_layout.addWidget(self.empty_label)
         
         # --- Selection Pool --- 
@@ -138,6 +222,231 @@ class PlaylistPlaymodeWidget(QWidget):
         """Connect signals after UI elements are created."""
         self.back_button.clicked.connect(self.back_requested)
         self.selection_pool_widget.add_selected_requested.connect(self._handle_add_selected_from_pool)
+        self.tracks_table.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
+        self.tracks_table.doubleClicked.connect(self._on_track_double_clicked)
+        self.tracks_table.customContextMenuRequested.connect(self._show_tracks_context_menu)
+        
+        # Connect column resize signal
+        self.tracks_table.horizontalHeader().sectionResized.connect(self._on_column_resized)
+    
+    def _show_tracks_context_menu(self, position):
+        """Display context menu for tracks table"""
+        if not self.current_playlist or self.tracks_table.rowCount() == 0:
+            return
+            
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {self.theme.get_color('background', 'primary')};
+                color: {self.theme.get_color('text', 'primary')};
+                border: 1px solid {self.theme.get_color('border', 'primary')};
+                border-radius: 4px;
+                padding: 5px;
+            }}
+            QMenu::item {{
+                padding: 5px 15px;
+                border-radius: 3px;
+            }}
+            QMenu::item:selected {{
+                background-color: {self.theme.get_color('background', 'secondary')};
+            }}
+        """)
+        
+        selected_items = self.tracks_table.selectedItems()
+        if selected_items:
+            # Find unique rows since multiple columns can be selected
+            selected_rows = set()
+            for item in selected_items:
+                selected_rows.add(item.row())
+            
+            # Copy to clipboard action
+            copy_action = menu.addAction("Copy Path")
+            copy_action.triggered.connect(lambda: self._copy_selected_paths_to_clipboard())
+            
+            # Remove from playlist action
+            remove_action = menu.addAction("Remove from Playlist")
+            remove_action.triggered.connect(lambda: self._remove_selected_tracks())
+            
+            # Add to selection pool action
+            add_to_pool_action = menu.addAction("Add to Selection Pool")
+            add_to_pool_action.triggered.connect(lambda: self._add_selected_to_pool())
+            
+            menu.addSeparator()
+            
+            # Playback actions
+            play_action = menu.addAction("Play Now")
+            play_action.triggered.connect(lambda: self._play_selected_track())
+            
+            # Only enable if a single track is selected
+            if len(selected_rows) == 1:
+                play_action.setEnabled(True)
+            else:
+                play_action.setEnabled(False)
+        
+        menu.exec(QCursor.pos())
+    
+    def _copy_selected_paths_to_clipboard(self):
+        """Copy selected track paths to clipboard"""
+        selected_paths = []
+        for item in self.tracks_table.selectedItems():
+            if item.column() == self.COL_FILENAME:
+                path = item.data(Qt.ItemDataRole.UserRole)
+                if path:
+                    selected_paths.append(path)
+        
+        if selected_paths:
+            clipboard = QApplication.clipboard()
+            clipboard.setText("\n".join(selected_paths))
+    
+    def _remove_selected_tracks(self):
+        """Remove selected tracks from the playlist"""
+        if not self.current_playlist:
+            return
+            
+        # Get tracks to remove
+        tracks_to_remove = []
+        rows_to_remove = []
+        
+        for item in self.tracks_table.selectedItems():
+            if item.column() == self.COL_FILENAME:
+                row = item.row()
+                if row not in rows_to_remove:  # Avoid duplicates
+                    rows_to_remove.append(row)
+                    track_path = item.data(Qt.ItemDataRole.UserRole)
+                    if track_path:
+                        tracks_to_remove.append(track_path)
+        
+        if not tracks_to_remove:
+            return
+            
+        # Remove from playlist
+        for track_path in tracks_to_remove:
+            self.current_playlist.remove_track(track_path)
+            
+        # Save the updated playlist
+        if self.current_playlist.save():
+            # Remove from UI
+            for row in sorted(rows_to_remove, reverse=True):
+                self.tracks_table.removeRow(row)
+                
+            # Show empty message if needed
+            if self.tracks_table.rowCount() == 0:
+                self.tracks_table.hide()
+                self.empty_label.show()
+    
+    def _add_selected_to_pool(self):
+        """Add selected tracks to selection pool"""
+        selected_paths = []
+        for item in self.tracks_table.selectedItems():
+            if item.column() == self.COL_FILENAME:
+                path = item.data(Qt.ItemDataRole.UserRole)
+                if path:
+                    selected_paths.append(path)
+        
+        if selected_paths:
+            self.selection_pool_widget.add_tracks(selected_paths)
+    
+    def _play_selected_track(self):
+        """Play the selected track"""
+        selected_items = self.tracks_table.selectedItems()
+        if selected_items and self.current_playlist:
+            # Get the first selected item's row
+            row = None
+            for item in selected_items:
+                if item.column() == self.COL_FILENAME:
+                    row = item.row()
+                    break
+                    
+            if row is not None:
+                filename_item = self.tracks_table.item(row, self.COL_FILENAME)
+                if filename_item:
+                    track_path = filename_item.data(Qt.ItemDataRole.UserRole)
+                    if track_path and track_path in self.current_playlist.tracks:
+                        # Set this playlist as the current one
+                        player_state.set_current_playlist(self.current_playlist)
+                        
+                        # Emit signal with filepath instead of calling player_state directly
+                        self.track_selected_for_playback.emit(track_path)
+    
+    def _on_header_clicked(self, column_index):
+        """Handle column header clicks for sorting"""
+        if self.sort_column == column_index:
+            # Toggle sort order if clicking the same column again
+            new_order = Qt.SortOrder.DescendingOrder if self.sort_order == Qt.SortOrder.AscendingOrder else Qt.SortOrder.AscendingOrder
+            self.sort_order = new_order
+        else:
+            # Set new sort column with default ascending order
+            self.sort_column = column_index
+            self.sort_order = Qt.SortOrder.AscendingOrder
+            
+        # Update sort indicator in headers
+        self._update_sort_indicators()
+            
+        # Sort the items
+        self.tracks_table.sortItems(column_index, self.sort_order)
+        
+        # Ensure row heights are maintained after sorting
+        for row in range(self.tracks_table.rowCount()):
+            self.tracks_table.setRowHeight(row, 22)
+    
+    def _update_sort_indicators(self):
+        """Update the sort indicators in headers"""
+        header = self.tracks_table.horizontalHeader()
+        
+        # Clear all previous indicators
+        for col in range(header.count()):
+            header_item = self.tracks_table.horizontalHeaderItem(col)
+            if header_item:
+                header_item.setIcon(QIcon())
+        
+        # Add indicator to the sorted column
+        header_item = self.tracks_table.horizontalHeaderItem(self.sort_column)
+        if header_item:
+            if self.sort_order == Qt.SortOrder.AscendingOrder:
+                header_item.setIcon(self.sort_up_icon)
+            else:
+                header_item.setIcon(self.sort_down_icon)
+    
+    def _on_track_double_clicked(self, index):
+        """Handle double-click on a track item to play it"""
+        if self.current_playlist and index.isValid():
+            # Get the full path from the filename column of the selected row
+            row = index.row()
+            filename_item = self.tracks_table.item(row, self.COL_FILENAME)
+            if filename_item:
+                track_path = filename_item.data(Qt.ItemDataRole.UserRole)
+                if track_path:
+                    # Set this playlist as the current one
+                    player_state.set_current_playlist(self.current_playlist)
+                    
+                    # Emit signal with filepath instead of calling player_state directly
+                    self.track_selected_for_playback.emit(track_path)
+    
+    def _on_column_resized(self, column, oldWidth, newWidth):
+        """Save column widths when resized"""
+        self._save_column_widths()
+    
+    def _save_column_widths(self):
+        """Save column widths to settings"""
+        column_widths = {
+            'filename': self.tracks_table.columnWidth(self.COL_FILENAME),
+            'size': self.tracks_table.columnWidth(self.COL_SIZE),
+            'modified': self.tracks_table.columnWidth(self.COL_MODIFIED)
+        }
+        self.settings.set('ui/playlist_table/column_widths', column_widths, SettingType.DICT)
+        
+    def _load_column_widths(self):
+        """Load column widths from settings"""
+        default_widths = {
+            'filename': 250,
+            'size': 80,
+            'modified': 170
+        }
+        column_widths = self.settings.get('ui/playlist_table/column_widths', default_widths, SettingType.DICT)
+        
+        self.tracks_table.setColumnWidth(self.COL_FILENAME, column_widths['filename'])
+        self.tracks_table.setColumnWidth(self.COL_SIZE, column_widths['size'])
+        self.tracks_table.setColumnWidth(self.COL_MODIFIED, column_widths['modified'])
     
     def resizeEvent(self, event):
         # Update widget sizes when the parent widget is resized
@@ -169,29 +478,64 @@ class PlaylistPlaymodeWidget(QWidget):
         self.playlist_name_label.setText(display_name)
         self.playlist_name_label.repaint() # Force repaint
         
-        # Clear and populate the tracks list
-        self.tracks_list.clear()
+        # Clear and populate the tracks table
+        self.tracks_table.setRowCount(0)
         
         if not playlist.tracks:
-            self.tracks_list.hide()
+            self.tracks_table.hide()
             self.empty_label.show()
             # Don't return here, still need to potentially clear pool if needed
-        else: # Only show list if there are tracks
+        else: # Only show table if there are tracks
             self.empty_label.hide()
-            self.tracks_list.show()
+            self.tracks_table.show()
             
-            for track_path in playlist.tracks:
-                # Extract just the filename to display
+            for row, track_path in enumerate(playlist.tracks):
+                # Extract file info
                 path = Path(track_path)
                 filename = path.name
                 
-                item = QListWidgetItem(filename)
-                item.setData(Qt.ItemDataRole.UserRole, track_path)  # Store full path
-                self.tracks_list.addItem(item)
+                # Get file size and modified time if available
+                try:
+                    file_stats = path.stat()
+                    file_size = format_file_size(file_stats.st_size)
+                    file_size_bytes = file_stats.st_size
+                    modified_time = format_modified_time(file_stats.st_mtime)
+                    modified_timestamp = file_stats.st_mtime
+                except Exception:
+                    file_size = "Unknown"
+                    file_size_bytes = 0
+                    modified_time = "Unknown"
+                    modified_timestamp = 0
                 
-        # Optionally clear the selection pool when loading a new playlist
-        # self.selection_pool_widget.clear_pool() # Uncomment if desired
+                # Insert new row
+                self.tracks_table.insertRow(row)
+                # Set fixed row height explicitly
+                self.tracks_table.setRowHeight(row, 22)
+                
+                # Filename
+                filename_item = QTableWidgetItem(filename)
+                filename_item.setData(Qt.ItemDataRole.UserRole, track_path)  # Store full path
+                filename_item.setToolTip(track_path)  # Show full path on hover
+                self.tracks_table.setItem(row, self.COL_FILENAME, filename_item)
+                
+                # File size with correct sorting
+                size_item = SizeAwareTableItem(file_size, file_size_bytes)
+                self.tracks_table.setItem(row, self.COL_SIZE, size_item)
+                
+                # Modified time with correct sorting
+                modified_item = DateAwareTableItem(modified_time, modified_timestamp)
+                self.tracks_table.setItem(row, self.COL_MODIFIED, modified_item)
+                
+            # Auto sort after loading
+            self.tracks_table.sortItems(self.sort_column, self.sort_order)
             
+            # Ensure row heights are maintained after sorting
+            for row in range(self.tracks_table.rowCount()):
+                self.tracks_table.setRowHeight(row, 22)
+                
+            # Update the sort indicators
+            self._update_sort_indicators()
+    
     def get_current_playlist(self) -> Playlist:
         """
         Returns the currently loaded playlist.

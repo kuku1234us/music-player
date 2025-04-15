@@ -3,6 +3,8 @@ colors:
     primary: "#09090b"
     secondary: "#18181b"
     tertiary: "#27272a"
+    alternate_row: "#111114"
+    selected_row: "#1b1b39"
     card: "transparent"
     sidebar: "#18181b"
   text:

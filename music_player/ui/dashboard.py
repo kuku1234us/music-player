@@ -155,6 +155,10 @@ class MusicPlayerDashboard(BaseWindow):
         # Connect PlaylistsPage to the player
         if hasattr(playlists_page, 'playlist_selected_for_playback') and hasattr(self.player, 'load_playlist'):
             playlists_page.playlist_selected_for_playback.connect(self.player.load_playlist)
+            
+        # Connect the new track selection signal from PlayModeWidget to MainPlayer's slot
+        if hasattr(playlists_page.play_mode_widget, 'track_selected_for_playback') and hasattr(self.player, 'play_track_from_playlist'):
+            playlists_page.play_mode_widget.track_selected_for_playback.connect(self.player.play_track_from_playlist)
         
         # Show the dashboard page initially
         self.show_page('dashboard')

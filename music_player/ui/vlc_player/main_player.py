@@ -446,7 +446,14 @@ class MainPlayer(QWidget):
         self.backend.cleanup()
         
     def closeEvent(self, event):
-        """Handle widget close event"""
+        """
+        Clean up resources when the main player is closed.
+        """
+        # Unregister from player_state - REMOVED
+        # player_state.unregister_track_play_requested_callback(self._on_track_play_requested)
+        
+        # Stop playback and clean up
+        self.backend.stop()
         self.cleanup()
         super().closeEvent(event)
         
@@ -750,3 +757,47 @@ class MainPlayer(QWidget):
                 print("[MainPlayer] No previous track available in playlist")
         else:
             print("[MainPlayer] Cannot play previous track - not in playlist mode or no playlist")
+
+    @pyqtSlot(str)
+    def play_track_from_playlist(self, filepath: str):
+        """
+        Slot to handle playback requests originating from the playlist UI.
+
+        Args:
+            filepath (str): The absolute path of the track selected in the playlist UI.
+        """
+        print(f"[MainPlayer] Received request to play track: {filepath}")
+        
+        # Step 2a: Ensure we are in playlist mode and have the correct playlist
+        current_ui_playlist = player_state.get_current_playlist() # Get the playlist currently shown in UI
+        
+        if not current_ui_playlist:
+            print("[MainPlayer] Error: No current playlist set in player_state. Cannot play track.")
+            return
+            
+        if self._playback_mode != 'playlist' or self._current_playlist != current_ui_playlist:
+            print(f"[MainPlayer] Switching to playlist mode for playlist: {current_ui_playlist.name}")
+            self.set_playback_mode('playlist')
+            # Set internal player playlist reference to the one from the UI
+            self._current_playlist = current_ui_playlist
+            # Sync the repeat mode from player to the newly assigned playlist
+            if self._current_playlist:
+                 self._current_playlist.set_repeat_mode(self._current_repeat_mode)
+            
+        if not self._current_playlist:
+             print("[MainPlayer] Error: Could not set the current playlist reference.")
+             return
+             
+        # Step 2b: Select the track in the playlist model
+        if not self._current_playlist.select_track_by_filepath(filepath):
+            print(f"[MainPlayer] Error: Track '{filepath}' not found in current playlist '{self._current_playlist.name}'.")
+            return # Stop if track couldn't be selected
+
+        # Step 2c & 2d: Load, set state, seek, and play
+        print(f"[MainPlayer] Loading and playing selected track: {filepath}")
+        self.current_media_path = filepath # Update current media path
+        self.backend.load_media(filepath)
+        self._set_app_state(STATE_PLAYING)
+        # self.backend.seek(0) # seek(0) might not be needed as load_media often starts from beginning
+        self.backend.play()
+        self.setFocus() # Ensure player retains focus
