@@ -16,6 +16,10 @@ class UploadStatusOverlay(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.theme = ThemeManager.instance()
+        # Add a persistent timer for auto-hiding
+        self._hide_timer = QTimer(self)
+        self._hide_timer.setSingleShot(True)
+        self._hide_timer.timeout.connect(self.hide)
         self.setup_ui()
         self.hide()
         
@@ -64,31 +68,41 @@ class UploadStatusOverlay(QWidget):
         
     def show_upload_started(self, filename):
         """Show upload started status"""
+        self._hide_timer.stop() # Stop any pending hide timer
         self.status_label.setText(f"Uploading: {filename}")
+        # Ensure text color is reset if previously failed
+        self.status_label.setStyleSheet(f"color: {self.theme.get_color('text', 'primary')}; font-size: 14px;")
         self.progress_bar.setValue(0)
         self.show()
         self.raise_()
         
     def show_upload_progress(self, percentage):
         """Update progress bar"""
+        self._hide_timer.stop() # Stop hide timer if progress occurs
+        if not self.isVisible(): # Ensure visible if hidden between updates
+            self.show()
         self.progress_bar.setValue(percentage)
         
     def show_upload_completed(self, filename):
         """Show upload completed status"""
+        self._hide_timer.stop() # Stop any pending hide timer
         self.status_label.setText(f"Upload completed: {filename}")
         self.progress_bar.setValue(100)
+        self.show() # Ensure visible
         # Hide after 3 seconds
-        QTimer.singleShot(3000, self.hide)
+        self._hide_timer.start(3000)
         
     def show_upload_failed(self, error_msg):
         """Show upload failed status"""
+        self._hide_timer.stop() # Stop any pending hide timer
         self.status_label.setText(f"Upload failed: {error_msg}")
         self.status_label.setStyleSheet(f"""
             color: {self.theme.get_color('error', 'primary')};
             font-size: 14px;
         """)
+        self.show() # Ensure visible
         # Hide after 5 seconds
-        QTimer.singleShot(5000, self.hide)
+        self._hide_timer.start(5000)
         
     def hideEvent(self, event):
         """Reset styles when hiding"""

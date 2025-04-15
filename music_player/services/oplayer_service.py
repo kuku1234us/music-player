@@ -46,7 +46,6 @@ class FTPUploadThread(QThread):
                 bytes_transferred += len(data)
                 progress = int((bytes_transferred / self.file_size) * 100)
                 self.progress_updated.emit(progress)
-                print(f"[FTPUploadThread] Upload progress: {progress}%")
             
             # Open the file for binary reading
             with open(self.file_path, 'rb') as file:

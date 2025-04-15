@@ -16,6 +16,7 @@ from music_player.ui.pages import (
     PlayerPage,
     PlaylistsPage,
     PreferencesPage,
+    BrowserPage,
 )
 
 # Import player components
@@ -124,18 +125,21 @@ class MusicPlayerDashboard(BaseWindow):
         player_page = PlayerPage()
         playlists_page = PlaylistsPage()
         preferences_page = PreferencesPage()
+        browser_page = BrowserPage()
         
         # Store pages to prevent garbage collection
         self.pages['dashboard'] = dashboard_page
         self.pages['player'] = player_page
         self.pages['playlists'] = playlists_page
         self.pages['preferences'] = preferences_page
+        self.pages['browser'] = browser_page
         
         # Add pages to the window
         self.add_page('dashboard', dashboard_page)
         self.add_page('player', player_page)
         self.add_page('playlists', playlists_page)
         self.add_page('preferences', preferences_page)
+        self.add_page('browser', browser_page)
         
         # Connect signals from sidebar to our handler
         self.sidebar.item_clicked.connect(self.on_sidebar_item_clicked)
@@ -182,7 +186,8 @@ class MusicPlayerDashboard(BaseWindow):
             'dashboard': 'Dashboard',
             'player': 'Player',
             'playlists': 'Playlists',
-            'preferences': 'Preferences'
+            'preferences': 'Preferences',
+            'browser': 'File Browser'
         }
         
         if item_id in page_titles:

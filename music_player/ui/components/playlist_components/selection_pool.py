@@ -498,6 +498,21 @@ class SelectionPoolWidget(QWidget):
             self.settings.set('playlists/last_browse_dir', directory, SettingType.PATH)
             self.settings.sync()  # Ensure settings are saved immediately
             
+            # --- Get current playlist tracks (if available) --- 
+            current_playlist_tracks_set = set()
+            # Try to access the parent PlaylistPlaymodeWidget and its playlist
+            try:
+                # Assuming SelectionPoolWidget is directly inside content_widget,
+                # and content_widget is directly inside PlaylistPlaymodeWidget
+                playlist_playmode_widget = self.parentWidget().parentWidget()
+                if hasattr(playlist_playmode_widget, 'current_playlist') and playlist_playmode_widget.current_playlist:
+                    current_playlist_tracks_set = set(os.path.normpath(p) for p in playlist_playmode_widget.current_playlist.tracks)
+                    print(f"[SelectionPool] Found {len(current_playlist_tracks_set)} tracks in current playlist to exclude.")
+            except AttributeError:
+                 print("[SelectionPool] Could not reliably access parent playlist tracks.")
+                 # Proceed without excluding playlist tracks if access fails
+                 pass 
+
             found_files_initial = []
             try:
                 for root, _, files in os.walk(directory):
@@ -518,9 +533,20 @@ class SelectionPoolWidget(QWidget):
                 try:
                     p = Path(file_path_str)
                     filename = p.name
+                    norm_path = os.path.normpath(file_path_str) # Normalize path early
+                    
+                    # --- Check if already in pool or playlist --- 
+                    if norm_path in self._pool_paths:
+                        # print(f"[SelectionPool] Skipping (already in pool): {norm_path}")
+                        continue # Skip if already in the pool
+                    if norm_path in current_playlist_tracks_set:
+                        # print(f"[SelectionPool] Skipping (already in current playlist): {norm_path}")
+                        continue # Skip if already in the current playlist
+                        
+                    # --- Proceed with stats and deletion check --- 
                     file_size = p.stat().st_size
 
-                    # Check deletion criteria
+                    # Check deletion criteria for hidden/small files
                     if filename.startswith('._') and file_size < KB_SIZE:
                         try:
                             os.remove(file_path_str)
@@ -577,4 +603,16 @@ class SelectionPoolWidget(QWidget):
                 should_hide = bool(search_tokens)
                 
             self.pool_table.setRowHidden(row, should_hide)
+
+    def keyPressEvent(self, event):
+        """Handle key press events, specifically the Delete key."""
+        if event.key() == Qt.Key.Key_Delete:
+            if self.pool_table.selectedItems():
+                print("[SelectionPool] Delete key pressed, removing selected items.")
+                self._remove_selected_items()
+                event.accept() # Indicate we handled the event
+                return
+                
+        # If not handled, pass to parent
+        super().keyPressEvent(event)
 

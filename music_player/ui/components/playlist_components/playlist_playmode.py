@@ -536,6 +536,63 @@ class PlaylistPlaymodeWidget(QWidget):
             # Update the sort indicators
             self._update_sort_indicators()
     
+    def keyPressEvent(self, event):
+        """Handle key press events, specifically the Delete key for the tracks table."""
+        # Ensure the event comes from the tracks table or this widget has focus
+        if self.tracks_table.hasFocus() or self.hasFocus():
+            if event.key() == Qt.Key.Key_Delete:
+                if self.tracks_table.selectedItems():
+                    print("[PlayMode] Delete key pressed, removing selected tracks from playlist and adding to pool.")
+                    
+                    # --- Get selected paths FIRST --- 
+                    selected_paths = []
+                    rows_to_remove = set() # Use set for unique rows
+                    for item in self.tracks_table.selectedItems():
+                         if item.column() == self.COL_FILENAME:
+                             path = item.data(Qt.ItemDataRole.UserRole)
+                             if path:
+                                 selected_paths.append(path)
+                                 rows_to_remove.add(item.row())
+                                 
+                    if not selected_paths:
+                        event.ignore() # No valid tracks selected
+                        return
+                        
+                    # --- Remove from playlist and save --- 
+                    # This logic is similar to _remove_selected_tracks, but we need paths for the pool
+                    if not self.current_playlist:
+                        event.ignore()
+                        return
+                        
+                    for track_path in selected_paths:
+                        self.current_playlist.remove_track(track_path)
+                        
+                    # Save the updated playlist
+                    if self.current_playlist.save():
+                        # Remove from UI Table
+                        for row in sorted(list(rows_to_remove), reverse=True):
+                            self.tracks_table.removeRow(row)
+                            
+                        # --- Add removed tracks to selection pool --- 
+                        self.selection_pool_widget.add_tracks(selected_paths)
+                        
+                        # Show empty message if needed
+                        if self.tracks_table.rowCount() == 0:
+                            self.tracks_table.hide()
+                            self.empty_label.show()
+                            
+                        event.accept() # Indicate we handled the event
+                        return
+                    else:
+                        print("[PlayMode] Error saving playlist after removing tracks via Delete key.")
+                        # Consider how to handle - maybe don't add to pool if save failed?
+                        # For now, we just don't accept the event if save fails.
+                        event.ignore()
+                        return
+                        
+        # If not handled, pass to parent
+        super().keyPressEvent(event)
+        
     def get_current_playlist(self) -> Playlist:
         """
         Returns the currently loaded playlist.

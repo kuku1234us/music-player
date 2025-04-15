@@ -64,7 +64,8 @@ music-player/
 │   │   │   ├── dashboard_page.py
 │   │   │   ├── player_page.py       # Main player interface with large album art
 │   │   │   ├── playlists_page.py    # Playlist management view
-│   │   │   └── preference_page.py   # User preferences view
+│   │   │   ├── preference_page.py   # User preferences view
+│   │   │   └── browser_page.py      # Browser page for file browsing and OPlayer upload
 │   │   └── vlc_player/        # UI components specific to the media player functionality
 │   │       ├── __init__.py
 │   │       ├── album_art_display.py # Widget for showing album artwork
@@ -242,18 +243,27 @@ MusicPlayerDashboard
 │   ├── PlayerPage
 │   │   ├── AlbumArtDisplay (Large, Full Bleed, No Corners)
 │   │   ├── QPushButton (Open File Button Overlay)
+│   │   ├── RoundButton (Open File Button Overlay)
+│   │   ├── RoundButton (OPlayer Button Overlay)
+│   │   ├── UploadStatusOverlay (Overlay)
 │   │   └── SpeedOverlay (Overlay)
 │   ├── PlaylistsPage
 │   └── PreferencePage
-└── MainPlayer (Persistent Player Controller)
-    └── PlayerWidget (Persistent Player UI)
-        ├── AlbumArtDisplay (Thumbnail)
-        ├── PlayerControls
-        │   └── PlayButton
-        ├── PlayerTimeline
-        │   └── PlayHead
-        ├── VolumeControl
-        └── SpeedOverlay
+│   ├── BrowserPage
+│   │   ├── QTableWidget (File Table)
+│   │   ├── RoundButton (Browse Folder Overlay)
+│   │   ├── RoundButton (OPlayer Upload Selected Overlay)
+│   │   ├── UploadStatusOverlay (Overlay)
+│   │   └── QLabel (Empty Message)
+│   └── MainPlayer (Persistent Player Controller)
+│       └── PlayerWidget (Persistent Player UI)
+│           ├── AlbumArtDisplay (Thumbnail)
+│           ├── PlayerControls
+│           │   └── PlayButton
+│           ├── PlayerTimeline
+│           │   └── PlayHead
+│           ├── VolumeControl
+│           └── SpeedOverlay
 ```
 
 ### 6.3 Layout System
@@ -290,6 +300,43 @@ Several custom widgets enhance the UI:
 *   Standard layouts (`QVBoxLayout`, `QHBoxLayout`) provide basic responsiveness.
 *   `resizeEvent` is overridden in some widgets (`PlayerWidget`, `PlayerPage`, `AlbumArtDisplay`) to handle manual repositioning or resizing of child elements (like overlays or album art) when the window size changes.
 *   The manual positioning of overlays is less ideal for complex responsiveness (See Section 10.1).
+
+### 6.7 Browser Page (`browser_page.py`)
+
+**Purpose and Role:**
+
+The `BrowserPage` serves as a simple file system browser integrated within the music player application. Its primary function is to allow users to navigate to a specific directory on their local machine and view its contents (files and subdirectories). This provides a convenient way to locate media files without leaving the application, although it doesn't currently offer deep library management features. It also incorporates functionality to upload selected files directly to an OPlayer device via FTP.
+
+**UI Structure:**
+
+The page presents a familiar file explorer interface. The main area is dominated by a `QTableWidget` (`file_table`) that lists the items in the currently selected directory. This table displays the filename (with appropriate icons indicating whether an item is a file or a directory), file size (or "<DIR>" for directories), and the last modified timestamp. Similar to other tables in the application, it supports column resizing and sorting.
+
+When no directory is selected or if the selected directory is empty, the table is hidden, and a central `QLabel` (`empty_label`) displays an informative message to the user (e.g., "Select a folder to browse..." or "Directory is empty...").
+
+Crucially, user interaction for selecting the directory to view is handled by an overlay button. A `RoundButton` component, displaying a folder icon, is persistently shown in the bottom-right corner of the page. Clicking this button triggers the directory selection dialog. A second `RoundButton`, labeled "OP", is positioned next to the browse button, allowing users to initiate uploads of selected files.
+
+An `UploadStatusOverlay` is also included to provide visual feedback during file uploads initiated via the "OP" button.
+
+**Functionality Breakdown:**
+
+1.  **Directory Selection (`_browse_folder`):** When the user clicks the overlay `browse_button`, the `_browse_folder` method is invoked. It utilizes `QFileDialog.getExistingDirectory` to present a native dialog for folder selection. To enhance usability, the dialog remembers the last directory browsed by storing and retrieving the path using the `SettingsManager` under the key `'browser/last_browse_dir'`. Once a directory is chosen, its path is stored in `self._current_directory`, and the `_populate_table` method is called.
+
+2.  **Table Population (`_populate_table`):** This method is responsible for filling the `file_table` with the contents of the specified `directory_path`. It first clears any existing rows. Then, it iterates through the items in the directory using `directory_path.iterdir()`. For each item, it attempts to get file statistics (`os.stat`) to determine if it's a directory, its size, and modification time. Errors during this process (e.g., permission denied) are caught and logged, skipping the problematic item. The gathered information is used to create appropriate `QTableWidgetItem` instances (reusing `SizeAwareTableItem` and `DateAwareTableItem` from the playlist components for correct sorting) and populate the table row. Icons are added to distinguish files from folders. After populating, sorting is re-enabled and applied based on the current sort column and order.
+
+3.  **Automatic Loading (`showEvent`):** To improve user experience, the `BrowserPage` implements the `showEvent` method. When the page becomes visible, this event handler checks the `'browser/last_browse_dir'` setting. If a valid directory path is found and it's different from the currently displayed directory, the page automatically calls `_populate_table` to load its contents, saving the user from having to re-select the folder every time they navigate to the page.
+
+4.  **OPlayer Upload (`_on_oplayer_upload_selected_clicked`, `_start_next_upload`, etc.):** This mirrors the functionality on the `PlayerPage` but is adapted for multiple files selected within the `file_table`. When the "OP" button is clicked:
+    *   It gathers the paths of all selected items that are *files* (checking the size column for `<DIR>` text and `os.path.exists`).
+    *   It tests the connection to the OPlayer device using `oplayer_service.test_connection()`.
+    *   If files are selected and the connection is successful, it initiates a sequential upload process.
+    *   The `_files_to_upload` list holds the queue, and `_start_next_upload` manages uploading them one by one using `oplayer_service.upload_file()`.
+    *   The connected slots (`_on_upload_started`, `_on_upload_progress`, `_on_upload_completed`, `_on_upload_failed`) update the `UploadStatusOverlay`, showing the progress for the current file and indicating the overall sequence (e.g., "File 2 of 5"). Completion or failure of one upload triggers the start of the next via a short `QTimer` delay.
+
+5.  **Sorting and Column Widths:** Standard table sorting is implemented via `_on_header_clicked` and `_update_sort_indicators`. Column widths are saved and loaded using the `SettingsManager` (key: `'ui/browser_table/column_widths'`) via the `_on_column_resized`, `_save_column_widths`, and `_load_column_widths` methods, preserving user preferences across sessions.
+
+**Integration:**
+
+The `BrowserPage` is registered in `music_player/ui/pages/__init__.py`, added to the sidebar configuration in `music_player_config.yaml`, and instantiated and added to the main application's page stack within `MusicPlayerDashboard.initialize_pages`.
 
 ## 7. Player Components Deep Dive
 

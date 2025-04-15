@@ -26,6 +26,10 @@ sidebar:
           title: "Playlists"
           icon: "fa5s.list"
           page: "PlaylistsPage"
+        - id: "browser"
+          title: "Browser"
+          icon: "fa5s.folder-open"
+          page: "BrowserPage"
     - title: "Settings"
       items:
         - id: "preferences"
