@@ -164,6 +164,17 @@ class MusicPlayerDashboard(BaseWindow):
         if hasattr(playlists_page.play_mode_widget, 'track_selected_for_playback') and hasattr(self.player, 'play_track_from_playlist'):
             playlists_page.play_mode_widget.track_selected_for_playback.connect(self.player.play_track_from_playlist)
         
+        # Connect the signal to play the entire playlist (from breadcrumb button)
+        if hasattr(playlists_page, 'playlist_play_requested') and hasattr(self.player, 'load_playlist'):
+            playlists_page.playlist_play_requested.connect(self.player.load_playlist)
+        
+        # Connect double-click signals for single file playback
+        if hasattr(playlists_page.play_mode_widget.selection_pool_widget, 'play_single_file_requested') and hasattr(self.player, 'play_single_file'):
+            playlists_page.play_mode_widget.selection_pool_widget.play_single_file_requested.connect(self.player.play_single_file)
+            
+        if hasattr(browser_page, 'play_single_file_requested') and hasattr(self.player, 'play_single_file'):
+            browser_page.play_single_file_requested.connect(self.player.play_single_file)
+        
         # Show the dashboard page initially
         self.show_page('dashboard')
         

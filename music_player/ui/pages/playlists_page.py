@@ -31,6 +31,8 @@ class PlaylistsPage(QWidget):
     """
     # Signal emitted when a playlist is selected to play
     playlist_selected_for_playback = pyqtSignal(Playlist) # Emits the Playlist object
+    # Re-emit the signal from PlaylistPlaymodeWidget
+    playlist_play_requested = pyqtSignal(Playlist)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -89,6 +91,8 @@ class PlaylistsPage(QWidget):
 
         # Connect signals for PlayModeWidget
         self.play_mode_widget.back_requested.connect(self._enter_dashboard_mode)
+        # Connect the new signal from PlaylistPlaymodeWidget
+        self.play_mode_widget.playlist_play_requested.connect(self.playlist_play_requested) # Relay the signal
 
     # --- Mode Switching --- 
     def _enter_dashboard_mode(self):

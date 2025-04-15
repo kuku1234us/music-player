@@ -657,8 +657,17 @@ class MainPlayer(QWidget):
         Sets the player to use the provided Playlist object. 
         The player will directly reference the global current_playing_playlist,
         so any changes made to the playlist elsewhere will be immediately available.
+        
+        Checks if the requested playlist is already playing and ignores the request if so.
         """
         print(f"[MainPlayer] load_playlist called with: {playlist}")
+        
+        # --- Add check: If this playlist is already playing, do nothing --- 
+        if self._playback_mode == 'playlist' and self._current_playlist == playlist and self.is_playing():
+            print(f"[MainPlayer] Playlist '{playlist.name if playlist else 'None'}' is already playing. Ignoring load request.")
+            return
+        # --- End check ---
+        
         if not playlist:
             # Only show warning if playlist is None, not if it's just empty
             self.set_playback_mode('single')
@@ -800,4 +809,23 @@ class MainPlayer(QWidget):
         self._set_app_state(STATE_PLAYING)
         # self.backend.seek(0) # seek(0) might not be needed as load_media often starts from beginning
         self.backend.play()
+        self.setFocus() # Ensure player retains focus
+
+    @pyqtSlot(str)
+    def play_single_file(self, filepath: str):
+        """
+        Slot to handle requests to play a single file directly.
+        Sets the playback mode to 'single'.
+
+        Args:
+            filepath (str): The absolute path of the file to play.
+        """
+        print(f"[MainPlayer] Received request to play single file: {filepath}")
+        
+        # Set mode to single and clear playlist reference
+        self.set_playback_mode('single') 
+        self._current_playlist = None
+        
+        # Load and play the track
+        self._load_and_play_path(filepath)
         self.setFocus() # Ensure player retains focus

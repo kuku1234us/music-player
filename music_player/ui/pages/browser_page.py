@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QHeaderView, QAbstractItemView, QFileDialog, QLabel,
     QSizePolicy, QMessageBox
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSlot, QTimer
+from PyQt6.QtCore import Qt, QSize, pyqtSlot, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
 import qtawesome as qta
 
@@ -30,6 +30,9 @@ class BrowserPage(QWidget):
     """
     Page that allows browsing a selected directory and viewing its contents.
     """
+    # Signal to request playing a single file
+    play_single_file_requested = pyqtSignal(str) # Emits filepath
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("browserPage")
@@ -181,8 +184,8 @@ class BrowserPage(QWidget):
         self.oplayer_service.upload_completed.connect(self._on_upload_completed)
         self.oplayer_service.upload_failed.connect(self._on_upload_failed)
         
-        # Connect double click if needed later
-        # self.file_table.doubleClicked.connect(self._on_item_double_clicked)
+        # Connect double click signal for file playback
+        self.file_table.doubleClicked.connect(self._on_item_double_clicked)
 
     def _browse_folder(self):
         """Opens a directory dialog and populates the table."""
@@ -495,3 +498,22 @@ class BrowserPage(QWidget):
         self._current_upload_index += 1
         # Use QTimer to start next upload slightly later, allowing failure message to be seen
         QTimer.singleShot(2500, self._start_next_upload) # Longer delay for errors 
+
+    def _on_item_double_clicked(self, index):
+        """Handle double-click on an item in the browser table."""
+        if index.isValid():
+            item = self.file_table.item(index.row(), self.COL_FILENAME)
+            if item:
+                filepath = item.data(Qt.ItemDataRole.UserRole)
+                # Check if it's a file (not a directory) before emitting
+                size_item = self.file_table.item(item.row(), self.COL_SIZE)
+                is_dir = size_item and size_item.text() == "<DIR>"
+                
+                if filepath and not is_dir and os.path.isfile(filepath):
+                    print(f"[BrowserPage] Double-click detected, requesting single play: {filepath}")
+                    self.play_single_file_requested.emit(filepath)
+                elif filepath and is_dir and os.path.isdir(filepath):
+                     # If it's a directory, browse into it
+                     print(f"[BrowserPage] Double-click on directory, browsing into: {filepath}")
+                     self._current_directory = Path(filepath)
+                     self._populate_table(self._current_directory) 

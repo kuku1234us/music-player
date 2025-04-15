@@ -69,6 +69,8 @@ class SelectionPoolWidget(QWidget):
     """
     # Signal to request adding selected tracks to the main playlist
     add_selected_requested = pyqtSignal(list) # Emits list of track paths
+    # Signal to request playing a single file
+    play_single_file_requested = pyqtSignal(str) # Emits filepath
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -134,16 +136,16 @@ class SelectionPoolWidget(QWidget):
             QPushButton:hover {{ background-color: {self.theme.get_color('background', 'secondary')}40; border-radius: 3px; }}
         """)
         
-        # Add Button
-        self.add_selected_button = QPushButton("Add Selected")
+        # Add Button - Changed to Icon Button
+        self.add_selected_button = QPushButton() # Removed text
+        self.add_selected_button.setIcon(qta.icon('fa5s.plus', color=self.theme.get_color('text', 'secondary'))) # Added icon
         self.add_selected_button.setToolTip("Add selected tracks to current playlist")
-        self.add_selected_button.setStyleSheet(f"""
-            padding: 4px 8px; 
-            font-size: 8pt;
-            border-radius: 3px;
-            background-color: {self.theme.get_color('background', 'tertiary')};
-            color: {self.theme.get_color('text', 'secondary')};
-        """)
+        self.add_selected_button.setFlat(True) # Make flat like browse button
+        self.add_selected_button.setIconSize(self.browse_button.sizeHint() / 1.5) # Use similar icon size
+        self.add_selected_button.setStyleSheet(f""" 
+            QPushButton {{ border: none; padding: 2px; color: {self.theme.get_color('text', 'secondary')}; }}
+            QPushButton:hover {{ background-color: {self.theme.get_color('background', 'secondary')}40; border-radius: 3px; }}
+        """) # Applied similar styling
         self.add_selected_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         header_layout.addWidget(title_label)
@@ -225,6 +227,8 @@ class SelectionPoolWidget(QWidget):
         self.pool_table.customContextMenuRequested.connect(self._show_context_menu)
         # Connect the search field signal
         self.search_field.textChanged.connect(self._filter_pool_table)
+        # Connect double-click signal
+        self.pool_table.doubleClicked.connect(self._on_item_double_clicked)
         
         # Connect column resize signal
         self.pool_table.horizontalHeader().sectionResized.connect(self._on_column_resized)
@@ -615,4 +619,14 @@ class SelectionPoolWidget(QWidget):
                 
         # If not handled, pass to parent
         super().keyPressEvent(event)
+
+    def _on_item_double_clicked(self, index):
+        """Handle double-click on an item in the pool table."""
+        if index.isValid():
+            item = self.pool_table.item(index.row(), self.COL_FILENAME)
+            if item:
+                filepath = item.data(Qt.ItemDataRole.UserRole)
+                if filepath and os.path.isfile(filepath): # Ensure it's a file
+                    print(f"[SelectionPool] Double-click detected, requesting single play: {filepath}")
+                    self.play_single_file_requested.emit(filepath)
 

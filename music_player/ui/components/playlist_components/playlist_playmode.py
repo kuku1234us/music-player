@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMenu, QApplication
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QFont, QIcon, QCursor
 import qtawesome as qta
 
@@ -19,6 +19,12 @@ from qt_base_app.models.settings_manager import SettingsManager, SettingType
 from music_player.models.playlist import Playlist
 from music_player.models import player_state
 from .selection_pool import SelectionPoolWidget, format_file_size, format_modified_time
+
+# Define common audio file extensions (can be moved to a shared location)
+AUDIO_EXTENSIONS = {
+    '.mp3', '.flac', '.wav', '.ogg', '.aac', '.m4a', '.wma', 
+    '.opus', '.aiff', '.ape', '.mpc'
+}
 
 class SizeAwareTableItem(QTableWidgetItem):
     """Custom QTableWidgetItem that correctly sorts file sizes"""
@@ -50,6 +56,7 @@ class PlaylistPlaymodeWidget(QWidget):
     # Signals to be emitted to the parent PlaylistsPage
     back_requested = pyqtSignal()  # Signal to go back to Dashboard Mode
     track_selected_for_playback = pyqtSignal(str) # Emits filepath when a track is selected for playback
+    playlist_play_requested = pyqtSignal(Playlist) # Signal to request playing the entire current playlist
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -75,6 +82,9 @@ class PlaylistPlaymodeWidget(QWidget):
         self.setLayout(QVBoxLayout(self))
         self.layout().setContentsMargins(0, 0, 0, 0)
         self.layout().setSpacing(0)
+        
+        # Enable Drag and Drop
+        self.setAcceptDrops(True)
         
         self._setup_ui()
         self._connect_signals() # Connect signals after UI setup
@@ -130,8 +140,29 @@ class PlaylistPlaymodeWidget(QWidget):
             font-weight: normal;
         """)
         
+        # Play Playlist Button (New)
+        self.play_playlist_button = QPushButton()
+        self.play_playlist_button.setIcon(qta.icon('fa5s.play', color=self.theme.get_color('text', 'primary')))
+        self.play_playlist_button.setToolTip("Play this playlist")
+        self.play_playlist_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.play_playlist_button.setFixedSize(24, 24) # Same height as back button, slightly wider
+        self.play_playlist_button.setIconSize(QSize(12, 12)) # Smaller icon
+        self.play_playlist_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                padding: 4px;
+                color: {self.theme.get_color('text', 'primary')};
+            }}
+            QPushButton:hover {{
+                background-color: {self.theme.get_color('background', 'secondary')}40;
+                border-radius: 4px;
+            }}
+        """)
+        
         breadcrumb_layout.addWidget(self.back_button)
         breadcrumb_layout.addWidget(self.playlist_name_label)
+        breadcrumb_layout.addWidget(self.play_playlist_button) # Add the play button
         breadcrumb_layout.addStretch(1)  # Push content to the left
         
         # Position the breadcrumb at the very top
@@ -225,6 +256,7 @@ class PlaylistPlaymodeWidget(QWidget):
         self.tracks_table.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
         self.tracks_table.doubleClicked.connect(self._on_track_double_clicked)
         self.tracks_table.customContextMenuRequested.connect(self._show_tracks_context_menu)
+        self.play_playlist_button.clicked.connect(self._on_play_playlist_requested) # Connect the new button
         
         # Connect column resize signal
         self.tracks_table.horizontalHeader().sectionResized.connect(self._on_column_resized)
@@ -643,3 +675,81 @@ class PlaylistPlaymodeWidget(QWidget):
             
             # Remove the added tracks from the selection pool
             self.selection_pool_widget.remove_tracks(tracks_to_add)
+
+    def _on_play_playlist_requested(self):
+        """Emit signal to request playback of the entire current playlist."""
+        if self.current_playlist:
+            print(f"[PlayMode] Play playlist requested for: {self.current_playlist.name}")
+            self.playlist_play_requested.emit(self.current_playlist)
+        else:
+            print("[PlayMode] Play playlist requested but no playlist loaded.")
+
+    # --- Drag and Drop Handling ---
+    
+    def dragEnterEvent(self, event):
+        """Accept drag events if they contain file URLs."""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            print("[PlayMode] Drag Enter accepted.") # Debug
+        else:
+            event.ignore()
+            print("[PlayMode] Drag Enter ignored.") # Debug
+
+    def dragMoveEvent(self, event):
+        """Accept move events during drag."""
+        if event.mimeData().hasUrls(): # Check again for safety
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        """Handle dropped files/folders."""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            urls = event.mimeData().urls()
+            paths_to_process = [url.toLocalFile() for url in urls]
+            print(f"[PlayMode] Drop detected with paths: {paths_to_process}") # Debug
+
+            audio_files_found = []
+            for path_str in paths_to_process:
+                try:
+                    p = Path(path_str)
+                    if p.is_file() and p.suffix.lower() in AUDIO_EXTENSIONS:
+                        audio_files_found.append(str(p))
+                    elif p.is_dir():
+                        print(f"[PlayMode] Scanning dropped folder: {p}") # Debug
+                        for root, _, files in os.walk(p):
+                            for filename in files:
+                                if Path(filename).suffix.lower() in AUDIO_EXTENSIONS:
+                                    full_path = os.path.join(root, filename)
+                                    audio_files_found.append(full_path)
+                except Exception as e:
+                    print(f"[PlayMode] Error processing dropped path {path_str}: {e}")
+            
+            print(f"[PlayMode] Found {len(audio_files_found)} potential audio files.") # Debug
+            if not audio_files_found:
+                return # Nothing to add
+
+            # --- Filter out duplicates from playlist and pool ---
+            # Get current playlist tracks
+            current_playlist_tracks_set = set()
+            if self.current_playlist:
+                current_playlist_tracks_set = set(os.path.normpath(p) for p in self.current_playlist.tracks)
+            
+            # Get current selection pool tracks
+            current_pool_tracks_set = self.selection_pool_widget._pool_paths # Access internal set
+            
+            files_to_add = []
+            for file_path in audio_files_found:
+                norm_path = os.path.normpath(file_path)
+                if norm_path not in current_playlist_tracks_set and norm_path not in current_pool_tracks_set:
+                    files_to_add.append(norm_path) # Add normalized path
+                # else: # Debugging
+                    # reason = "playlist" if norm_path in current_playlist_tracks_set else "pool"
+                    # print(f"[PlayMode] Skipping duplicate ({reason}): {norm_path}")
+            
+            print(f"[PlayMode] Adding {len(files_to_add)} unique files to selection pool.") # Debug
+            if files_to_add:
+                self.selection_pool_widget.add_tracks(files_to_add)
+        else:
+            event.ignore()
