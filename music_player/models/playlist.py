@@ -106,6 +106,8 @@ class Playlist:
         self._current_repeat_mode: str = REPEAT_ALL  # Default to REPEAT_ALL
         self._shuffled_indices: List[int] = []       # For REPEAT_RANDOM mode
         self._shuffle_index: int = -1                # Current position in shuffle list
+        self._sorted_indices: List[int] = []         # For sorted REPEAT_ALL mode
+        self._sorted_playback_index: int = -1        # Current position in sorted list
 
         # If filepath is provided but no tracks list was given, attempt to load
         if self.filepath and self.filepath.exists() and tracks is None:
@@ -168,6 +170,9 @@ class Playlist:
             # If we're in REPEAT_RANDOM mode, update the shuffle indices
             if self._current_repeat_mode == REPEAT_RANDOM:
                 self._regenerate_shuffle_indices()
+            # Invalidate sorted indices as the order might change
+            self._sorted_indices = []
+            self._sorted_playback_index = -1
                 
             return True
         return False
@@ -198,6 +203,9 @@ class Playlist:
                 # If we're in REPEAT_RANDOM mode, update the shuffle indices
                 if self._current_repeat_mode == REPEAT_RANDOM:
                     self._regenerate_shuffle_indices()
+                # Invalidate sorted indices as the order will change
+                self._sorted_indices = []
+                self._sorted_playback_index = -1
                 
             return True
         except ValueError:
@@ -356,7 +364,37 @@ class Playlist:
             str: The current repeat mode
         """
         return self._current_repeat_mode
-    
+
+    def update_sort_order(self, sorted_indices: List[int]):
+        """
+        Updates the internal sorted order based on the UI.
+
+        Args:
+            sorted_indices (List[int]): A list of original track indices
+                                        in the order they are displayed in the UI.
+        """
+        if not isinstance(sorted_indices, list):
+            print("[Playlist] Warning: update_sort_order received non-list.")
+            return
+
+        self._sorted_indices = sorted_indices
+        print(f"[Playlist] Updated sorted indices: {self._sorted_indices}")
+
+        # Reset sorted playback index, will be updated when track selected/played
+        # Or try to find current track in new order?
+        if 0 <= self._current_index < len(self.tracks):
+            try:
+                # Find the position of the currently playing track's original index
+                # within the new sorted list.
+                self._sorted_playback_index = self._sorted_indices.index(self._current_index)
+                print(f"[Playlist] Updated sorted playback index to: {self._sorted_playback_index}")
+            except ValueError:
+                # Current track index not found in new sort order (shouldn't happen if list is complete)
+                print(f"[Playlist] Warning: Current index {self._current_index} not found in new sorted indices {self._sorted_indices}. Resetting playback index.")
+                self._sorted_playback_index = 0 # Start from beginning of new sort
+        else:
+            self._sorted_playback_index = 0 # Default to start if no track was playing
+
     def _regenerate_shuffle_indices(self, after_completion=False) -> None:
         """
         Regenerates the shuffled indices to ensure all tracks are played once 
@@ -509,17 +547,35 @@ class Playlist:
             # Fallback: Should ideally not be reached if logic above is correct
             return None 
 
-        # --- Linear Navigation (REPEAT_ALL or stop) ---
+        # --- REPEAT_ALL Mode (potentially sorted) --- 
+        if self._current_repeat_mode == REPEAT_ALL and self._sorted_indices:
+            # Play according to the UI-defined sort order
+            self._sorted_playback_index += 1
+            if self._sorted_playback_index >= len(self._sorted_indices):
+                self._sorted_playback_index = 0 # Wrap around
+            
+            # Get the original index from the sorted list
+            original_index = self._sorted_indices[self._sorted_playback_index]
+            # Update the main current_index to match
+            self._current_index = original_index
+            
+            # Return the path using the original index
+            if 0 <= original_index < len(self.tracks):
+                 track_data = self.tracks[original_index]
+                 return track_data.get('path') if isinstance(track_data, dict) else None
+            else: # Index somehow invalid
+                 print(f"[Playlist] Warning: Invalid original index {original_index} from sorted list.")
+                 self._current_index = -1 # Reset main index
+                 self._sorted_playback_index = -1 # Reset sorted index
+                 return None
+        
+        # --- Fallback / Original REPEAT_ALL linear logic --- 
+        # (Used if mode is REPEAT_ALL but _sorted_indices is empty)
         next_idx = self._current_index + 1
-
         if next_idx >= num_tracks: # Reached or passed the end
-            if self._current_repeat_mode == REPEAT_ALL:
-                self._current_index = 0 # Wrap around
-                return self.tracks[0].get('path')
-            else: # Not REPEAT_ALL (implies stop)
-                # Keep index at the end? Or reset? Resetting seems safer.
-                self._current_index = -1
-                return None
+            # Wrap around only needed for REPEAT_ALL here (REPEAT_ONE handled above)
+            self._current_index = 0 
+            return self.tracks[0].get('path') if num_tracks > 0 else None
         else: # Normal advance
             self._current_index = next_idx
             return self.tracks[next_idx].get('path')
@@ -568,22 +624,42 @@ class Playlist:
                 return track_data.get('path') if isinstance(track_data, dict) else None
             return None
 
-        # --- Linear Navigation (REPEAT_ALL, REPEAT_ONE behave same way backward) ---
-        prev_idx = self._current_index - 1
+        # --- REPEAT_ALL Mode (potentially sorted) --- 
+        if self._current_repeat_mode == REPEAT_ALL and self._sorted_indices:
+            # Play according to the UI-defined sort order (backwards)
+            self._sorted_playback_index -= 1
+            if self._sorted_playback_index < 0:
+                self._sorted_playback_index = len(self._sorted_indices) - 1 # Wrap around to end
+            
+            # Get the original index from the sorted list
+            original_index = self._sorted_indices[self._sorted_playback_index]
+            # Update the main current_index to match
+            self._current_index = original_index
+            
+            # Return the path using the original index
+            if 0 <= original_index < len(self.tracks):
+                 track_data = self.tracks[original_index]
+                 return track_data.get('path') if isinstance(track_data, dict) else None
+            else: # Index somehow invalid
+                 print(f"[Playlist] Warning: Invalid original index {original_index} from sorted list (prev).")
+                 self._current_index = -1 # Reset main index
+                 self._sorted_playback_index = -1 # Reset sorted index
+                 return None
 
+        # --- Fallback / Original REPEAT_ALL/REPEAT_ONE linear logic (backwards) --- 
+        # (Used if mode is REPEAT_ALL but _sorted_indices is empty, or if mode is REPEAT_ONE)
+        prev_idx = self._current_index - 1
         if prev_idx < 0:
              # Wrap around to the end only if REPEAT_ALL
              if self._current_repeat_mode == REPEAT_ALL: # Wrap only on REPEAT_ALL
                  self._current_index = num_tracks - 1
-                 return self.tracks[self._current_index].get('path')
-             else: # REPEAT_ONE or default stop: Don't wrap, effectively stay at 0 or first item?
-                  # Let's stay at the first item (index 0) if going back from it.
-                  if self._current_index == 0: # If already at first, stay there
-                      # No change to self._current_index
-                      return self.tracks[0].get('path')
-                  else: # Landed here unexpectedly? Reset to first.
-                      self._current_index = 0
-                      return self.tracks[0].get('path')
+                 return self.tracks[self._current_index].get('path') if num_tracks > 0 else None
+             else: # REPEAT_ONE: Don't wrap, stay at the first item.
+                 if self._current_index == 0: 
+                     return self.tracks[0].get('path') if num_tracks > 0 else None
+                 else: # Landed here unexpectedly? Reset to first.
+                     self._current_index = 0
+                     return self.tracks[0].get('path') if num_tracks > 0 else None
         else: # Normal move backward
             self._current_index = prev_idx
             return self.tracks[prev_idx].get('path')
@@ -636,6 +712,15 @@ class Playlist:
                         except ValueError:
                              print(f"[Playlist] Error: Could not find track index {track_index} even after regenerating shuffle.")
                              self._shuffle_index = 0 # Fallback
+            # If in sorted REPEAT_ALL mode, update the sorted playback index
+            elif self._current_repeat_mode == REPEAT_ALL and self._sorted_indices:
+                try:
+                    self._sorted_playback_index = self._sorted_indices.index(track_index)
+                    print(f"[Playlist] Set sorted playback index to {self._sorted_playback_index}")
+                except ValueError:
+                    # Should not happen if update_sort_order called correctly
+                    print(f"[Playlist] Warning: Track index {track_index} not found in sorted indices {self._sorted_indices}. Resetting.")
+                    self._sorted_playback_index = 0 # Fallback
 
             return True
         except ValueError:

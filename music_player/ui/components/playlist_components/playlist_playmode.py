@@ -456,6 +456,9 @@ class PlaylistPlaymodeWidget(QWidget):
         # Sort the items
         self.tracks_table.sortItems(column_index, self.sort_order)
         
+        # Update the Playlist object with the new sort order
+        self._update_playlist_sort_order()
+        
         # Ensure row heights are maintained after sorting
         for row in range(self.tracks_table.rowCount()):
             self.tracks_table.setRowHeight(row, 22)
@@ -599,6 +602,8 @@ class PlaylistPlaymodeWidget(QWidget):
                 filename_item = QTableWidgetItem() # Create empty item first
                 filename_item.setText(str(filename)) # Explicitly set text, ensuring it's a string
                 filename_item.setData(Qt.ItemDataRole.UserRole, track_path)  # Store full path
+                # Store original index in UserRole+1 to retrieve later for sorting
+                filename_item.setData(Qt.ItemDataRole.UserRole + 1, row) 
                 filename_item.setToolTip(track_path)  # Show full path on hover
                 self.tracks_table.setItem(row, self.COL_FILENAME, filename_item)
                 
@@ -628,12 +633,15 @@ class PlaylistPlaymodeWidget(QWidget):
             # Auto sort after loading
             self.tracks_table.sortItems(self.sort_column, self.sort_order)
             
+            # Update the sort indicators
+            self._update_sort_indicators()
+
+            # Update the playlist object with the initial sort order
+            self._update_playlist_sort_order()
+            
             # Ensure row heights are maintained after sorting
             for row in range(self.tracks_table.rowCount()):
                 self.tracks_table.setRowHeight(row, 22)
-                
-            # Update the sort indicators
-            self._update_sort_indicators()
     
     def keyPressEvent(self, event):
         """Handle key press events, specifically the Delete key for the tracks table."""
@@ -673,6 +681,33 @@ class PlaylistPlaymodeWidget(QWidget):
             Playlist: The current playlist or None if none is loaded
         """
         return self.current_playlist
+
+    def _get_current_sorted_indices(self) -> List[int]:
+        """Retrieves the original indices of tracks in their current display order."""
+        sorted_indices = []
+        for display_row in range(self.tracks_table.rowCount()):
+            item = self.tracks_table.item(display_row, self.COL_FILENAME)
+            if item:
+                original_index = item.data(Qt.ItemDataRole.UserRole + 1)
+                if isinstance(original_index, int):
+                    sorted_indices.append(original_index)
+                else:
+                    # This shouldn't happen if load_playlist worked correctly
+                    print(f"[PlayMode] Warning: Could not retrieve original index from row {display_row}")
+            else:
+                 print(f"[PlayMode] Warning: Could not get item for row {display_row} column {self.COL_FILENAME}")
+        return sorted_indices
+
+    def _update_playlist_sort_order(self):
+        """Gets the current sort order from the table and updates the Playlist object."""
+        if self.current_playlist and hasattr(self.current_playlist, 'update_sort_order'):
+            sorted_indices = self._get_current_sorted_indices()
+            print(f"[PlayMode] Updating playlist with sorted indices: {sorted_indices}")
+            self.current_playlist.update_sort_order(sorted_indices)
+        elif not self.current_playlist:
+             print("[PlayMode] Cannot update sort order: No current playlist.")
+        else: # Playlist object doesn't have the method (safety check)
+             print("[PlayMode] Warning: Current playlist object does not support update_sort_order.")
 
     def _handle_add_selected_from_pool(self, tracks_to_add: list):
         """
@@ -716,6 +751,9 @@ class PlaylistPlaymodeWidget(QWidget):
             # Remove the added tracks from the selection pool
             self.selection_pool_widget.remove_tracks(tracks_to_add)
 
+            # Update the sort order in the playlist object
+            self._update_playlist_sort_order()
+
     def _on_play_playlist_requested(self):
         """Emit signal to request playback of the entire current playlist."""
         if self.current_playlist:
@@ -733,7 +771,9 @@ class PlaylistPlaymodeWidget(QWidget):
                 if path:
                     selected_paths.append(path)
         if selected_paths:
-            self._remove_from_playlist_add_to_pool(selected_paths)
+            if self._remove_from_playlist_add_to_pool(selected_paths):
+                # Update the sort order after successful removal
+                self._update_playlist_sort_order()
 
     def _process_dropped_paths(self, paths_to_process: List[str]) -> List[str]:
         """Processes a list of dropped file/folder paths, returning valid audio files.
@@ -904,3 +944,7 @@ class PlaylistPlaymodeWidget(QWidget):
             if files_to_remove_from_pool:
                 print(f"[PlayMode] Removing {len(files_to_remove_from_pool)} files from selection pool.")
                 self.selection_pool_widget.remove_tracks(files_to_remove_from_pool)
+
+            # Update sort order if playlist was modified (added to or removed from pool)
+            if playlist_updated or files_to_remove_from_pool:
+                 self._update_playlist_sort_order()

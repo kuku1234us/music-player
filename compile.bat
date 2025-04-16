@@ -1,1 +1,0 @@
-poetry run python -m PyInstaller MusicPlayer.spec --clean
