@@ -4,11 +4,12 @@ import os
 import re
 import random # Import random for shuffle
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 # Assuming enums are accessible or defined here/imported globally
 # If not, define them or adjust path
 from music_player.ui.vlc_player.enums import REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM
+from datetime import datetime
 
 # --- Define a default location for the working directory ---
 def get_default_working_dir() -> Path:
@@ -79,7 +80,7 @@ class Playlist:
     Represents a single playlist, containing a name and a list of track file paths.
     Includes logic for determining next/previous track index based on repeat/shuffle modes.
     """
-    def __init__(self, name: str, filepath: Optional[Path] = None, tracks: Optional[List[str]] = None):
+    def __init__(self, name: str, filepath: Optional[Path] = None, tracks: Optional[List[Union[str, Dict[str, str]]]] = None):
         """
         Initializes a Playlist object.
 
@@ -88,15 +89,16 @@ class Playlist:
             filepath (Optional[Path]): The absolute path to the playlist file on disk.
                                        If None, it's considered an unsaved playlist.
                                        Should be within the working directory.
-            tracks (Optional[List[str]]): An initial list of absolute track file paths.
+            tracks (Optional[List[Union[str, Dict[str, str]]]]): An initial list of absolute track file paths or track dictionaries.
         """
         if not name:
             raise ValueError("Playlist name cannot be empty.")
         self.name: str = name
         self.filepath: Optional[Path] = filepath
-        # Use a set for quick uniqueness checks, but store as list to maintain order
-        self._track_set: set[str] = set(tracks) if tracks else set()
-        self.tracks: List[str] = list(tracks) if tracks else []
+        # Use a set for quick uniqueness checks on paths
+        self._track_set: set[str] = set()
+        # Store tracks as list of dicts: {'path': str, 'added_time': str}
+        self.tracks: List[Dict[str, str]] = []
         # Initialize current index to -1 (no track selected)
         self._current_index: int = -1
         
@@ -105,9 +107,44 @@ class Playlist:
         self._shuffled_indices: List[int] = []       # For REPEAT_RANDOM mode
         self._shuffle_index: int = -1                # Current position in shuffle list
 
-        # If filepath is provided but no tracks, attempt to load
-        if self.filepath and self.filepath.exists() and not tracks:
+        # If filepath is provided but no tracks list was given, attempt to load
+        if self.filepath and self.filepath.exists() and tracks is None:
             self._load()
+        # If an initial tracks list was provided (potentially old format)
+        elif tracks:
+            self._initialize_tracks(tracks)
+
+    def _initialize_tracks(self, initial_tracks: List[Union[str, Dict[str, str]]]):
+        """Initializes the tracks list, handling potential old format."""
+        self.tracks = []
+        self._track_set = set()
+        current_time_iso = datetime.now().isoformat()
+
+        for item in initial_tracks:
+            track_data = None
+            if isinstance(item, str):
+                # Old format: Convert string path to new dict format
+                norm_path = os.path.normpath(item)
+                if norm_path not in self._track_set:
+                    track_data = {
+                        'path': norm_path,
+                        'added_time': current_time_iso # Use current time for migration
+                    }
+            elif isinstance(item, dict) and 'path' in item and 'added_time' in item:
+                # New format: Validate and use
+                norm_path = os.path.normpath(item['path'])
+                if norm_path not in self._track_set:
+                    # Basic validation of timestamp format
+                    try:
+                        datetime.fromisoformat(item['added_time'])
+                        track_data = {'path': norm_path, 'added_time': item['added_time']}
+                    except (TypeError, ValueError):
+                        print(f"Warning: Invalid timestamp format for {norm_path} in playlist {self.name}. Using current time.")
+                        track_data = {'path': norm_path, 'added_time': current_time_iso}
+            
+            if track_data:
+                 self.tracks.append(track_data)
+                 self._track_set.add(track_data['path'])
 
     def add_track(self, track_path: str) -> bool:
         """
@@ -119,10 +156,13 @@ class Playlist:
         Returns:
             bool: True if the track was added, False if it was already present.
         """
-        # Ensure path normalization for consistency
         norm_path = os.path.normpath(track_path)
         if norm_path not in self._track_set:
-            self.tracks.append(norm_path)
+            # Create track data dictionary with current timestamp
+            added_time_iso = datetime.now().isoformat()
+            track_data = {'path': norm_path, 'added_time': added_time_iso}
+            
+            self.tracks.append(track_data)
             self._track_set.add(norm_path)
             
             # If we're in REPEAT_RANDOM mode, update the shuffle indices
@@ -144,12 +184,20 @@ class Playlist:
         """
         norm_path = os.path.normpath(track_path)
         try:
-            self.tracks.remove(norm_path)
-            self._track_set.remove(norm_path)
+            # Find the index of the track dictionary to remove
+            index_to_remove = -1
+            for i, track_data in enumerate(self.tracks):
+                if track_data.get('path') == norm_path:
+                    index_to_remove = i
+                    break
             
-            # If we're in REPEAT_RANDOM mode, update the shuffle indices
-            if self._current_repeat_mode == REPEAT_RANDOM:
-                self._regenerate_shuffle_indices()
+            if index_to_remove != -1:
+                del self.tracks[index_to_remove]
+                self._track_set.remove(norm_path)
+                
+                # If we're in REPEAT_RANDOM mode, update the shuffle indices
+                if self._current_repeat_mode == REPEAT_RANDOM:
+                    self._regenerate_shuffle_indices()
                 
             return True
         except ValueError:
@@ -165,20 +213,14 @@ class Playlist:
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
                 data: Dict[str, Any] = json.load(f)
-                # Basic validation
                 loaded_name = data.get("name")
-                loaded_tracks = data.get("tracks", [])
+                loaded_tracks_raw = data.get("tracks", []) # Raw data
                 if loaded_name != self.name:
                     print(f"Warning: Playlist name mismatch in file '{self.filepath}'. Expected '{self.name}', found '{loaded_name}'. Using loaded name.")
-                    self.name = loaded_name # Update name from file if different
-                if isinstance(loaded_tracks, list):
-                    # Normalize paths on load
-                    self.tracks = [os.path.normpath(str(track)) for track in loaded_tracks]
-                    self._track_set = set(self.tracks)
-                else:
-                     print(f"Warning: Invalid track format in {self.filepath}. Expected a list.")
-                     self.tracks = []
-                     self._track_set = set()
+                    self.name = loaded_name
+                
+                # Process loaded tracks, handling old/new format
+                self._initialize_tracks(loaded_tracks_raw)
 
         except (json.JSONDecodeError, IOError, TypeError) as e:
             print(f"Error loading playlist from {self.filepath}: {e}")
@@ -211,7 +253,8 @@ class Playlist:
 
         if not self.filepath:
             self.filepath = PlaylistManager.get_playlist_path(self.name, playlist_subdir)
-        elif self.filepath.parent != playlist_subdir:
+        # Use os.path.samefile for robust comparison, ensuring paths exist first
+        elif self.filepath.parent.exists() and not os.path.samefile(str(self.filepath.parent), str(playlist_subdir)):
             # If the filepath is outside the designated playlist subdir, force it inside
             print(f"Warning: Playlist filepath '{self.filepath}' is outside the expected directory '{playlist_subdir}'. Correcting path.")
             self.filepath = PlaylistManager.get_playlist_path(self.name, playlist_subdir)
@@ -255,10 +298,8 @@ class Playlist:
                 if not name or not isinstance(tracks_raw, list):
                     print(f"Error: Invalid playlist format in {filepath}")
                     return None
-                # Normalize paths on load
-                tracks = [os.path.normpath(str(t)) for t in tracks_raw]
-                # Create playlist instance but pass tracks directly to avoid reload
-                playlist = Playlist(name=name, filepath=filepath, tracks=tracks)
+                # Pass tracks_raw directly to the constructor
+                playlist = Playlist(name=name, filepath=filepath, tracks=tracks_raw)
                 # Initialize index after loading, but leave as -1 for potential random first track
                 # This allows get_first_file() to work correctly for REPEAT_RANDOM mode
                 return playlist
@@ -274,10 +315,8 @@ class Playlist:
                     if not name or not isinstance(tracks_raw, list):
                         print(f"Error: Invalid playlist format in {filepath} (latin-1 encoding)")
                         return None
-                    # Normalize paths on load
-                    tracks = [os.path.normpath(str(t)) for t in tracks_raw]
-                    # Create playlist instance with fallback encoding
-                    playlist = Playlist(name=name, filepath=filepath, tracks=tracks)
+                    # Pass tracks_raw directly to the constructor for fallback encoding
+                    playlist = Playlist(name=name, filepath=filepath, tracks=tracks_raw)
                     print(f"Successfully loaded playlist with latin-1 encoding: {name}")
                     return playlist
             except Exception as alt_e:
@@ -371,11 +410,13 @@ class Playlist:
     def get_track_at(self, index: int) -> Optional[str]:
         """Returns the track path at the given index, or None if index is invalid."""
         if 0 <= index < len(self.tracks):
-            return self.tracks[index]
+            # Ensure we return the path string from the track dictionary
+            track_data = self.tracks[index]
+            return track_data.get('path') if isinstance(track_data, dict) else None
         return None
 
     def get_first_file(self) -> Optional[str]:
-        """Returns the first track in the playlist and sets the internal index."""
+        """Returns the path string of the first track and sets the internal index."""
         if not self.tracks:
             self._current_index = -1
             return None
@@ -401,14 +442,28 @@ class Playlist:
         else:
             self._current_index = 0
             
-        return self.tracks[self._current_index]
+        # Ensure the path string is returned
+        if 0 <= self._current_index < len(self.tracks):
+            track_data = self.tracks[self._current_index]
+            # --- DEBUG --- 
+            print(f"[Playlist] get_first_file: Index {self._current_index}, Data: {track_data}, Is Dict: {isinstance(track_data, dict)}")
+            # ------------- 
+            path_to_return = track_data.get('path') if isinstance(track_data, dict) else None
+            # --- MORE DEBUG ---
+            print(f"[Playlist] get_first_file: Value to be returned: {repr(path_to_return)}")
+            # ------------------
+            return path_to_return
+        # --- DEBUG --- 
+        print(f"[Playlist] get_first_file: Index {self._current_index} out of bounds (len={len(self.tracks)}). Returning None.")
+        # ------------- 
+        return None # Return None if index is invalid
 
     def get_next_file(self) -> Optional[str]:
         """
-        Calculates the path of the next track based on the current repeat mode and updates internal index.
+        Calculates the path string of the next track based on the current repeat mode and updates internal index.
 
         Returns:
-            Optional[str]: The path of the next track, or None if playback should stop.
+            Optional[str]: The path string of the next track, or None if playback should stop.
         """
         num_tracks = len(self.tracks)
         if num_tracks == 0:
@@ -418,16 +473,16 @@ class Playlist:
         # If only one track, always return it
         if num_tracks == 1:
             self._current_index = 0
-            return self.tracks[0]
+            return self.tracks[0].get('path')
 
         if self._current_repeat_mode == REPEAT_ONE:
             # Stay on the current track, just ensure index is valid
             if 0 <= self._current_index < num_tracks:
                 # No change needed to self._current_index
-                return self.tracks[self._current_index]
+                return self.tracks[self._current_index].get('path')
             else: # Invalid index somehow, reset to first
                 self._current_index = 0
-                return self.tracks[0]
+                return self.tracks[0].get('path')
 
         if self._current_repeat_mode == REPEAT_RANDOM:
             # Use our shuffled indices for proper random playback
@@ -444,7 +499,15 @@ class Playlist:
                 
             # Set current index to the track at current shuffle position
             self._current_index = self._shuffled_indices[self._shuffle_index]
-            return self.tracks[self._current_index]
+            # Ensure the path string is returned
+            if 0 <= self._current_index < len(self.tracks):
+                track_data = self.tracks[self._current_index]
+                return track_data.get('path') if isinstance(track_data, dict) else None
+            # Return None if index became invalid (e.g., end of list without repeat)
+            elif self._current_index == -1: 
+                return None
+            # Fallback: Should ideally not be reached if logic above is correct
+            return None 
 
         # --- Linear Navigation (REPEAT_ALL or stop) ---
         next_idx = self._current_index + 1
@@ -452,22 +515,21 @@ class Playlist:
         if next_idx >= num_tracks: # Reached or passed the end
             if self._current_repeat_mode == REPEAT_ALL:
                 self._current_index = 0 # Wrap around
-                return self.tracks[0]
+                return self.tracks[0].get('path')
             else: # Not REPEAT_ALL (implies stop)
                 # Keep index at the end? Or reset? Resetting seems safer.
                 self._current_index = -1
                 return None
         else: # Normal advance
             self._current_index = next_idx
-            return self.tracks[next_idx]
+            return self.tracks[next_idx].get('path')
 
     def get_previous_file(self) -> Optional[str]:
         """
-        Calculates the path of the previous track based on the current repeat mode and updates internal index.
-        REPEAT_ONE behaves linearly when going backward.
+        Calculates the path string of the previous track based on the current repeat mode and updates internal index.
 
         Returns:
-            Optional[str]: The path of the previous track, or None if invalid.
+            Optional[str]: The path string of the previous track, or None if invalid.
         """
         num_tracks = len(self.tracks)
         if num_tracks == 0:
@@ -477,7 +539,7 @@ class Playlist:
         # If only one track, always return it
         if num_tracks == 1:
             self._current_index = 0
-            return self.tracks[0]
+            return self.tracks[0].get('path')
 
         if self._current_repeat_mode == REPEAT_RANDOM:
             # Use our shuffled indices for proper random playback
@@ -493,7 +555,18 @@ class Playlist:
                 
             # Set current index to the track at current shuffle position
             self._current_index = self._shuffled_indices[self._shuffle_index]
-            return self.tracks[self._current_index]
+            # Ensure the path string is returned
+            if 0 <= self._current_index < len(self.tracks):
+                track_data = self.tracks[self._current_index]
+                return track_data.get('path') if isinstance(track_data, dict) else None
+            # Return None if index became invalid (e.g., beginning of list without wrap)
+            elif self._current_index == -1: # Check if index reset
+                return None
+            # Fallback: Check if index remained at 0 after trying to go back
+            elif self._current_index == 0 and len(self.tracks) > 0: 
+                track_data = self.tracks[0]
+                return track_data.get('path') if isinstance(track_data, dict) else None
+            return None
 
         # --- Linear Navigation (REPEAT_ALL, REPEAT_ONE behave same way backward) ---
         prev_idx = self._current_index - 1
@@ -502,18 +575,18 @@ class Playlist:
              # Wrap around to the end only if REPEAT_ALL
              if self._current_repeat_mode == REPEAT_ALL: # Wrap only on REPEAT_ALL
                  self._current_index = num_tracks - 1
-                 return self.tracks[self._current_index]
+                 return self.tracks[self._current_index].get('path')
              else: # REPEAT_ONE or default stop: Don't wrap, effectively stay at 0 or first item?
                   # Let's stay at the first item (index 0) if going back from it.
                   if self._current_index == 0: # If already at first, stay there
                       # No change to self._current_index
-                      return self.tracks[0]
+                      return self.tracks[0].get('path')
                   else: # Landed here unexpectedly? Reset to first.
                       self._current_index = 0
-                      return self.tracks[0]
+                      return self.tracks[0].get('path')
         else: # Normal move backward
             self._current_index = prev_idx
-            return self.tracks[prev_idx]
+            return self.tracks[prev_idx].get('path')
 
     def select_track_by_filepath(self, filepath: str) -> bool:
         """
@@ -528,8 +601,16 @@ class Playlist:
         """
         norm_path = os.path.normpath(filepath)
         try:
-            # Find the index in the main track list
-            track_index = self.tracks.index(norm_path)
+            # Find the index in the main track list by iterating through dicts
+            track_index = -1
+            for i, track_data in enumerate(self.tracks):
+                if track_data.get('path') == norm_path:
+                    track_index = i
+                    break
+            
+            if track_index == -1:
+                 raise ValueError # Path not found
+                 
             self._current_index = track_index
             print(f"[Playlist] Selected track index {self._current_index} for path: {norm_path}")
 

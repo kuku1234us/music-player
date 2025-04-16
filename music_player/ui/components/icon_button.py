@@ -97,8 +97,6 @@ class IconButton(QPushButton):
 
         # Generate hover background color string - simplified
         hover_bg = self.theme.get_color(*hover_key) # Get hover color directly
-        # --- Debug Print --- 
-        print(f"IconButton hover_bg: {hover_bg}")
 
         self.setStyleSheet(f"""
             QPushButton {{

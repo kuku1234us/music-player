@@ -721,9 +721,12 @@ class MainPlayer(QWidget):
             self.player_widget.timeline.set_position(0)
             return
             
-        # Get the first file path from the playlist
+        # Get the first file path directly from the playlist method
         first_track_path = self._current_playlist.get_first_file()
-        
+        # --- DEBUG --- 
+        print(f"[MainPlayer] load_playlist: Received first_track_path: {repr(first_track_path)}")
+        # ------------- 
+
         # Add playlist to recently played WHEN it starts playing
         if first_track_path: # Only add if we have something to play
             # Ensure playlist has a valid filepath before adding
@@ -747,34 +750,49 @@ class MainPlayer(QWidget):
         Args:
             file_path (str): The absolute path to the media file.
         """
-        if not file_path or not os.path.exists(file_path):
-            self._show_error(f"Media file not found: {file_path}")
+        # Ensure file_path is a string before checking existence or showing error
+        actual_path = file_path
+        if isinstance(file_path, dict):
+            actual_path = file_path.get('path', '') # Extract path if it's a dict
+            print(f"[MainPlayer] Warning: _load_and_play_path received dict, extracted path: {actual_path}")
+
+        if not actual_path or not os.path.exists(actual_path):
+            # Display the extracted path in the error message
+            error_display_path = actual_path if actual_path else "(Empty Path)"
+            self._show_error(f"Media file not found: {error_display_path}")
             if self._playback_mode == 'playlist':
                 # If loading fails in playlist mode, try to advance
-                self.play_next_track(force_advance=True) # Pass force_advance if needed
-            # No longer stopping here - let current playback continue if any
+                self.play_next_track(force_advance=True)
             return
              
-        self.current_media_path = file_path
-        print(f"[MainPlayer] Backend loading: {file_path}")
+        # Use the extracted actual_path from now on
+        self.current_media_path = actual_path
+        print(f"[MainPlayer] Backend loading: {actual_path}")
         
         # Always set the app state to playing BEFORE loading media for responsive UI
         self._set_app_state(STATE_PLAYING)
         
         # Load the media (this will trigger on_media_changed but won't start playback)
-        self.backend.load_media(file_path)
+        self.backend.load_media(actual_path)
         
         # Explicitly start playback after media is loaded
         self.backend.play()
 
-    def play_next_track(self):
+    def play_next_track(self, force_advance=False):
         """
         Plays the next track in the playlist based on the current state and repeat mode.
+        Args:
+            force_advance (bool): If True, forces advancing even if logic might otherwise prevent it.
+                                 (Currently unused in this method's logic but added for compatibility)
         """
-        print("[MainPlayer] play_next_track called")
+        print(f"[MainPlayer] play_next_track called (force_advance={force_advance})")
         if self._playback_mode == 'playlist' and self._current_playlist:
+            # Get the next file path directly
             next_track_path = self._current_playlist.get_next_file()
-            
+            # --- DEBUG --- 
+            # print(f"[MainPlayer] play_next_track: Received next_track_path: {repr(next_track_path)}")
+            # ------------- 
+
             if next_track_path:
                 print(f"[MainPlayer] Playing next track: {next_track_path}")
                 self._load_and_play_path(next_track_path)
@@ -789,8 +807,12 @@ class MainPlayer(QWidget):
         """
         print("[MainPlayer] play_previous_track called")
         if self._playback_mode == 'playlist' and self._current_playlist:
+            # Get the previous file path directly
             prev_track_path = self._current_playlist.get_previous_file()
-            
+            # --- DEBUG --- 
+            # print(f"[MainPlayer] play_previous_track: Received prev_track_path: {repr(prev_track_path)}")
+            # ------------- 
+
             if prev_track_path:
                 print(f"[MainPlayer] Playing previous track: {prev_track_path}")
                 self._load_and_play_path(prev_track_path)
