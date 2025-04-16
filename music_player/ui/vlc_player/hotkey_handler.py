@@ -110,15 +110,11 @@ class HotkeyHandler(QObject):
         
     def _volume_up(self):
         """Increase volume by 5%"""
-        volume = self.main_player.player_widget.volume_control.get_volume()
-        new_volume = min(volume + 5, 200)  # Allow up to 200% volume
-        self.main_player.set_volume(new_volume)
+        self.main_player.increase_volume(5)
         
     def _volume_down(self):
         """Decrease volume by 5%"""
-        volume = self.main_player.player_widget.volume_control.get_volume()
-        new_volume = max(volume - 5, 0)
-        self.main_player.set_volume(new_volume)
+        self.main_player.decrease_volume(5)
         
     def _schedule_seek(self):
         """Schedule a seek operation after accumulating multiple seek requests"""

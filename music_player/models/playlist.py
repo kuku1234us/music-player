@@ -592,22 +592,41 @@ class Playlist:
 
 class PlaylistManager:
     """
-    Manages the loading, saving, and deletion of Playlist objects from disk.
+    Manages loading, saving, and discovering playlists within a specified working directory.
     """
     def __init__(self, working_dir: Optional[Path] = None):
         """
-        Initializes the PlaylistManager.
+        Initialize the playlist manager.
 
         Args:
-            working_dir (Optional[Path]): The application's working directory.
-                                          If None, uses the default from settings.
+            working_dir (Optional[Path]): The base directory for playlist operations.
+                                          If None, the default working directory will be
+                                          determined lazily when needed.
         """
-        if working_dir is None:
-            working_dir = get_default_working_dir()
-        self.working_dir = working_dir
-        # Playlists are stored in a subdirectory
-        self.playlist_dir = self.working_dir / "playlists"
-        self.playlist_dir.mkdir(parents=True, exist_ok=True) # Ensure it exists
+        # Store the provided working_dir, but don't resolve the default yet.
+        self._working_dir = working_dir
+
+    @property
+    def working_dir(self) -> Path:
+        """Lazily gets the working directory, resolving default if needed."""
+        if self._working_dir is None:
+            # Resolve the default directory only when first accessed
+            self._working_dir = get_default_working_dir()
+            print(f"[PlaylistManager] Resolved working directory: {self._working_dir}")
+        return self._working_dir
+
+    @property
+    def playlist_dir(self) -> Path:
+        """Gets the specific 'playlists' subdirectory, ensuring it exists."""
+        # Use the working_dir property to ensure it's resolved
+        p_dir = self.working_dir / "playlists"
+        try:
+             p_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+             print(f"Error ensuring playlist directory exists: {p_dir} - {e}")
+             # Fallback or re-raise depending on desired strictness
+             # For now, return the path anyway, operations might fail later
+        return p_dir
 
     @staticmethod
     def _sanitize_filename(name: str) -> str:

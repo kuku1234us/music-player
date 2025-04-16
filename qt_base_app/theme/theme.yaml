@@ -4,7 +4,8 @@ colors:
     secondary: "#18181b"
     tertiary: "#27272a"
     alternate_row: "#111114"
-    selected_row: "#1b1b39"
+    hover: "#111114"
+    selected_row: "#382b1a"
     card: "transparent"
     sidebar: "#18181b"
   text:

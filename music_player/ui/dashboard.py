@@ -22,6 +22,9 @@ from music_player.ui.pages import (
 # Import player components
 from music_player.ui.vlc_player import MainPlayer
 
+# Import Playlist for type hint
+from music_player.models.playlist import Playlist
+
 
 class MusicPlayerDashboard(BaseWindow):
     """
@@ -175,6 +178,13 @@ class MusicPlayerDashboard(BaseWindow):
         if hasattr(browser_page, 'play_single_file_requested') and hasattr(self.player, 'play_single_file'):
             browser_page.play_single_file_requested.connect(self.player.play_single_file)
         
+        # Connect signals from DashboardPage for recently played items
+        if hasattr(dashboard_page, 'play_single_file_requested'):
+            dashboard_page.play_single_file_requested.connect(self._handle_play_single_from_dashboard)
+            
+        if hasattr(dashboard_page, 'play_playlist_requested'):
+            dashboard_page.play_playlist_requested.connect(self._handle_play_playlist_from_dashboard)
+        
         # Show the dashboard page initially
         self.show_page('dashboard')
         
@@ -204,6 +214,27 @@ class MusicPlayerDashboard(BaseWindow):
         if item_id in page_titles:
             # Set the title text
             self.page_title.setText(page_titles[item_id])
+    
+    def _handle_play_single_from_dashboard(self, filepath: str):
+        """Handles request from dashboard to play a single file and navigate."""
+        if self.player and hasattr(self.player, 'play_single_file'):
+            self.player.play_single_file(filepath)
+            self.show_page('player')
+            self.sidebar.set_selected_item('player')
+            
+    def _handle_play_playlist_from_dashboard(self, playlist: Playlist):
+        """Handles request from dashboard to play a playlist and navigate."""
+        # Get the playlists page instance
+        pl_page = self.pages.get('playlists')
+        if pl_page and hasattr(pl_page, '_enter_play_mode'):
+            # Tell the playlists page to enter play mode for this playlist
+            # This will trigger the necessary state changes and player loading internally
+            pl_page._enter_play_mode(playlist)
+            # Navigate to the playlists page (which will now show the play mode)
+            self.show_page('playlists')
+            self.sidebar.set_selected_item('playlists')
+        else:
+            print("[Dashboard] Error: Could not find PlaylistsPage or _enter_play_mode method.")
     
     def _on_track_changed(self, metadata):
         """Handle track change events"""

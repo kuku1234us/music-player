@@ -19,6 +19,7 @@ from qt_base_app.models.settings_manager import SettingsManager, SettingType
 from music_player.models.playlist import Playlist
 from music_player.models import player_state
 from .selection_pool import SelectionPoolWidget, format_file_size, format_modified_time
+from music_player.ui.components.icon_button import IconButton
 
 # Define common audio file extensions (can be moved to a shared location)
 AUDIO_EXTENSIONS = {
@@ -140,25 +141,15 @@ class PlaylistPlaymodeWidget(QWidget):
             font-weight: normal;
         """)
         
-        # Play Playlist Button (New)
-        self.play_playlist_button = QPushButton()
-        self.play_playlist_button.setIcon(qta.icon('fa5s.play', color=self.theme.get_color('text', 'primary')))
-        self.play_playlist_button.setToolTip("Play this playlist")
-        self.play_playlist_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.play_playlist_button.setFixedSize(24, 24) # Same height as back button, slightly wider
-        self.play_playlist_button.setIconSize(QSize(12, 12)) # Smaller icon
-        self.play_playlist_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                padding: 4px;
-                color: {self.theme.get_color('text', 'primary')};
-            }}
-            QPushButton:hover {{
-                background-color: {self.theme.get_color('background', 'secondary')}40;
-                border-radius: 4px;
-            }}
-        """)
+        # Play Playlist Button - Use IconButton
+        self.play_playlist_button = IconButton(
+            icon_name='fa5s.play',
+            tooltip="Play this playlist",
+            icon_color_key=('text', 'primary'), # Use primary text color for icon
+            fixed_size=QSize(24, 24),      # Keep original fixed size
+            icon_size=QSize(12, 12),       # Keep original icon size
+            parent=self
+        )
         
         breadcrumb_layout.addWidget(self.back_button)
         breadcrumb_layout.addWidget(self.playlist_name_label)

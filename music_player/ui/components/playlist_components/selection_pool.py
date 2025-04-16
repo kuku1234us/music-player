@@ -17,6 +17,8 @@ from qt_base_app.theme.theme_manager import ThemeManager
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 # Import the new SearchField component
 from music_player.ui.components.search_field import SearchField
+# Import the new IconButton component
+from music_player.ui.components.icon_button import IconButton
 
 # Define common audio file extensions
 AUDIO_EXTENSIONS = {
@@ -125,28 +127,43 @@ class SelectionPoolWidget(QWidget):
         # Set a maximum width or flexible sizing as needed
         # self.search_field.setMaximumWidth(250) 
         
-        self.browse_button = QPushButton()
-        self.browse_button.setIcon(qta.icon('fa5s.folder-open'))
-        self.browse_button.setToolTip("Browse folder to add tracks")
-        self.browse_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.browse_button.setFlat(True)
-        self.browse_button.setIconSize(self.browse_button.sizeHint() / 1.5)
-        self.browse_button.setStyleSheet(f"""
-            QPushButton {{ border: none; padding: 2px; color: {self.theme.get_color('text', 'secondary')}; }}
-            QPushButton:hover {{ background-color: {self.theme.get_color('background', 'secondary')}40; border-radius: 3px; }}
-        """)
+        # Use IconButton for Browse button
+        self.browse_button = IconButton(
+            icon_name='fa5s.folder-open',
+            tooltip="Browse folder to add tracks",
+            icon_color_key=('text', 'secondary'), # Match original style
+            parent=self
+        )
+        # Remove old styling for browse_button
+        # self.browse_button = QPushButton()
+        # self.browse_button.setIcon(qta.icon('fa5s.folder-open'))
+        # self.browse_button.setToolTip("Browse folder to add tracks")
+        # self.browse_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        # self.browse_button.setFlat(True)
+        # self.browse_button.setIconSize(self.browse_button.sizeHint() / 1.5)
+        # self.browse_button.setStyleSheet(f"""
+        #     QPushButton {{ border: none; padding: 2px; color: {self.theme.get_color('text', 'secondary')}; }}
+        #     QPushButton:hover {{ background-color: {self.theme.get_color('background', 'secondary')}40; border-radius: 3px; }}
+        # """)
         
-        # Add Button - Changed to Icon Button
-        self.add_selected_button = QPushButton() # Removed text
-        self.add_selected_button.setIcon(qta.icon('fa5s.plus', color=self.theme.get_color('text', 'secondary'))) # Added icon
-        self.add_selected_button.setToolTip("Add selected tracks to current playlist")
-        self.add_selected_button.setFlat(True) # Make flat like browse button
-        self.add_selected_button.setIconSize(self.browse_button.sizeHint() / 1.5) # Use similar icon size
-        self.add_selected_button.setStyleSheet(f""" 
-            QPushButton {{ border: none; padding: 2px; color: {self.theme.get_color('text', 'secondary')}; }}
-            QPushButton:hover {{ background-color: {self.theme.get_color('background', 'secondary')}40; border-radius: 3px; }}
-        """) # Applied similar styling
-        self.add_selected_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Use IconButton for Add button
+        self.add_selected_button = IconButton(
+            icon_name='fa5s.plus',
+            tooltip="Add selected tracks to current playlist",
+            icon_color_key=('text', 'secondary'), # Match original style
+            parent=self
+        )
+        # Remove old styling for add_selected_button
+        # self.add_selected_button = QPushButton() # Removed text
+        # self.add_selected_button.setIcon(qta.icon('fa5s.plus', color=self.theme.get_color('text', 'secondary'))) # Added icon
+        # self.add_selected_button.setToolTip("Add selected tracks to current playlist")
+        # self.add_selected_button.setFlat(True) # Make flat like browse button
+        # self.add_selected_button.setIconSize(self.browse_button.sizeHint() / 1.5) # Use similar icon size
+        # self.add_selected_button.setStyleSheet(f""" 
+        #     QPushButton {{ border: none; padding: 2px; color: {self.theme.get_color('text', 'secondary')}; }}
+        #     QPushButton:hover {{ background-color: {self.theme.get_color('background', 'secondary')}40; border-radius: 3px; }}
+        # """) # Applied similar styling
+        # self.add_selected_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         header_layout.addWidget(title_label)
         # Add the search field next to the title - WITH stretch factor

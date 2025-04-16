@@ -3,10 +3,12 @@ Shared state module for the Music Player application.
 Stores global references and state that needs to be accessed by multiple components.
 """
 from typing import Optional, List, Callable
-from music_player.models.playlist import Playlist
+# Delay import to prevent circular dependency
+# from music_player.models.playlist import Playlist
 
 # Global variable to store the current playlist being played
-current_playing_playlist: Optional[Playlist] = None
+# Use string literal for type hint
+current_playing_playlist: Optional['Playlist'] = None
 
 # Callbacks for track selection (Not used for playback request anymore)
 _track_selected_callbacks: List[Callable[[str], None]] = []
@@ -14,13 +16,17 @@ _track_selected_callbacks: List[Callable[[str], None]] = []
 # Callbacks for track play requests - REMOVED
 # _track_play_requested_callbacks: List[Callable[[int], None]] = []
 
-def set_current_playlist(playlist: Optional[Playlist]) -> None:
+def set_current_playlist(playlist: Optional['Playlist']) -> None:
     """Set the current global playlist reference"""
+    # Import locally if needed for type checking (often not required at runtime)
+    # from music_player.models.playlist import Playlist
     global current_playing_playlist
     current_playing_playlist = playlist
 
-def get_current_playlist() -> Optional[Playlist]:
+def get_current_playlist() -> Optional['Playlist']:
     """Get the current global playlist reference"""
+    # Import locally if needed for type checking (often not required at runtime)
+    # from music_player.models.playlist import Playlist
     global current_playing_playlist
     return current_playing_playlist
 

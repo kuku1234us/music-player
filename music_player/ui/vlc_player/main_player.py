@@ -11,9 +11,12 @@ from .player_widget import PlayerWidget
 from .hotkey_handler import HotkeyHandler
 from music_player.models.vlc_backend import VLCBackend
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
-from music_player.models.playlist import Playlist # Import Playlist
+# Delay import to prevent circular dependency
+# from music_player.models.playlist import Playlist # Import Playlist
 # Import the player state module for playlist reference
 from music_player.models import player_state
+# Import the recently played model
+from music_player.models.recently_played import RecentlyPlayedModel
 
 from .enums import STATE_PLAYING, STATE_PAUSED, STATE_ENDED, STATE_ERROR, REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM # REPEAT_NONE removed
 
@@ -43,6 +46,8 @@ class MainPlayer(QWidget):
         
         # Get settings manager instance
         self.settings = SettingsManager.instance()
+        # Get recently played model instance
+        self.recently_played_model = RecentlyPlayedModel.instance()
         
         # Internal state tracking
         self.app_state = STATE_PAUSED
@@ -54,7 +59,8 @@ class MainPlayer(QWidget):
         
         # Playback Mode State
         self._playback_mode = 'single'  # 'single' or 'playlist'
-        self._current_playlist: Optional[Playlist] = None
+        # Use string literal for type hint
+        self._current_playlist: Optional['Playlist'] = None
         
         # UI Components
         self.player_widget = PlayerWidget(self, persistent=persistent_mode)
@@ -541,6 +547,9 @@ class MainPlayer(QWidget):
             self.set_playback_mode('single')
             self._current_playlist = None
             
+            # Add to recently played BEFORE loading (as loading might fail)
+            self.recently_played_model.add_item(item_type='file', name=os.path.basename(file_path), path=file_path)
+            
             self._load_and_play_path(file_path)
             self.setFocus()
             return True
@@ -651,8 +660,9 @@ class MainPlayer(QWidget):
             self.player_widget.set_next_prev_enabled(is_playlist_mode)
             self.playback_mode_changed.emit(self._playback_mode)
 
-    @pyqtSlot(Playlist)
-    def load_playlist(self, playlist: Optional[Playlist]):
+    # Use object type hint for the slot to avoid import issues
+    @pyqtSlot(object) 
+    def load_playlist(self, playlist: Optional[object]):
         """ 
         Sets the player to use the provided Playlist object. 
         The player will directly reference the global current_playing_playlist,
@@ -663,24 +673,38 @@ class MainPlayer(QWidget):
         print(f"[MainPlayer] load_playlist called with: {playlist}")
         
         # --- Add check: If this playlist is already playing, do nothing --- 
+        # Note: Comparison should still work with object references
         if self._playback_mode == 'playlist' and self._current_playlist == playlist and self.is_playing():
-            print(f"[MainPlayer] Playlist '{playlist.name if playlist else 'None'}' is already playing. Ignoring load request.")
+            # We might need to add an isinstance check here if the playlist object isn't directly comparable
+            # For now, assume reference comparison works. Add if runtime errors occur.
+            # from music_player.models.playlist import Playlist
+            # if isinstance(playlist, Playlist):
+            #     print(f"[MainPlayer] Playlist '{playlist.name}' is already playing. Ignoring load request.")
+            print(f"[MainPlayer] Playlist is already playing. Ignoring load request.") # Generic message
             return
         # --- End check ---
         
-        if not playlist:
-            # Only show warning if playlist is None, not if it's just empty
-            self.set_playback_mode('single')
-            # Use direct reference to global variable rather than keeping a copy
-            self._current_playlist = None
-            self.player_widget.update_track_info("No Track", "", "", None)
-            self.player_widget.timeline.set_duration(0)
-            self.player_widget.timeline.set_position(0)
-            return
-
+        # Need Playlist type for adding to recently played, import locally
+        from music_player.models.playlist import Playlist
+        if not isinstance(playlist, Playlist):
+             # Handle the case where a non-playlist object was somehow passed
+             print(f"[MainPlayer] Error: load_playlist called with non-Playlist object: {type(playlist)}")
+             return
+             
+        # --- If checks passed, proceed to load --- 
+        
+        # Update the global player state *first*
+        player_state.set_current_playlist(playlist)
+        
+        # Update the internal reference *second*
+        self._current_playlist = playlist
+        # NOTE: We could potentially just rely on player_state.get_current_playlist() 
+        #       instead of self._current_playlist, but having a local reference 
+        #       can sometimes be cleaner. For now, keep both synced.
+ 
         # Store a reference to the global current_playing_playlist
         # This ensures we always use the most up-to-date playlist state
-        self._current_playlist = player_state.get_current_playlist()
+        # self._current_playlist = player_state.get_current_playlist() # Redundant now
         
         # Set the playlist's repeat mode to match the player's mode
         # This is one of the appropriate times to set the repeat mode
@@ -699,6 +723,14 @@ class MainPlayer(QWidget):
             
         # Get the first file path from the playlist
         first_track_path = self._current_playlist.get_first_file()
+        
+        # Add playlist to recently played WHEN it starts playing
+        if first_track_path: # Only add if we have something to play
+            # Ensure playlist has a valid filepath before adding
+            if playlist.filepath:
+                self.recently_played_model.add_item(item_type='playlist', name=playlist.name, path=playlist.filepath)
+            else:
+                print(f"[MainPlayer] Warning: Cannot add playlist '{playlist.name}' to recently played, missing filepath.")
         
         if first_track_path:
             print(f"[MainPlayer] Loading first track from playlist: {first_track_path}")
@@ -809,6 +841,10 @@ class MainPlayer(QWidget):
         self._set_app_state(STATE_PLAYING)
         # self.backend.seek(0) # seek(0) might not be needed as load_media often starts from beginning
         self.backend.play()
+        
+        # Add the specific track to recently played
+        self.recently_played_model.add_item(item_type='file', name=os.path.basename(filepath), path=filepath)
+        
         self.setFocus() # Ensure player retains focus
 
     @pyqtSlot(str)
@@ -826,6 +862,41 @@ class MainPlayer(QWidget):
         self.set_playback_mode('single') 
         self._current_playlist = None
         
+        # Add to recently played BEFORE loading
+        self.recently_played_model.add_item(item_type='file', name=os.path.basename(filepath), path=filepath)
+        
         # Load and play the track
         self._load_and_play_path(filepath)
         self.setFocus() # Ensure player retains focus
+
+    def increase_volume(self, amount=5):
+        """Increase volume by a specified amount (default 5%)."""
+        # Use player_widget.volume_control to get volume, respecting the control's range
+        if hasattr(self.player_widget, 'volume_control') and hasattr(self.player_widget.volume_control, 'get_volume'):
+            volume = self.player_widget.volume_control.get_volume()
+            # Ensure the range matches the volume control's capability (assuming 0-200 based on hotkey handler)
+            new_volume = min(volume + amount, 200) 
+            self.set_volume(new_volume)
+        else:
+            print("[MainPlayer] Warning: Could not access volume control to increase volume.")
+            
+    def decrease_volume(self, amount=5):
+        """Decrease volume by a specified amount (default 5%)."""
+        if hasattr(self.player_widget, 'volume_control') and hasattr(self.player_widget.volume_control, 'get_volume'):
+            volume = self.player_widget.volume_control.get_volume()
+            new_volume = max(volume - amount, 0)
+            self.set_volume(new_volume)
+        else:
+            print("[MainPlayer] Warning: Could not access volume control to decrease volume.")
+            
+    def wheelEvent(self, event):
+        """Handle mouse wheel events for volume control."""
+        delta = event.angleDelta().y()
+        if delta > 0:  # Wheel up
+            self.increase_volume()
+            event.accept()
+        elif delta < 0:  # Wheel down
+            self.decrease_volume()
+            event.accept()
+        else:
+            super().wheelEvent(event) # Pass event up if not handled
