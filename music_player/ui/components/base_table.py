@@ -1,479 +1,495 @@
 import os
 import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Callable
+from dataclasses import dataclass, field # Import dataclass
 
 from PyQt6.QtWidgets import (
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QWidget
+    QTableView, QHeaderView, QAbstractItemView, QWidget
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import (
+    Qt, pyqtSignal, QAbstractTableModel, QModelIndex, QObject, QSortFilterProxyModel
+)
 from PyQt6.QtGui import QIcon
 import qtawesome as qta
 
 from qt_base_app.theme.theme_manager import ThemeManager
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 
-# --- Helper functions ---
+# --- Removed old helper functions and classes ---
+# def format_file_size(size_bytes): ...
+# def format_modified_time(mod_time): ...
+# class SizeAwareTableItem(QTableWidgetItem): ...
+# class DateAwareTableItem(QTableWidgetItem): ...
 
-def format_file_size(size_bytes):
-    """Format file size from bytes to human-readable format"""
-    try:
-        size_bytes = int(size_bytes)
-        if size_bytes < 1024:
-            return f"{size_bytes} B"
-        elif size_bytes < 1024 * 1024:
-            return f"{size_bytes/1024:.1f} KB"
-        elif size_bytes < 1024 * 1024 * 1024:
-            return f"{size_bytes/(1024*1024):.1f} MB"
-        else:
-            return f"{size_bytes/(1024*1024*1024):.1f} GB"
-    except (ValueError, TypeError):
-        return "Unknown"
+# --- Column Definition ---
+@dataclass
+class ColumnDefinition:
+    """Defines how a column in BaseTable should be displayed and behave."""
+    header: str
+    # Data key: Attribute/dict key string, or function(object) -> value
+    data_key: Union[str, Callable[[Any], Any]]
+    # Display formatter: Optional function(value) -> string
+    display_formatter: Optional[Callable[[Any], str]] = None
+    # Sort key: Optional Attribute/dict key string, or function(object) -> sortable_value
+    sort_key: Optional[Union[str, Callable[[Any], Any]]] = None
+    # Role to use for sorting data (default: EditRole)
+    sort_role: int = Qt.ItemDataRole.EditRole
+    # Initial width (optional)
+    width: Optional[int] = None
+    # Alignment for the text within the cell (default: AlignLeft)
+    alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+    # Role to use for ToolTip data (default: None, meaning no tooltip from model)
+    tooltip_key: Optional[Union[str, Callable[[Any], Any]]] = None
+    tooltip_role: int = Qt.ItemDataRole.ToolTipRole
+    # Stretch factor (optional) - used by BaseTableView
+    stretch: int = 0
 
-def format_modified_time(mod_time):
-    """Format modified time (timestamp) to human-readable format"""
-    try:
-        timestamp = float(mod_time)
-        dt = datetime.datetime.fromtimestamp(timestamp)
-        return dt.strftime("%Y-%m-%d %H:%M")
-    except (ValueError, TypeError):
-        return "Unknown"
-
-# --- Custom item classes ---
-
-class SizeAwareTableItem(QTableWidgetItem):
-    """Custom QTableWidgetItem that correctly sorts file sizes"""
-    def __init__(self, text, size_bytes):
-        super().__init__(text)
-        self.size_bytes = size_bytes
-
-    def __lt__(self, other):
-        if isinstance(other, SizeAwareTableItem):
-            return self.size_bytes < other.size_bytes
-        # Fallback comparison (might not be ideal, but prevents errors)
-        try:
-            # Extract numeric part for comparison if possible
-            self_val = float(self.text().split()[0])
-            other_val = float(other.text().split()[0])
-            return self_val < other_val
-        except:
-            return super().__lt__(other)
-
-
-class DateAwareTableItem(QTableWidgetItem):
-    """Custom QTableWidgetItem that correctly sorts dates based on timestamp"""
-    def __init__(self, text, timestamp):
-        super().__init__(text)
-        self.timestamp = timestamp
-
-    def __lt__(self, other):
-        if isinstance(other, DateAwareTableItem):
-            return self.timestamp < other.timestamp
-        # Fallback comparison
-        try:
-            # Attempt to parse dates from text if timestamps aren't comparable
-            # Assumes the format set by format_modified_time
-            self_dt = datetime.datetime.strptime(self.text(), "%Y-%m-%d %H:%M")
-            other_dt = datetime.datetime.strptime(other.text(), "%Y-%m-%d %H:%M")
-            return self_dt < other_dt
-        except:
-             return super().__lt__(other)
-
-# --- Base Table Class ---
-
-class BaseTable(QTableWidget):
+# --- Base Table Model ---
+class BaseTableModel(QAbstractTableModel):
     """
-    A reusable base table widget with common styling, sorting,
-    and optional column width persistence.
-
-    Uses string identifiers in `column_types` for special handling:
-    - 'filesize': Expects integer bytes, uses SizeAwareTableItem.
-    - 'timestamp': Expects float timestamp, uses DateAwareTableItem.
+    A reusable table model that adapts a list of arbitrary Python objects
+    for display in a QTableView using ColumnDefinition specifications.
     """
-    # Constants
-    USER_ROLE_DATA = Qt.ItemDataRole.UserRole # Role for storing arbitrary data (e.g., full path)
 
-    def __init__(self, headers: List[str],
-                 column_types: Optional[List[Union[type, str]]] = None, # Can mix types and string identifiers
+    def __init__(self,
+                 source_objects: Optional[List[Any]] = None,
+                 column_definitions: Optional[List[ColumnDefinition]] = None,
+                 parent: Optional[QObject] = None):
+        super().__init__(parent)
+        self._source_objects: List[Any] = source_objects if source_objects is not None else []
+        self._column_definitions: List[ColumnDefinition] = column_definitions if column_definitions is not None else []
+        self._headers = [cd.header for cd in self._column_definitions]
+
+    @property
+    def column_definitions(self) -> List[ColumnDefinition]:
+        """Read-only access to column definitions."""
+        return self._column_definitions
+
+    def set_source_objects(self, source_objects: List[Any]):
+        """Replaces the entire dataset and notifies the view."""
+        self.beginResetModel()
+        self._source_objects = source_objects if source_objects is not None else []
+        self.endResetModel()
+
+    def rowCount(self, parent=QModelIndex()) -> int:
+        """Returns the number of rows (objects)."""
+        return 0 if parent.isValid() else len(self._source_objects)
+
+    def columnCount(self, parent=QModelIndex()) -> int:
+        """Returns the number of columns defined."""
+        return 0 if parent.isValid() else len(self._column_definitions)
+
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+        """Provides header labels."""
+        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
+            if 0 <= section < len(self._headers):
+                return self._headers[section]
+        return super().headerData(section, orientation, role)
+
+    def _get_value_from_key(self, obj: Any, key: Union[str, Callable[[Any], Any]]) -> Any:
+        """Safely retrieves a value from an object using attribute, key, or callable."""
+        try:
+            if callable(key): return key(obj)
+            if isinstance(key, str):
+                if isinstance(obj, dict): return obj.get(key)
+                else: return getattr(obj, key, None)
+        except Exception as e:
+            # print(f"[BaseTableModel] Error getting value for key '{key}': {e}") # Use logging
+            pass
+        return None
+
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+        """The core method providing data to the view for different roles."""
+        if not index.isValid() or not (0 <= index.row() < len(self._source_objects)):
+            return None
+
+        row, col = index.row(), index.column()
+        if not (0 <= col < len(self._column_definitions)): return None
+
+        obj = self._source_objects[row]
+        col_def = self._column_definitions[col]
+
+        if role == Qt.ItemDataRole.DisplayRole:
+            raw_value = self._get_value_from_key(obj, col_def.data_key)
+            if col_def.display_formatter:
+                try: return col_def.display_formatter(raw_value)
+                except Exception: return "FmtErr"
+            else:
+                return str(raw_value if raw_value is not None else "")
+
+        elif role == col_def.sort_role:
+            sort_key = col_def.sort_key if col_def.sort_key is not None else col_def.data_key
+            return self._get_value_from_key(obj, sort_key)
+
+        elif role == Qt.ItemDataRole.TextAlignmentRole:
+            return col_def.alignment
+
+        elif role == col_def.tooltip_role and col_def.tooltip_key:
+             tooltip_data = self._get_value_from_key(obj, col_def.tooltip_key)
+             return str(tooltip_data) if tooltip_data is not None else None
+
+        elif role == Qt.ItemDataRole.UserRole:
+            return obj
+
+        return None
+
+    # --- Data Modification Methods ---
+    def update_row_data(self, row: int):
+        """Notify views that data for a specific row may have changed."""
+        if 0 <= row < self.rowCount():
+            start_index = self.index(row, 0)
+            end_index = self.index(row, self.columnCount() - 1)
+            self.dataChanged.emit(start_index, end_index) # Emit for all roles
+
+    def remove_rows_by_objects(self, objects_to_remove: List[Any]):
+        """Removes rows corresponding to the given objects."""
+        if not objects_to_remove: return
+        current_objects_map = {id(obj): i for i, obj in enumerate(self._source_objects)}
+        rows_to_remove_indices = []
+        for obj_to_remove in objects_to_remove:
+            row_index = current_objects_map.get(id(obj_to_remove))
+            if row_index is not None:
+                rows_to_remove_indices.append(row_index)
+
+        if not rows_to_remove_indices: return
+
+        rows_to_remove_indices.sort(reverse=True)
+        removed_objects_list = [] # Track successfully removed objects for signal
+
+        for row_index in rows_to_remove_indices:
+            if 0 <= row_index < len(self._source_objects): # Check index validity again
+                self.beginRemoveRows(QModelIndex(), row_index, row_index)
+                removed_obj = self._source_objects.pop(row_index) # Remove and get obj
+                removed_objects_list.append(removed_obj)
+                self.endRemoveRows()
+        # Optionally emit a custom signal here if needed by external components
+        # e.g., self.items_actually_removed.emit(removed_objects_list)
+
+    def insert_rows(self, row: int, objects_to_insert: List[Any], parent=QModelIndex()) -> bool:
+         """Inserts rows into the model."""
+         count = len(objects_to_insert)
+         if count <= 0 or row < 0 or row > len(self._source_objects):
+             return False
+
+         self.beginInsertRows(parent, row, row + count - 1)
+         for i in range(count):
+             self._source_objects.insert(row + i, objects_to_insert[i])
+         self.endInsertRows()
+         return True
+
+    # --- Data Access ---
+    def get_object(self, row: int) -> Optional[Any]:
+         """Gets the source object at a given row."""
+         if 0 <= row < len(self._source_objects):
+             return self._source_objects[row]
+         return None
+
+    def get_all_objects(self) -> List[Any]:
+        """Returns a shallow copy of the internal list of source objects."""
+        return list(self._source_objects)
+
+# --- Base Table View ---
+class BaseTableView(QTableView):
+    """
+    A reusable QTableView optimized for use with BaseTableModel.
+    Includes styling, persistence for column widths and sort order,
+    and basic interaction setup (including Del key handling).
+    """
+    # Optional signal (could be useful for parent widgets reacting to view-initiated deletion)
+    # delete_requested = pyqtSignal(list) # Emits list of source objects requested for deletion
+
+    def __init__(self,
                  table_name: Optional[str] = None,
                  parent: Optional[QWidget] = None):
-        """
-        Initializes the BaseTable.
-
-        Args:
-            headers (List[str]): List of column header labels.
-            column_types (Optional[List[Union[type, str]]], optional):
-                List of expected data types or string identifiers ('filesize', 'timestamp')
-                for columns. Used for creating appropriate QTableWidgetItems and sorting.
-                Defaults to string type for all columns if None.
-            table_name (Optional[str], optional): Name used for saving/loading column widths.
-                                                  If None, persistence is disabled. Defaults to None.
-            parent (Optional[QWidget], optional): Parent widget. Defaults to None.
-        """
         super().__init__(parent)
-        self.headers = headers
-        # Default to str type if column_types is None or too short
-        self.column_types = column_types if column_types and len(column_types) == len(headers) else ([str] * len(headers))
         self.table_name = table_name
-        self.setObjectName(table_name if table_name else "baseTableWidget")
+        self.setObjectName(table_name if table_name else "baseTableView")
 
         self.theme = ThemeManager.instance()
         self.settings = SettingsManager.instance()
 
-        # Sorting state
-        self.sort_column = 0 # Default to first column
-        self.sort_order = Qt.SortOrder.AscendingOrder
+        self._column_definitions: List[ColumnDefinition] = []
 
-        # Sort indicator icons
+        # Internal state for persistence
+        self._sort_column = 0
+        self._sort_order = Qt.SortOrder.AscendingOrder
+
+        # Sort indicator icons (needed for manual update in case header item doesn't exist yet)
         self.sort_up_icon = qta.icon('fa5s.sort-up', color=self.theme.get_color('text', 'secondary'))
         self.sort_down_icon = qta.icon('fa5s.sort-down', color=self.theme.get_color('text', 'secondary'))
+
 
         self._setup_ui()
         self._connect_signals()
 
-        if self.table_name:
-            self._load_table_state() # Load widths and sort state
-        else:
-            # Apply some default width if not loading
-             for i in range(self.columnCount()):
-                 self.setColumnWidth(i, 150)
+    def setModel(self, model: QAbstractTableModel): # Accept any model, but check type
+        """Sets the data model and performs necessary setup."""
+        old_model = self.model()
+        if old_model:
+            try: pass # Disconnect signals if needed
+            except TypeError: pass
 
-        # Apply initial sort based on loaded/default state before updating indicators
-        self.sortItems(self.sort_column, self.sort_order)
-        self._update_sort_indicators()
+        super().setModel(model)
+
+        # Store column definitions if it's our custom model
+        if isinstance(model, BaseTableModel):
+            self._column_definitions = model.column_definitions
+        else:
+             self._column_definitions = []
+             if model is not None:
+                 print(f"[BaseTableView] Warning: Using non-BaseTableModel ({type(model)}). Persistence/Features may be limited.")
+
+        # Load persistent state or apply defaults
+        if self.table_name:
+            self._load_table_state()
+        else:
+            self._apply_default_widths()
+
+        # Apply loaded sort order to the view's header AND trigger initial sort
+        if model and model.rowCount() > 0 and self.isSortingEnabled():
+            self.sortByColumn(self._sort_column, self._sort_order)
+
+        self._update_sort_indicator() # Set initial indicator
+
+    def _apply_default_widths(self):
+        """Applies initial widths defined in column definitions or a fallback."""
+        if not self._column_definitions or not self.model(): return
+        fallback_width = 150
+        header = self.horizontalHeader()
+        col_count = self.model().columnCount()
+        for i in range(col_count):
+             # Check if column index is valid for definitions list
+             if i < len(self._column_definitions):
+                 col_def = self._column_definitions[i]
+                 width = col_def.width if col_def.width is not None else fallback_width
+                 header.resizeSection(i, width)
+                 resize_mode = QHeaderView.ResizeMode.Stretch if col_def.stretch > 0 else QHeaderView.ResizeMode.Interactive
+                 header.setSectionResizeMode(i, resize_mode)
+             else: # Fallback if column count from model > len(col_defs)
+                 header.resizeSection(i, fallback_width)
+                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
+
 
     def _setup_ui(self):
-        """Configure the basic appearance and behavior of the table."""
-        self.setColumnCount(len(self.headers))
-        self.setHorizontalHeaderLabels(self.headers)
-
+        """Configure the basic appearance and behavior of the view."""
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.setAlternatingRowColors(True)
         self.verticalHeader().setVisible(False)
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        # Don't stretch last section by default, allow specific columns to be stretched if needed by subclasses
-        # self.horizontalHeader().setStretchLastSection(True)
-        self.horizontalHeader().setSortIndicatorShown(True)
-        self.setSortingEnabled(False)  # Disable Qt's automatic sorting
+        self.horizontalHeader().setStretchLastSection(False)
         self.setShowGrid(False)
+        self.setWordWrap(False)
+        self.verticalHeader().setDefaultSectionSize(22)
+        self.setSortingEnabled(True) # Enable header click sorting
+        self.horizontalHeader().setSectionsClickable(True)
 
-        # Set default row height
-        self.verticalHeader().setDefaultSectionSize(22) # Match existing style
-
-        # Style the table
+        # Styling (Same as documentation)
         self.setStyleSheet(f"""
-            QTableWidget {{
-                background-color: {self.theme.get_color('background', 'primary')}; /* Base background */
+            QTableView {{
+                background-color: {self.theme.get_color('background', 'primary')};
                 alternate-background-color: {self.theme.get_color('background', 'alternate_row')};
-                border: 1px solid {self.theme.get_color('border', 'primary')}; /* Primary border */
+                border: 1px solid {self.theme.get_color('border', 'primary')};
                 border-radius: 4px;
-                /* padding: 5px; */ /* Remove padding to align items better */
                 selection-background-color: {self.theme.get_color('background', 'selected_row')};
                 selection-color: {self.theme.get_color('text', 'primary')};
-                gridline-color: transparent; /* Ensure grid lines are hidden */
+                gridline-color: transparent;
             }}
-            QTableWidget::item {{
-                padding: 0px 8px; /* Match playlist_playmode padding */
-                height: 22px;
-                min-height: 22px;
-                border-bottom: 1px solid {self.theme.get_color('border', 'secondary')}; /* Subtle row separator */
-                border-right: none;
-                border-left: none;
-                border-top: none;
-                 color: {self.theme.get_color('text', 'primary')}; /* Default text color */
-            }}
-            QTableWidget::item:selected {{
-                background-color: {self.theme.get_color('background', 'selected_row')};
-                color: {self.theme.get_color('text', 'selected_row')}; /* Text color for selected row */
-                border-radius: 0px;
-                border: none;
-                border-bottom: 1px solid {self.theme.get_color('border', 'selected_row')}; /* Separator for selected */
-            }}
+             QTableView::item {{ padding: 0px 8px; border: none; color: {self.theme.get_color('text', 'primary')}; }}
+             QTableView::item:selected {{ background-color: {self.theme.get_color('background', 'selected_row')}; color: {self.theme.get_color('text', 'selected_row')}; }}
             QHeaderView::section {{
                 background-color: {self.theme.get_color('background', 'tertiary')};
                 color: {self.theme.get_color('text', 'secondary')};
-                padding: 0px 8px; /* Match item padding */
-                height: 24px; /* Slightly taller header */
-                border: none;
+                padding: 0px 8px; height: 24px; border: none;
                 border-bottom: 1px solid {self.theme.get_color('border', 'secondary')};
                 border-right: 1px solid {self.theme.get_color('border', 'secondary')};
             }}
-            QHeaderView::section:last {{
-                 border-right: none; /* No border on the far right */
-            }}
-            QHeaderView::section:hover {{
-                background-color: {self.theme.get_color('background', 'quaternary')};
-            }}
+            QHeaderView::section:last {{ border-right: none; }}
+            QHeaderView::section:hover {{ background-color: {self.theme.get_color('background', 'quaternary')}; }}
         """)
 
     def _connect_signals(self):
-        """Connect signals for sorting and resizing."""
-        self.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
-        if self.table_name:
-            self.horizontalHeader().sectionResized.connect(self._on_column_resized)
-
-    def _on_header_clicked(self, column_index):
-        """Handle column header clicks for sorting."""
-        if self.sort_column == column_index:
-            new_order = Qt.SortOrder.DescendingOrder if self.sort_order == Qt.SortOrder.AscendingOrder else Qt.SortOrder.AscendingOrder
-            self.sort_order = new_order
-        else:
-            self.sort_column = column_index
-            self.sort_order = Qt.SortOrder.AscendingOrder
-
-        self._update_sort_indicators()
-        # Trigger the manual sort using Qt's mechanism but with our custom items
-        self.sortItems(column_index, self.sort_order)
-
-        # Ensure row heights are maintained after sorting (might be redundant if setItem handles it)
-        # for row in range(self.rowCount()):
-        #     self.setRowHeight(row, 22)
-
-    def _update_sort_indicators(self):
-        """Update the sort indicators in headers."""
+        """Connect signals for resizing and sorting."""
         header = self.horizontalHeader()
-        for col in range(header.count()):
-            # Ensure header item exists before trying to set icon
-            header_item = self.horizontalHeaderItem(col)
-            if not header_item:
-                 # Create a default item if none exists (can happen initially)
-                 header_item = QTableWidgetItem(self.headers[col])
-                 self.setHorizontalHeaderItem(col, header_item)
-            header_item.setIcon(QIcon()) # Clear previous icon
-
-        # Set icon on the current sort column
-        header_item = self.horizontalHeaderItem(self.sort_column)
-        # Ensure the sort_column index is valid before accessing the header item
-        if header_item and 0 <= self.sort_column < self.columnCount():
-            icon = self.sort_up_icon if self.sort_order == Qt.SortOrder.AscendingOrder else self.sort_down_icon
-            header_item.setIcon(icon)
-
-    def _on_column_resized(self, column_index, old_width, new_width):
-        """Save table state (including widths) when resized (if table_name is set)."""
-        # Only save if the table name is defined
         if self.table_name:
-            # self._save_column_widths()
-            self._save_table_state()
+            header.sectionResized.connect(self._on_column_resized)
+        header.sortIndicatorChanged.connect(self._on_sort_indicator_changed)
 
+    def _on_column_resized(self, logicalIndex: int, oldSize: int, newSize: int):
+        """Save table state when column width changes."""
+        if self.table_name:
+            self._save_table_state() # Save widths and current sort state
+
+    def _on_sort_indicator_changed(self, logicalIndex: int, order: Qt.SortOrder):
+        """Update internal state and save after view sorting changes."""
+        # Check if sort actually changed before saving
+        if logicalIndex != self._sort_column or order != self._sort_order:
+             self._sort_column = logicalIndex
+             self._sort_order = order
+             if self.table_name:
+                 self._save_table_state()
+        # No signal emitted here, parent should connect to model layoutChanged or similar
+
+    def _update_sort_indicator(self):
+         """Sets the visual sort indicator on the header."""
+         self.horizontalHeader().setSortIndicator(self._sort_column, self._sort_order)
+
+
+    # --- Persistence Methods ---
     def _get_table_state_setting_key(self) -> str:
-        """Constructs the base key for storing table state in settings."""
+        if not self.table_name: return ""
         safe_table_name = ''.join(c if c.isalnum() else '_' for c in self.table_name)
         return f'ui/tables/{safe_table_name}/state'
 
     def _save_table_state(self):
         """Save current table state (widths and sort order) to settings."""
-        if not self.table_name:
-            return
-
-        column_widths = {
-            f'col_{i}': self.columnWidth(i) for i in range(self.columnCount())
-        }
-        sort_state = {
-            'column': self.sort_column,
-            # Store Qt.SortOrder enum as an integer (0 for Ascending, 1 for Descending)
-            'order': int(self.sort_order.value) 
-        }
-
-        table_state = {
-            'column_widths': column_widths,
-            'sort_state': sort_state
-        }
-
         key = self._get_table_state_setting_key()
+        if not key or not self.model(): return
+
+        header = self.horizontalHeader()
+        col_count = self.model().columnCount()
+        # Ensure header sections match model columns before saving
+        if header.count() != col_count:
+             print(f"[BaseTableView] Warning: Header count ({header.count()}) != Model column count ({col_count}). Skipping state save.")
+             return
+
+        column_widths = { f'col_{i}': header.sectionSize(i) for i in range(col_count) }
+        sort_state = { 'column': self._sort_column, 'order': int(self._sort_order.value) }
+        table_state = { 'column_widths': column_widths, 'sort_state': sort_state }
         self.settings.set(key, table_state, SettingType.DICT)
-        # print(f"[BaseTable] Saved table state for '{self.table_name}': {table_state}") # Debug
 
     def _load_table_state(self):
         """Load table state (widths and sort order) from settings."""
-        if not self.table_name:
-            # Set default sort state if persistence is disabled
-            self.sort_column = 0
-            self.sort_order = Qt.SortOrder.AscendingOrder
+        key = self._get_table_state_setting_key()
+        # Ensure model and definitions are ready before loading
+        if not key or not self.model() or not self._column_definitions:
+            self._sort_column = 0
+            self._sort_order = Qt.SortOrder.AscendingOrder
+            self._apply_default_widths()
             return
 
-        key = self._get_table_state_setting_key()
-        
-        # Define reasonable default widths and sort state
-        default_widths = {f'col_{i}': 150 for i in range(self.columnCount())}
-        default_sort_state = {'column': 0, 'order': 0} # Default: Col 0, Ascending
-        default_table_state = {
-            'column_widths': default_widths,
-            'sort_state': default_sort_state
-        }
+        col_count = self.model().columnCount()
+        # Check consistency
+        if col_count != len(self._column_definitions):
+             print(f"[BaseTableView] Warning: Model column count ({col_count}) != Column definitions ({len(self._column_definitions)}). Using default state.")
+             self._sort_column = 0
+             self._sort_order = Qt.SortOrder.AscendingOrder
+             self._apply_default_widths()
+             return
 
-        # Try loading the entire state dictionary from settings
+        default_widths = {f'col_{i}': cd.width if cd.width is not None else 150
+                          for i, cd in enumerate(self._column_definitions)}
+        default_sort_state = {'column': 0, 'order': 0}
+        default_table_state = {'column_widths': default_widths, 'sort_state': default_sort_state}
+
         table_state = self.settings.get(key, default_table_state, SettingType.DICT)
-
-        # Safely extract widths and sort state, falling back to defaults if keys missing
         column_widths = table_state.get('column_widths', default_widths)
         sort_state = table_state.get('sort_state', default_sort_state)
 
-        # print(f"[BaseTable] Loading table state for '{self.table_name}': {table_state}") # Debug
-
         # Apply loaded/default widths
-        for i in range(self.columnCount()):
+        header = self.horizontalHeader()
+        for i in range(col_count):
             col_key = f'col_{i}'
             width = column_widths.get(col_key, default_widths.get(col_key, 150))
-            self.setColumnWidth(i, width)
+            header.resizeSection(i, width)
 
-        # Apply loaded/default sort state
+        # Load sort state into internal variables
         loaded_sort_col = sort_state.get('column', default_sort_state['column'])
         loaded_sort_order_val = sort_state.get('order', default_sort_state['order'])
-        
-        # Validate loaded sort column index
-        if 0 <= loaded_sort_col < self.columnCount():
-             self.sort_column = loaded_sort_col
-        else:
-             self.sort_column = default_sort_state['column'] # Fallback to default index
-             print(f"[BaseTable] Warning: Loaded invalid sort column index ({loaded_sort_col}) for '{self.table_name}'. Using default.")
 
-        # Convert loaded integer back to Qt.SortOrder enum
-        try:
-             self.sort_order = Qt.SortOrder(loaded_sort_order_val)
-        except ValueError:
-             print(f"[BaseTable] Warning: Loaded invalid sort order value ({loaded_sort_order_val}) for '{self.table_name}'. Using default.")
-             self.sort_order = Qt.SortOrder(default_sort_state['order']) # Fallback
+        self._sort_column = loaded_sort_col if 0 <= loaded_sort_col < col_count else default_sort_state['column']
+        try: self._sort_order = Qt.SortOrder(loaded_sort_order_val)
+        except ValueError: self._sort_order = Qt.SortOrder(default_sort_state['order'])
 
-    # --- Data Population Methods ---
-
-    def clear_table(self):
-        """Removes all rows from the table."""
-        # self.setRowCount(0) # Efficient way to clear
-        # More thorough clear if needed:
-        while self.rowCount() > 0:
-            self.removeRow(0)
+        # Sort indicator is updated in setModel after loading state
 
 
-    def add_row(self, row_data: List[Any], user_data: Optional[Any] = None):
-        """
-        Adds a single row to the table, creating appropriate items based on column_types.
+    # --- Key Press Handling ---
+    def keyPressEvent(self, event):
+        """Handle key press events, specifically the Delete key."""
+        if event.key() == Qt.Key.Key_Delete:
+            # Check selection model validity before accessing
+            sel_model = self.selectionModel()
+            if self.hasFocus() and sel_model and sel_model.hasSelection():
+                self._on_delete_items()
+                event.accept()
+                return
+        super().keyPressEvent(event)
 
-        Args:
-            row_data (List[Any]): List of data for each cell in the row.
-            user_data (Optional[Any], optional): Optional data to store with the
-                                                first column item using USER_ROLE_DATA.
-                                                Defaults to None.
-        """
-        if len(row_data) != self.columnCount():
-            print(f"[BaseTable] Warning: Row data length ({len(row_data)}) != column count ({self.columnCount()}). Skipping row.")
+    def _on_delete_items(self):
+        """Handles item deletion request by asking the model."""
+        model = self.model()
+        # Use more robust check for the method presence
+        if not (hasattr(model, 'remove_rows_by_objects') and callable(model.remove_rows_by_objects)):
+            print(f"[BaseTableView] Model ({type(model)}) does not support 'remove_rows_by_objects'.")
             return
 
-        row_position = self.rowCount()
-        self.insertRow(row_position)
-        self.setRowHeight(row_position, 22) # Ensure consistent row height
+        objects_to_delete = self.get_selected_items_data()
+        if objects_to_delete:
+            print(f"[BaseTableView] Requesting model to delete {len(objects_to_delete)} object(s).")
+            model.remove_rows_by_objects(objects_to_delete)
+            # self.delete_requested.emit(objects_to_delete) # Optional view signal
 
-        for col_index, cell_data in enumerate(row_data):
-            # Determine the type hint for this column
-            col_type_hint = self.column_types[col_index] if col_index < len(self.column_types) else str
-            # Create the appropriate item
-            item = self._create_item(cell_data, col_type_hint)
+    # --- Utility methods ---
+    def get_selected_items_data(self) -> List[Any]:
+         """Returns a list of source objects for the selected rows."""
+         model = self.model()
+         sel_model = self.selectionModel()
+         if not model or not sel_model: return []
 
-            # Store user data in the first column's item if provided
-            if col_index == 0 and user_data is not None:
-                item.setData(self.USER_ROLE_DATA, user_data)
-                # Add tooltip if user_data looks like a path/string
-                if isinstance(user_data, (str, Path)):
-                    item.setToolTip(str(user_data))
+         selected_data = []
+         # Use selectedRows() for row-based selection
+         for index in sel_model.selectedRows():
+              # Map index if using proxy model
+              # source_index = proxy.mapToSource(index) if proxy else index
+              # Use the mapped row index
+              row_index = index.row() # Replace with mapped row index if using proxy
+              obj = model.data(model.index(row_index, 0), Qt.ItemDataRole.UserRole)
+              if obj is not None:
+                  # Check for duplicates just in case selectedRows gives multiple indices for same logical row sometimes
+                  if obj not in selected_data:
+                       selected_data.append(obj)
+         return selected_data
 
-            # Set the item in the table
-            self.setItem(row_position, col_index, item)
+    def get_all_items_data(self) -> List[Any]:
+         """Returns a list of source objects for all rows currently in the model.
 
-    def set_table_data(self, data: List[List[Any]], user_data_list: Optional[List[Any]] = None):
+           Note: This returns data in the model's internal order, which might
+           differ from the view's display order if sorting/filtering is applied
+           via a proxy model.
+         """
+         model = self.model()
+         # If model has a specific method, use it
+         if hasattr(model, 'get_all_objects') and callable(model.get_all_objects):
+             return model.get_all_objects()
+         # Fallback: iterate through model indices
+         elif model:
+             return [model.data(model.index(r, 0), Qt.ItemDataRole.UserRole) for r in range(model.rowCount())]
+         return []
+
+    def get_visible_items_data_in_order(self) -> List[Any]:
+        """Returns a list of source objects for all rows IN THE CURRENT DISPLAY ORDER.
+
+        This accounts for sorting/filtering applied by the view or proxy model.
         """
-        Clears the table and populates it with new data efficiently.
+        model = self.model() # Could be BaseTableModel or QSortFilterProxyModel
+        if not model: return []
 
-        Args:
-            data (List[List[Any]]): A list of rows, where each row is a list of cell data.
-            user_data_list (Optional[List[Any]], optional): Optional list of user data
-                                                            to associate with each row (stored
-                                                            in the first column's item). Length must
-                                                            match the number of rows in `data`.
-                                                            Defaults to None.
-        """
-        self.clear_table()
-        self.setUpdatesEnabled(False) # Optimize bulk update performance
-        try:
-            for i, row_data in enumerate(data):
-                # Get corresponding user data if available
-                user_data = user_data_list[i] if user_data_list and i < len(user_data_list) else None
-                # Add the row using the helper method
-                self.add_row(row_data, user_data=user_data)
-        finally:
-            self.setUpdatesEnabled(True) # Re-enable updates to show changes
+        ordered_data = []
+        for visual_row in range(model.rowCount()): # Iterate visual rows presented by model()
+             # Get the index for the first column of the visual row
+             visual_index = model.index(visual_row, 0)
+             # Retrieve the source object using UserRole
+             # The model (or proxy) handles mapping the visual index to the source if necessary
+             obj = model.data(visual_index, Qt.ItemDataRole.UserRole)
+             if obj is not None:
+                 ordered_data.append(obj)
+             # Else: row might be filtered out or UserRole not set, skip it.
+        return ordered_data
 
-        # Apply initial sort after setting data, if needed
-        if self.rowCount() > 0:
-            self.sortItems(self.sort_column, self.sort_order)
-        self._update_sort_indicators() # Ensure indicator matches initial sort
 
-    def _create_item(self, data: Any, item_type_hint: Union[type, str]) -> QTableWidgetItem:
-        """
-        Internal helper to create the appropriate QTableWidgetItem based on data
-        and the type hint provided in `column_types`.
-        """
-        # Handle special string identifiers first
-        if item_type_hint == 'filesize':
-            try:
-                size_bytes = int(data)
-                return SizeAwareTableItem(format_file_size(size_bytes), size_bytes)
-            except (ValueError, TypeError, AttributeError):
-                 return QTableWidgetItem("Invalid Size") # Fallback for invalid size data
-        elif item_type_hint == 'timestamp':
-            try:
-                timestamp = float(data)
-                return DateAwareTableItem(format_modified_time(timestamp), timestamp)
-            except (ValueError, TypeError, AttributeError):
-                return QTableWidgetItem("Invalid Date") # Fallback for invalid timestamp data
+# --- Remove old BaseTable(QTableWidget) class ---
+# class BaseTable(QTableWidget):
+#    ... (all the old implementation) ...
 
-        # Handle standard Python types if hint is a type object
-        elif isinstance(item_type_hint, type):
-            if item_type_hint == int:
-                # Standard QTableWidgetItem sorts numerically if data is numeric
-                item = QTableWidgetItem()
-                try:
-                    item.setData(Qt.ItemDataRole.EditRole, int(data))
-                except (ValueError, TypeError):
-                     item.setData(Qt.ItemDataRole.EditRole, str(data)) # Fallback to string
-                return item
-            elif item_type_hint == float:
-                 item = QTableWidgetItem()
-                 try:
-                    item.setData(Qt.ItemDataRole.EditRole, float(data))
-                 except (ValueError, TypeError):
-                     item.setData(Qt.ItemDataRole.EditRole, str(data)) # Fallback to string
-                 return item
-                 # return QTableWidgetItem(f"{data:.2f}") # Example formatting if needed
-            elif item_type_hint == bool:
-                 # Represent bools clearly
-                 return QTableWidgetItem("Yes" if bool(data) else "No")
-            elif item_type_hint == datetime.datetime:
-                 try:
-                     # Format datetime objects consistently
-                     return QTableWidgetItem(data.strftime("%Y-%m-%d %H:%M"))
-                 except AttributeError: # Handle case where data isn't a datetime object
-                     return QTableWidgetItem(str(data))
-
-        # Default to string conversion for any other type or if hint wasn't a type
-        return QTableWidgetItem(str(data))
-
-    def get_row_user_data(self, row: int) -> Optional[Any]:
-        """Retrieves the user data stored in the first column of the specified row."""
-        if 0 <= row < self.rowCount():
-            item = self.item(row, 0) # Assume user data is in the first column
-            if item:
-                return item.data(self.USER_ROLE_DATA)
-        return None
-
-    def get_selected_rows_user_data(self) -> List[Any]:
-        """Returns a list of user data for all currently selected rows."""
-        selected_data = []
-        # Use selectedIndexes() which gives items across all columns for selected rows
-        # Use a set to get unique row numbers efficiently
-        selected_rows = set(index.row() for index in self.selectedIndexes())
-        for row in sorted(list(selected_rows)):
-            user_data = self.get_row_user_data(row)
-            if user_data is not None: # Optionally filter out rows without user data
-                 selected_data.append(user_data)
-        return selected_data 

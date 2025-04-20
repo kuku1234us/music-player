@@ -14,3 +14,4 @@ The documentations of our system is geared towards training junior developers. W
 - ​Use Analogies on difficult/complex concepts: Relate to familiar concepts.
 - ​Add Visuals, Ascii Diagrams
 - Use complete sentences, paragraphs, essay style
+- Use snippets of code to illustrate how the classes are built and use English to explain. Do not put entire code of a module in the documents and expect users to read it. The code modules are available for the users to read when needed, so the document should contain the tl;dr of only the important code snippets.
