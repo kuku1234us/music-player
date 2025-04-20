@@ -2,6 +2,7 @@
 Page for browsing local file system directories.
 """
 import os
+import shutil # Add shutil for directory removal
 import datetime
 from pathlib import Path
 
@@ -33,6 +34,9 @@ class BrowserPage(QWidget):
     # Signal to request playing a single file
     play_single_file_requested = pyqtSignal(str) # Emits filepath
     
+    # Define a custom role for storing the is_dir flag
+    IS_DIR_ROLE = Qt.ItemDataRole.UserRole + 1
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("browserPage")
@@ -64,6 +68,11 @@ class BrowserPage(QWidget):
         self._current_upload_index = 0
         self._total_files_to_upload = 0
 
+        # Timer for temporary messages
+        self.temp_message_timer = QTimer(self)
+        self.temp_message_timer.setSingleShot(True)
+        self.temp_message_timer.setInterval(2000) # 2 seconds
+
         self._setup_ui()
         self._connect_signals()
         self._load_column_widths() # Load saved widths
@@ -74,11 +83,11 @@ class BrowserPage(QWidget):
         # Main layout
         self.main_layout = QVBoxLayout(self)
         # Use margins from the parent dashboard/content area
-        self.main_layout.setContentsMargins(16, 16, 16, 16) 
+        self.main_layout.setContentsMargins(16, 16, 16, 16)
         self.main_layout.setSpacing(16)
 
-        # --- File Table ---
-        self.file_table = QTableWidget()
+        # --- File Table (Child of BrowserPage, added to layout) ---
+        self.file_table = QTableWidget(self) # Parent is BrowserPage
         self.file_table.setObjectName("browserFileTable")
         self.file_table.setColumnCount(3)
         self.file_table.setHorizontalHeaderLabels(["Filename", "Size", "Modified"])
@@ -136,6 +145,26 @@ class BrowserPage(QWidget):
             }}
         """)
 
+        # --- Temporary Message Label (Child of BrowserPage) ---
+        self.temp_message_label = QLabel(self) # Parent is BrowserPage
+        self.temp_message_label.setObjectName("tempMessageLabel")
+        self.temp_message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.temp_message_label.setStyleSheet(f"""
+            QLabel#tempMessageLabel {{
+                background-color: rgba(0, 0, 0, 0.7);
+                color: white;
+                padding: 8px 15px;
+                border-radius: 5px;
+                font-size: 9pt;
+            }}
+        """)
+        self.temp_message_label.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
+        self.temp_message_label.adjustSize() # Adjust size initially
+        self.temp_message_label.hide()
+
+        # Add table and label to main layout
+        self.main_layout.addWidget(self.file_table, 1) # Table takes most space
+
         # Add empty message label (initially hidden)
         self.empty_label = QLabel("Select a folder to browse its contents.")
         self.empty_label.setObjectName("browserEmptyLabel")
@@ -143,14 +172,12 @@ class BrowserPage(QWidget):
         self.empty_label.setStyleSheet(f"color: {self.theme.get_color('text', 'secondary')}; font-style: italic;")
         self.empty_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.empty_label.hide()
-        
-        # Add table and label to layout
-        self.main_layout.addWidget(self.file_table, 1) # Table takes most space
         self.main_layout.addWidget(self.empty_label, 1) # Label shown when table is hidden
+        self.empty_label.hide() # Start hidden
 
-        # --- Overlay Button --- 
+        # --- Overlay Buttons (Children of BrowserPage) --- 
         self.browse_button = RoundButton(
-            parent=self,
+            parent=self, # Parent is BrowserPage
             icon_name="fa5s.folder-open",
             text="📂",
             size=48,
@@ -161,15 +188,25 @@ class BrowserPage(QWidget):
         
         # Create OPlayer upload button
         self.oplayer_button = RoundButton(
-            parent=self,
+            parent=self, # Parent is BrowserPage
             text="OP",
             size=48,
             bg_opacity=0.5
         )
         self.oplayer_button.setToolTip("Upload Selected Files to OPlayer")
 
+        # Create Refresh button
+        self.refresh_button = RoundButton(
+            parent=self, # Parent is BrowserPage
+            icon_name="fa5s.sync-alt", # Refresh icon
+            size=48,
+            icon_size=20, # Slightly smaller icon for refresh
+            bg_opacity=0.5
+        )
+        self.refresh_button.setToolTip("Refresh Folder View")
+
         # Create upload status overlay
-        self.upload_status = UploadStatusOverlay(self)
+        self.upload_status = UploadStatusOverlay(self) # Parent is BrowserPage
 
     def _connect_signals(self):
         self.browse_button.clicked.connect(self._browse_folder)
@@ -178,6 +215,8 @@ class BrowserPage(QWidget):
         self.file_table.horizontalHeader().sectionResized.connect(self._on_column_resized)
         # Connect OPlayer button
         self.oplayer_button.clicked.connect(self._on_oplayer_upload_selected_clicked)
+        # Connect Refresh button
+        self.refresh_button.clicked.connect(self._refresh_view)
         # Connect OPlayer service signals
         self.oplayer_service.upload_started.connect(self._on_upload_started)
         self.oplayer_service.upload_progress.connect(self._on_upload_progress)
@@ -186,6 +225,9 @@ class BrowserPage(QWidget):
         
         # Connect double click signal for file playback
         self.file_table.doubleClicked.connect(self._on_item_double_clicked)
+
+        # Connect timer timeout to hide message
+        self.temp_message_timer.timeout.connect(self.temp_message_label.hide)
 
     def _browse_folder(self):
         """Opens a directory dialog and populates the table."""
@@ -206,6 +248,15 @@ class BrowserPage(QWidget):
         else:
              # User cancelled - keep existing view or message
              self._update_empty_message() # Ensure message reflects state
+
+    def _refresh_view(self):
+        """Refreshes the table view for the current directory."""
+        if self._current_directory and self._current_directory.is_dir():
+            print(f"[BrowserPage] Refreshing view for: {self._current_directory}")
+            self._populate_table(self._current_directory)
+        else:
+            print("[BrowserPage] Cannot refresh: No valid directory selected.")
+            # Optionally show a message if needed
 
     def _populate_table(self, directory_path: Path):
         """Clears and fills the table with contents of the directory."""
@@ -251,7 +302,7 @@ class BrowserPage(QWidget):
         
         # We have files, show table and hide message
         self.empty_label.hide()
-        self.file_table.show()
+        self.file_table.show() # Show the table directly
         
         # Populate the table
         self.file_table.setSortingEnabled(False) # Disable during population
@@ -263,6 +314,9 @@ class BrowserPage(QWidget):
             filename_item = QTableWidgetItem(data['filename'])
             filename_item.setData(Qt.ItemDataRole.UserRole, data['path']) # Store full path
             filename_item.setToolTip(data['path'])
+            # --- Store is_dir flag using custom role ---
+            filename_item.setData(self.IS_DIR_ROLE, data['is_dir'])
+            # -------------------------------------------
             if data['is_dir']:
                  filename_item.setIcon(qta.icon('fa5s.folder', color=self.theme.get_color('text', 'secondary')))
             else:
@@ -299,7 +353,7 @@ class BrowserPage(QWidget):
         else:
             # We have a directory and it's not empty (or not checked yet)
             self.empty_label.hide()
-            self.file_table.show()
+            self.file_table.show() # Show the table directly
 
     def _on_header_clicked(self, column_index):
         """Handle column header clicks for sorting."""
@@ -352,28 +406,53 @@ class BrowserPage(QWidget):
     def resizeEvent(self, event):
         """Handle resize event to reposition overlay button."""
         super().resizeEvent(event)
-        # Position Browse button overlay in bottom-right corner
+
+        # --- Position BrowserPage Overlays ---
         margin = 20
-        button_x = self.width() - self.browse_button.width() - margin
         button_y = self.height() - self.browse_button.height() - margin
-        self.browse_button.move(button_x, button_y)
-        self.browse_button.raise_() # Ensure it's on top 
-        
-        # Position OPlayer button next to browse button
-        oplayer_button_x = button_x - self.oplayer_button.width() - 10 # 10px spacing
+        browse_button_x = self.width() - self.browse_button.width() - margin
+        self.browse_button.move(browse_button_x, button_y)
+        self.browse_button.raise_()
+        oplayer_button_x = browse_button_x - self.oplayer_button.width() - 10
         self.oplayer_button.move(oplayer_button_x, button_y)
         self.oplayer_button.raise_()
+        refresh_button_x = oplayer_button_x - self.refresh_button.width() - 10
+        self.refresh_button.move(refresh_button_x, button_y)
+        self.refresh_button.raise_()
 
-        # Position the upload status overlay
+        # Position the upload status overlay (relative to BrowserPage)
         self._update_upload_status_position()
-        
+
+        # Position the temporary message label (relative to BrowserPage)
+        self._update_temp_message_position()
+
     def _update_upload_status_position(self):
-        """Update the position of the upload status overlay"""
+        """Update the position of the upload status overlay (relative to BrowserPage)"""
         # Center horizontally, position near the top
         status_x = (self.width() - self.upload_status.width()) // 2
         status_y = 60  # Position below the potential header bar
         self.upload_status.move(status_x, status_y)
-        self.upload_status.raise_()  # Ensure it's on top 
+        self.upload_status.raise_()  # Ensure it's on top
+
+    def _update_temp_message_position(self):
+        """Update the position of the temporary message label (centered in BrowserPage)."""
+        if self.temp_message_label.isVisible():
+            self.temp_message_label.adjustSize()
+
+            # Calculate the center point of the BrowserPage widget itself
+            page_center_x = self.width() // 2
+            page_center_y = self.height() // 2
+
+            # Calculate the top-left position for the label to center it
+            label_width = self.temp_message_label.width()
+            label_height = self.temp_message_label.height()
+            label_x = page_center_x - label_width // 2
+            label_y = page_center_y - label_height // 2
+
+            # Position relative to the BrowserPage
+            self.temp_message_label.move(label_x, label_y)
+            # Raise within the BrowserPage
+            self.temp_message_label.raise_()
 
     def showEvent(self, event):
         """
@@ -505,9 +584,9 @@ class BrowserPage(QWidget):
             item = self.file_table.item(index.row(), self.COL_FILENAME)
             if item:
                 filepath = item.data(Qt.ItemDataRole.UserRole)
-                # Check if it's a file (not a directory) before emitting
-                size_item = self.file_table.item(item.row(), self.COL_SIZE)
-                is_dir = size_item and size_item.text() == "<DIR>"
+                # --- Retrieve is_dir flag --- 
+                is_dir = item.data(self.IS_DIR_ROLE)
+                # -----------------------------
                 
                 if filepath and not is_dir and os.path.isfile(filepath):
                     print(f"[BrowserPage] Double-click detected, requesting single play: {filepath}")
@@ -517,3 +596,95 @@ class BrowserPage(QWidget):
                      print(f"[BrowserPage] Double-click on directory, browsing into: {filepath}")
                      self._current_directory = Path(filepath)
                      self._populate_table(self._current_directory) 
+
+    # --- Key Press Event for Deletion ---
+    def keyPressEvent(self, event):
+        """Handle key press events, specifically the Delete key."""
+        if event.key() == Qt.Key.Key_Delete:
+            if self.file_table.hasFocus() and self.file_table.selectedItems():
+                print("[BrowserPage] Delete key pressed, attempting to delete selected items.")
+                self._delete_selected_items()
+                event.accept() # Indicate we handled the event
+                return
+
+        # If not handled, pass to parent
+        super().keyPressEvent(event)
+
+    def _delete_selected_items(self):
+        """Deletes selected files/directories from disk and removes them from the table."""
+        selected_items_info = [] # List of tuples (row, path, is_dir)
+        rows_to_remove = set()
+
+        for item in self.file_table.selectedItems():
+            row = item.row()
+            if row not in rows_to_remove: # Process each row only once
+                filename_item = self.file_table.item(row, self.COL_FILENAME)
+                if filename_item:
+                    path_str = filename_item.data(Qt.ItemDataRole.UserRole)
+                    is_dir = filename_item.data(self.IS_DIR_ROLE)
+                    if path_str:
+                        selected_items_info.append((row, path_str, is_dir))
+                        rows_to_remove.add(row)
+
+        if not selected_items_info:
+            print("[BrowserPage] No valid items selected for deletion.")
+            return
+
+        deleted_count = 0
+        error_messages = []
+
+        # Delete items from disk (important: delete before removing from table)
+        for row, path_str, is_dir in selected_items_info:
+            try:
+                if is_dir:
+                    print(f"[BrowserPage] Deleting directory: {path_str}")
+                    shutil.rmtree(path_str)
+                    deleted_count += 1
+                else:
+                    print(f"[BrowserPage] Deleting file: {path_str}")
+                    os.remove(path_str)
+                    deleted_count += 1
+            except FileNotFoundError:
+                print(f"[BrowserPage] Warning: File not found for deletion: {path_str}")
+                # Don't count as deleted, but allow row removal later if desired
+            except OSError as e:
+                error_msg = f"Error deleting {os.path.basename(path_str)}: {e.strerror}"
+                print(f"[BrowserPage] {error_msg}")
+                error_messages.append(error_msg)
+            except Exception as e:
+                # Catch other potential errors during deletion
+                error_msg = f"Unexpected error deleting {os.path.basename(path_str)}: {e}"
+                print(f"[BrowserPage] {error_msg}")
+                error_messages.append(error_msg)
+
+        # Remove corresponding rows from the table (iterate backwards)
+        if rows_to_remove:
+            for row in sorted(list(rows_to_remove), reverse=True):
+                self.file_table.removeRow(row)
+
+        # Show temporary message
+        if deleted_count > 0:
+            message = f"Deleted {deleted_count} item(s)."
+            if error_messages:
+                 message += f"\n({len(error_messages)} errors occurred)"
+            self._show_temporary_message(message)
+        elif error_messages: # Only errors, no successful deletions
+             message = f"Failed to delete selected items.\n{error_messages[0]}"
+             if len(error_messages) > 1:
+                 message += " (and others)"
+             self._show_temporary_message(message, is_error=True)
+        else: # No deletions and no errors (e.g., file not found)
+             print("[BrowserPage] No items were deleted.")
+
+    def _show_temporary_message(self, message: str, is_error: bool = False):
+        """Displays a temporary message overlay."""
+        self.temp_message_label.setText(message)
+        # Ensure the label is visible *before* positioning
+        self.temp_message_label.show()
+        # Adjust size *after* setting text and showing
+        self.temp_message_label.adjustSize()
+        # Position it correctly relative to BrowserPage center
+        self._update_temp_message_position()
+        # Raise it again just in case
+        self.temp_message_label.raise_()
+        self.temp_message_timer.start() # Timer will hide it after interval 

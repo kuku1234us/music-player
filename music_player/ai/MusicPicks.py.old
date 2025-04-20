@@ -1,0 +1,147 @@
+"""
+MusicPicks module for classifying music files using Groq API.
+This module handles API calls to Groq for music classification.
+"""
+import os
+import sys
+import groq
+from dotenv import load_dotenv
+from typing import List, Dict, Any, Optional, Callable
+
+# Load environment variables
+load_dotenv()
+groq_api_key = os.getenv("GROQ_API_KEY")
+
+
+class MusicClassifier:
+    """
+    Class for classifying music files using Groq API.
+    """
+    def __init__(self):
+        """Initialize the classifier with the Groq API client."""
+        self.client = None
+        try:
+            # Ensure API key exists before trying to create client
+            if not groq_api_key:
+                raise ValueError("GROQ_API_KEY not found in environment.")
+            self.client = groq.Client(api_key=groq_api_key)
+        except Exception as e:
+            print(f"Failed to initialize Groq client: {e}")
+            self.client = None
+
+    def is_api_ready(self):
+        """Check if the API client is properly initialized."""
+        return self.client is not None
+
+    def classify_batch(
+        self,
+        batch_full_paths: List[str],
+        prompt_string: str,
+        error_callback: Optional[Callable[[str], None]] = None
+    ) -> List[str]:
+        """
+        Classifies a single batch of music files using the provided prompt.
+
+        Args:
+            batch_full_paths: List of full file paths in this batch.
+            prompt_string: The fully constructed prompt string for the LLM.
+            error_callback: Optional callback for reporting errors during API call or parsing.
+
+        Returns:
+            List of classified file paths (full paths) from this batch that are likely matches.
+        """
+        if not self.client:
+            error_msg = "Groq client not initialized."
+            if error_callback: error_callback(error_msg)
+            else: print(error_msg)
+            return []
+
+        if not batch_full_paths:
+            return []
+
+        classified_files_in_batch = []
+        # Model name - could be passed as arg or read from config if needed
+        model_name = "llama-3.3-70b-versatile" # "llama-3.1-8b-instant" # Using a smaller model as default now
+
+        try:
+            # print(f"Sending prompt to Groq ({model_name}):\n{prompt_string[:300]}...") # Optional detailed logging
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {"role": "user", "content": prompt_string}
+                ],
+                model=model_name,
+            )
+            response_content = chat_completion.choices[0].message.content
+            
+            # Parse the response robustly
+            lines = response_content.strip().split('\n')
+            # print(f"Received response content:\n{response_content[:300]}...") # Optional detailed logging
+            
+            for line_num, line in enumerate(lines):
+                line = line.strip()
+                if not line: continue
+                try:
+                    parts = line.split('. ', 1)
+                    if len(parts) == 2 and parts[0].isdigit():
+                        list_num = int(parts[0])
+                        answer = parts[1].strip().lower()
+                        
+                        # Get the index within the current BATCH
+                        batch_index = list_num - 1 
+                        
+                        if 0 <= batch_index < len(batch_full_paths):
+                            if answer == "yes":
+                                file_path = batch_full_paths[batch_index] # Use full path
+                                classified_files_in_batch.append(file_path)
+                            elif answer == "no":
+                                pass # Correctly identified as not matching
+                            else:
+                                # Report unexpected answer via callback
+                                msg = f"Warning: Unexpected answer '{answer}' for batch index {batch_index} (list num {list_num}) in line: '{line}'"
+                                # Just print, don't use callback for this warning
+                                print(msg) 
+                        else:
+                            # Report index out of range via callback
+                            msg = f"Warning: Parsed list number {list_num} out of range for current batch size {len(batch_full_paths)}. Line: '{line}'"
+                            # Just print, don't use callback for this warning
+                            print(msg) 
+                    else:
+                        # Report parsing format error via callback
+                        msg = f"Warning: Could not parse response line format: '{line}'"
+                        # Just print, don't use callback for this warning
+                        print(msg) 
+                        
+                except Exception as parse_err:
+                    # Report general parsing error via callback
+                    msg = f"Error parsing response line: '{line}'. Error: {parse_err}"
+                    # Just print, don't use callback for this warning
+                    print(msg) 
+
+        except groq.APIConnectionError as e:
+            error_msg = f"Groq Connection Error: {e}"
+            if error_callback: error_callback(error_msg)
+            else: print(error_msg)
+            # Let the caller (GroqMusicModel) handle whether to stop or retry
+            raise # Re-raise the exception for the caller to handle
+            
+        except groq.RateLimitError as e:
+            error_msg = f"Groq Rate Limit Error: {e}."
+            if error_callback: error_callback(error_msg)
+            else: print(error_msg)
+            raise # Re-raise the exception
+            
+        except groq.APIStatusError as e:
+            error_detail = f"Groq API Error (Status {e.status_code}): {e.message}"
+            if hasattr(e, 'body') and e.body and 'error' in e.body:
+                error_detail += f" - {e.body['error'].get('message', 'No additional details.')}"
+            if error_callback: error_callback(error_detail)
+            else: print(error_detail)
+            raise # Re-raise the exception
+            
+        except Exception as e:
+            error_msg = f"Unexpected Groq API Error during batch: {e}"
+            if error_callback: error_callback(error_msg)
+            else: print(error_msg)
+            raise # Re-raise the exception
+
+        return classified_files_in_batch

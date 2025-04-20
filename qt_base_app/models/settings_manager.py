@@ -14,6 +14,7 @@ across different applications. It wraps QSettings to provide:
 from typing import Any, Dict, List, Optional, Union, TypeVar, Type
 from enum import Enum
 import json
+import yaml
 from datetime import datetime
 from pathlib import Path
 from PyQt6.QtCore import QSettings
@@ -78,6 +79,11 @@ class SettingsManager:
             raise RuntimeError("Use SettingsManager.instance() to get the settings manager")
             
         self._settings = QSettings(organization, application)
+        
+        # --- Add storage for loaded YAML config --- 
+        self._yaml_config: Dict[str, Any] = {} 
+        # -------------------------------------------
+        
         self._type_converters = {
             SettingType.STRING: str,
             SettingType.INT: int,
@@ -89,7 +95,7 @@ class SettingsManager:
             SettingType.PATH: Path
         }
         
-        # Default settings with their types
+        # Default settings (for registry/QSettings) - AI defaults removed previously
         self._defaults = {
             'player/volume': (100, SettingType.INT),
             'preferences/seek_interval': (3, SettingType.INT),
@@ -99,10 +105,11 @@ class SettingsManager:
             'recent/playlists': ([], SettingType.LIST)
         }
         
-        # Initialize with defaults if not set
+        # Initialize QSettings with defaults if not set
         for key, (default_value, setting_type) in self._defaults.items():
             if not self.contains(key):
-                self.set(key, default_value, setting_type)
+                # Use the internal method to set QSettings values
+                self._set_qsetting(key, default_value, self._get_setting_type_enum(setting_type))
     
     def _migrate_legacy_settings(self):
         """Migrate settings from legacy QSettings to new format"""
@@ -139,10 +146,7 @@ class SettingsManager:
 
     def set_defaults(self, defaults: Dict[str, tuple]):
         """
-        Set default values for settings.
-        
-        Args:
-            defaults: Dictionary of setting keys and their (default_value, type) tuples
+        Set default values for QSettings.
         """
         self._defaults.update(defaults)
         for key, (default_value, setting_type) in defaults.items():
@@ -150,26 +154,29 @@ class SettingsManager:
                 self.set(key, default_value, setting_type)
                 
     def reset_to_defaults(self):
-        """Reset all settings to their default values"""
+        """
+        Reset all QSettings to their default values.
+        """
         for key, (default_value, setting_type) in self._defaults.items():
             self.set(key, default_value, setting_type)
             
+    def _get_setting_type_enum(self, setting_type: Union[SettingType, Type]) -> Optional[SettingType]:
+        """Helper to get the SettingType enum from various inputs."""
+        if isinstance(setting_type, SettingType):
+            return setting_type
+        try:
+            return SettingType(setting_type)
+        except ValueError:
+            return None
+            
     def get_setting_type(self, key: str) -> Optional[SettingType]:
-        """Get the type of a setting by its key"""
-        return self._defaults.get(key, (None, None))[1]
+        """Get the type of a QSetting by its key"""
+        return self._get_setting_type_enum(self._defaults.get(key, (None, None))[1])
 
-    def set(self, key: str, value: Any, setting_type: Optional[Union[SettingType, Type]] = None) -> None:
+    # Renamed 'set' to '_set_qsetting' to avoid conflict and clarify purpose
+    def _set_qsetting(self, key: str, value: Any, setting_type: Optional[SettingType] = None) -> None:
         """
-        Set a setting value with optional type validation.
-        
-        Args:
-            key: The setting key (can be hierarchical, e.g., 'app/window/size')
-            value: The value to store
-            setting_type: Optional type validation (SettingType enum or Python type)
-        
-        Raises:
-            ValueError: If type validation fails
-            TypeError: If the value cannot be serialized
+        Internal method to set a QSettings value with type validation.
         """
         if setting_type:
             if isinstance(setting_type, SettingType):
@@ -192,17 +199,23 @@ class SettingsManager:
             
         self._settings.setValue(key, value)
         
-    def get(self, key: str, default: Any = None, setting_type: Optional[Union[SettingType, Type]] = None) -> Any:
+    # Add a public 'set' method that calls the internal one
+    def set(self, key: str, value: Any, setting_type: Optional[Union[SettingType, Type]] = None) -> None:
         """
-        Get a setting value with type conversion.
+        Set a persistent setting value (in QSettings/Registry) with type validation.
         
         Args:
-            key: The setting key
-            default: Default value if setting doesn't exist
-            setting_type: Optional type to convert the value to
-            
-        Returns:
-            The setting value converted to the specified type, or the default value
+            key: The setting key (can be hierarchical, e.g., 'app/window/size')
+            value: The value to store
+            setting_type: Optional type validation (SettingType enum or Python type)
+        """
+        st_enum = self._get_setting_type_enum(setting_type)
+        self._set_qsetting(key, value, st_enum)
+
+    # Renamed 'get' to '_get_qsetting' to avoid conflict and clarify purpose
+    def _get_qsetting(self, key: str, default: Any = None, setting_type: Optional[SettingType] = None) -> Any:
+        """
+        Internal method to get a QSettings value with type conversion.
         """
         value = self._settings.value(key, default)
         
@@ -235,7 +248,23 @@ class SettingsManager:
                 return default
                 
         return value
-    
+        
+    # Add a public 'get' method that calls the internal one
+    def get(self, key: str, default: Any = None, setting_type: Optional[Union[SettingType, Type]] = None) -> Any:
+        """
+        Get a persistent setting value (from QSettings/Registry) with type conversion.
+        
+        Args:
+            key: The setting key
+            default: Default value if setting doesn't exist
+            setting_type: Optional type to convert the value to
+            
+        Returns:
+            The setting value converted to the specified type, or the default value
+        """
+        st_enum = self._get_setting_type_enum(setting_type)
+        return self._get_qsetting(key, default, st_enum)
+
     def remove(self, key: str) -> None:
         """Remove a setting"""
         self._settings.remove(key)
@@ -302,4 +331,50 @@ class SettingsManager:
         """Convert value to datetime"""
         if isinstance(value, str):
             return datetime.fromisoformat(value)
-        return value 
+        return value
+
+    # --- Add methods for YAML config loading and access --- 
+    def load_yaml_config(self, config_path: Union[str, Path]):
+        """Loads configuration from a YAML file into the manager."""
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                self._yaml_config = yaml.safe_load(f) or {}
+                print(f"Successfully loaded YAML config from: {config_path}")
+        except FileNotFoundError:
+            print(f"Warning: YAML config file not found at {config_path}. Using empty config.")
+            self._yaml_config = {}
+        except yaml.YAMLError as e:
+            print(f"Error parsing YAML config file {config_path}: {e}")
+            self._yaml_config = {}
+        except Exception as e:
+            print(f"Error loading YAML config {config_path}: {e}")
+            self._yaml_config = {}
+            
+    def get_yaml_config(self, key_path: str, default: Any = None) -> Any:
+        """
+        Retrieves a value from the loaded YAML configuration using a dot-separated key path.
+        
+        Args:
+            key_path: Dot-separated path (e.g., 'app.window.width', 'ai.groq.model_name').
+            default: Default value to return if the key path is not found.
+            
+        Returns:
+            The value found at the key path, or the default value.
+        """
+        try:
+            keys = key_path.split('.')
+            value = self._yaml_config
+            for key in keys:
+                if isinstance(value, dict):
+                    value = value[key]
+                else:
+                    # Tried to access a key on a non-dict item
+                    return default 
+            return value
+        except KeyError:
+            # Key not found at some level
+            return default
+        except Exception as e:
+            print(f"Error accessing YAML config key '{key_path}': {e}")
+            return default
+    # -------------------------------------------------------- 

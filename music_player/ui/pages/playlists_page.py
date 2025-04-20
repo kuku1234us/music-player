@@ -35,11 +35,16 @@ class PlaylistsPage(QWidget):
     playlist_play_requested = pyqtSignal(Playlist)
 
     def __init__(self, parent=None):
+        """
+        Initializes the PlaylistsPage.
+        
+        Args:
+            parent (QWidget, optional): Parent widget. Defaults to None.
+        """
         super().__init__(parent)
-        # Set widget properties
         self.setObjectName("playlistsPage")
         self.setProperty('page_id', 'playlists')
-
+        
         # Initialize settings and theme
         self.settings = SettingsManager.instance()
         self.theme = ThemeManager.instance()
@@ -69,7 +74,8 @@ class PlaylistsPage(QWidget):
         self.stacked_widget.addWidget(self.dashboard_widget)
 
         # --- Play Mode Widget ---
-        self.play_mode_widget = PlaylistPlaymodeWidget(self)
+        # Revert instantiation - no longer pass ai_config
+        self.play_mode_widget = PlaylistPlaymodeWidget(parent=self)
         self.stacked_widget.addWidget(self.play_mode_widget)
 
         self.main_layout.addWidget(self.stacked_widget)

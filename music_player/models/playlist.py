@@ -835,9 +835,14 @@ class PlaylistManager:
             List[Playlist]: A list of loaded Playlist objects.
         """
         playlists: List[Playlist] = []
-        found_files = list(self.playlist_dir.glob("*.json"))
-        
-        for filepath in found_files:
+        for filename in os.listdir(self.playlist_dir):
+            # === Add check to skip aiprompts.json ===
+            if filename.lower() == 'aiprompts.json':
+                continue # Skip this specific file
+            # ==========================================
+            
+            # Construct the full path
+            filepath = self.playlist_dir / filename
             playlist = Playlist.load_from_file(filepath)
             # Check explicitly for None instead of using boolean evaluation
             # This ensures empty playlists (0 tracks) are still considered valid

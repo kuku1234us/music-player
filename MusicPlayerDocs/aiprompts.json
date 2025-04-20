@@ -1,0 +1,121 @@
+[
+  {
+    "description": "Configuration for identifying Classical Music tracks based on filename.",
+    "target_label": "Classical Music",
+    "role": "expert in classical music",
+    "positive_characteristics": [
+      "Names of classical composers (e.g., Mozart, Beethoven, Bach, Tchaikovsky, Chopin, Vivaldi, Handel)",
+      "Classical music terms (e.g., Symphony, Sonata, Concerto, Nocturne, Étude, Prelude, Fugue, Variation, Suite)",
+      "Opus numbers (e.g., Op. 9, BWV 847, K. 525)",
+      "Classical musical form or tempo markings (e.g., Adagio, Allegro, Andante, Rondo)",
+      "Orchestra, Quartet, Trio in the name"
+    ],
+    "negative_characteristics": [
+      "Modern pop/rock artist names (e.g., Taylor Swift, Ed Sheeran, Beatles)",
+      "Explicit genre names like 'Pop', 'Rock', 'Electronic', 'HipHop', 'Jazz' (unless fusion)",
+      "Terms like 'Remix', 'Cover by [Pop Artist]'"
+    ],
+    "positive_examples": [
+      "Beethoven_Symphony_No_9_Ode_to_Joy.mp3",
+      "Mozart_Piano_Concerto_21.flac",
+      "Bach_Cello_Suite_No_1_BWV_1007.ogg",
+      "Tchaikovsky_Swan_Lake_Suite.wav",
+      "Chopin_Nocturne_Op9_No2.m4a"
+    ],
+    "negative_examples": [
+      "pop_summer_hit_2023.mp3",
+      "rock_guitar_solo.mp3",
+      "Miles_Davis_Kind_of_Blue.flac",
+      "Happy_Birthday_Song.wav",
+      "Taylor_Swift_Shake_It_Off.m4a"
+    ]
+  },
+  {
+    "description": "Configuration for identifying general Jazz Music tracks (vocal or instrumental) based on filename.",
+    "target_label": "Jazz Music",
+    "role": "expert in jazz history and genres",
+    "positive_characteristics": [
+      "Names of known jazz artists (e.g., Miles Davis, John Coltrane, Duke Ellington, Ella Fitzgerald, Louis Armstrong, Thelonious Monk, Charlie Parker)",
+      "Jazz genre terms (e.g., Swing, Bebop, Cool Jazz, Fusion, Standard, Improv, Solo, Big Band, Trio, Quartet)",
+      "Instruments common in jazz (e.g., Saxophone, Trumpet, Piano, Bass, Drums)",
+      "Titles of common Jazz Standards"
+    ],
+    "negative_characteristics": [
+      "Explicitly non-jazz genres (e.g., Classical, Rock, Pop, Electronic, Country, HipHop)",
+      "Names of primarily non-jazz artists (e.g., Bach, Mozart, Beatles, Queen, Madonna)",
+      "Terms specific to other genres (e.g., Symphony, Concerto, Opera, Metal Riff, Pop Ballad)"
+    ],
+    "positive_examples": [
+      "Miles_Davis_Kind_of_Blue_Instrumental.mp3",
+      "Coltrane_Giant_Steps_Sax.wav",
+      "Ella_Fitzgerald_Summertime_Vocal.flac",
+      "Duke_Ellington_Take_The_A_Train.ogg",
+      "Monk_Round_Midnight_Piano_Solo.m4a"
+    ],
+    "negative_examples": [
+      "Bach_Cello_Suite_No_1.ogg",
+      "Rolling_Stones_Satisfaction.flac",
+      "Taylor_Swift_Love_Story.mp3",
+      "Beethoven_Moonlight_Sonata.wav",
+      "Daft_Punk_Get_Lucky_Electronic.m4a"
+    ]
+  },
+  {
+    "description": "Configuration for identifying Happy Vocal Songs based on filename.",
+    "target_label": "Happy Vocal Song",
+    "role": "expert in music mood analysis and vocal performance",
+    "positive_characteristics": [
+      "Keywords indicating happiness/positivity (e.g., Happy, Joy, Sunshine, Dance, Party, Celebration, Upbeat, Smile, Good, Fun, Love)",
+      "Indication of vocals (e.g., Vocals, Singer, Song, Feat., Duet, Choir)",
+      "Artists/Genres known for upbeat vocal music (can be broad, e.g., Pop, Funk, Gospel Choir)"
+    ],
+    "negative_characteristics": [
+      "Keywords indicating sadness/negativity (e.g., Sad, Tears, Broken, Alone, Slow, Ballad, Melancholy, Lonely, Blues, Lament)",
+      "Terms indicating instrumental only (e.g., Instrumental, Orchestral, Score, Piano Solo, Guitar Solo)",
+      "Genres typically not associated with 'happy' vocals (e.g., Funeral Doom, Dirge, Requiem)"
+    ],
+    "positive_examples": [
+      "Pharrell_Happy_Song.mp3",
+      "Katrina_And_The_Waves_Walking_On_Sunshine.wav",
+      "Good_Vibrations_Beach_Boys_Vocals.flac",
+      "Uptown_Funk_Bruno_Mars_Feat_Mark_Ronson.m4a",
+      "Happy_Together_Turtles.ogg"
+    ],
+    "negative_examples": [
+      "Adele_Someone_Like_You_Sad_Ballad.mp3",
+      "Hurt_Johnny_Cash_Vocal.wav",
+      "Moonlight_Sonata_Instrumental.ogg",
+      "Sad_Violin_Solo_Orchestra.mp3",
+      "Funeral_March_Chopin_Piano.flac"
+    ]
+  },
+  {
+    "description": "Configuration for identifying Sad Vocal Songs based on filename.",
+    "target_label": "Sad Vocal Song",
+    "role": "expert in music mood analysis and vocal performance",
+    "positive_characteristics": [
+      "Keywords indicating sadness/negativity (e.g., Sad, Tears, Broken, Alone, Slow, Ballad, Melancholy, Lonely, Blues, Lament, Heartbreak, Goodbye)",
+      "Indication of vocals (e.g., Vocals, Singer, Song, Feat., Duet)",
+      "Artists/Genres known for sad/ballad vocal music (e.g., Blues Singer, Soul Ballad, Slow Pop)"
+    ],
+    "negative_characteristics": [
+      "Keywords indicating happiness/positivity (e.g., Happy, Joy, Sunshine, Dance, Party, Upbeat, Fun)",
+      "Terms indicating instrumental only (e.g., Instrumental, Orchestral, Score, Piano Solo, Guitar Solo)",
+      "Explicitly upbeat genres/terms (e.g., Party Anthem, Dance Track, Celebration)"
+    ],
+    "positive_examples": [
+      "Adele_Someone_Like_You_Sad_Ballad.mp3",
+      "Hurt_Johnny_Cash_Vocal.wav",
+      "Hallelujah_Leonard_Cohen_Song.flac",
+      "Everybody_Hurts_REM_Vocals.m4a",
+      "My_Heart_Will_Go_On_Celine_Dion.ogg"
+    ],
+    "negative_examples": [
+      "Pharrell_Happy_Song.mp3",
+      "Walking_On_Sunshine_Katrina_Upbeat.wav",
+      "Beethoven_Ode_To_Joy_Orchestral_Instrumental.ogg",
+      "Happy_Dance_Track_Instrumental.mp3",
+      "Party_Rock_Anthem_LMFAO.flac"
+    ]
+  }
+]

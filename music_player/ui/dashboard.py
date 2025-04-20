@@ -9,6 +9,8 @@ from pathlib import Path
 
 # Import BaseWindow from framework
 from qt_base_app.window.base_window import BaseWindow
+# Import Logger
+from qt_base_app.models.logger import Logger
 
 # Import page classes
 from music_player.ui.pages import (
@@ -44,10 +46,16 @@ class MusicPlayerDashboard(BaseWindow):
         # Store page instances to prevent garbage collection
         self.pages = {}
         
-        # Initialize base window
+        # Initialize base window (loads self.config from YAML & loads into SettingsManager)
         super().__init__(config_path)
         
+        # --- Initialize Logger AFTER base init (which loads YAML config) ---
+        self.logger = Logger.instance()
+        self.logger.info("MusicPlayerDashboard initializing...")
+        # -----------------------------------------------------------------
+        
         # Set up the application structure after base initialization
+        # Now self.config is available
         self.initialize_pages()
         
         # Fix the player height
@@ -123,10 +131,10 @@ class MusicPlayerDashboard(BaseWindow):
     
     def initialize_pages(self):
         """Initialize and add all pages to the window."""
-        # Create pages
+        # Create pages (no longer pass ai_config to PlaylistsPage)
         dashboard_page = DashboardPage()
         player_page = PlayerPage()
-        playlists_page = PlaylistsPage()
+        playlists_page = PlaylistsPage(parent=self) # Removed ai_config
         preferences_page = PreferencesPage()
         browser_page = BrowserPage()
         

@@ -12,6 +12,8 @@ from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon, QColor
 import qtawesome as qta
 
+from ..models.logger import Logger
+from ..models.settings_manager import SettingsManager
 from ..theme.theme_manager import ThemeManager
 from ..components.sidebar import SidebarWidget
 
@@ -25,8 +27,14 @@ class BaseWindow(QMainWindow):
         super().__init__()
         self.theme = ThemeManager.instance()
         
-        # Load configuration
+        # Load configuration and make it globally available via SettingsManager
         self.config = self._load_config(config_path)
+        if config_path:
+            SettingsManager.instance().load_yaml_config(config_path)
+        
+        # Initialize logger AFTER config is loaded
+        self.logger = Logger.instance()
+        self.logger.info("BaseWindow initializing...")
         
         # Set window properties
         self._setup_window()
@@ -47,8 +55,10 @@ class BaseWindow(QMainWindow):
         
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f)
+                loaded_config = yaml.safe_load(f) or {}
+                return loaded_config
         except Exception as e:
+            # Use print here as logger might not be initialized yet
             print(f"Error loading configuration: {e}")
             return {}
     
@@ -305,4 +315,5 @@ class BaseWindow(QMainWindow):
         
         # If page wasn't found, log an error
         if not page_found:
-            print(f"Error: Page with ID '{page_id}' not found") 
+            # Use self.logger initialized in __init__
+            self.logger.error(f"Page with ID '{page_id}' not found in content_stack.") 

@@ -1,0 +1,7 @@
+2025-04-20 09:48:16 - INFO     - Application - --- Logger Initialized (Level: INFO) ---
+2025-04-20 09:48:16 - INFO     - Application - Theme configuration loaded from: D:\projects\musicplayer\qt_base_app\theme\theme.yaml
+2025-04-20 09:48:16 - INFO     - Application - Dark title bar configured for Windows.
+2025-04-20 09:48:16 - INFO     - Application - Loading fonts from: D:\projects\musicplayer\fonts
+2025-04-20 09:48:16 - INFO     - Application - BaseWindow initializing...
+2025-04-20 09:48:17 - INFO     - Application - MusicPlayerDashboard initializing...
+2025-04-20 09:48:17 - INFO     - Application - Using application icon: D:\projects\musicplayer\music_player\resources\play.ico

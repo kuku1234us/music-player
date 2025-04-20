@@ -66,10 +66,11 @@ class UploadStatusOverlay(QWidget):
             border-radius: 5px;
         """)
         
-    def show_upload_started(self, filename):
-        """Show upload started status"""
+    def show_upload_started(self, status_text):
+        """Show upload started status using the provided text"""
         self._hide_timer.stop() # Stop any pending hide timer
-        self.status_label.setText(f"Uploading: {filename}")
+        # Display the text exactly as received from BrowserPage
+        self.status_label.setText(status_text)
         # Ensure text color is reset if previously failed
         self.status_label.setStyleSheet(f"color: {self.theme.get_color('text', 'primary')}; font-size: 14px;")
         self.progress_bar.setValue(0)

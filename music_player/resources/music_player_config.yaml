@@ -8,6 +8,12 @@ app:
     min_width: 800
     min_height: 600
 
+logging:
+  level: "DEBUG" # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_to_file: True # Log messages to [app_title].log
+  log_to_console: True # Print log messages to the terminal/console
+  clear_on_startup: True # Clear the log file each time the app starts
+
 sidebar:
   title: "Music Player"
   icon: "fa5s.music"
@@ -36,3 +42,14 @@ sidebar:
           title: "Preferences"
           icon: "fa5s.cog"
           page: "PreferencesPage"
+
+# AI Configuration Section
+ai:
+  groq:
+    # Max requests per minute allowed by Groq (free tier is 30)
+    # We set slightly lower to be safe.
+    requests_per_minute: 28
+    # Number of filenames to send in each API call
+    batch_size: 30
+    # Groq model to use for classification
+    model_name: "llama-3.3-70b-versatile" # Example: Use 70b for potentially higher accuracy, 8b for speed

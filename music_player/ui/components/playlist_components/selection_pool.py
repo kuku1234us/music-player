@@ -1,16 +1,18 @@
 # ./music_player/ui/components/playlist_components/selection_pool.py
 import os
+import time # Import time for throttling
 import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QFileDialog, QAbstractItemView, QMenu, QApplication,
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QTableWidget, QTableWidgetItem, QHeaderView, QComboBox, # Added QComboBox
+    QMessageBox # Added QMessageBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QSize
-from PyQt6.QtGui import QCursor, QIcon
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QObject, QThread
+from PyQt6.QtGui import QCursor, QIcon, QMovie # Added QMovie for spinner
 import qtawesome as qta
 
 from qt_base_app.theme.theme_manager import ThemeManager
@@ -19,6 +21,8 @@ from qt_base_app.models.settings_manager import SettingsManager, SettingType
 from music_player.ui.components.search_field import SearchField
 # Import the new IconButton component
 from music_player.ui.components.icon_button import IconButton
+# Import the AI Model
+from music_player.ai.groq_music_model import GroqMusicModel
 
 # Define common audio file extensions
 AUDIO_EXTENSIONS = {
@@ -64,6 +68,57 @@ class DateAwareTableItem(QTableWidgetItem):
             return self.timestamp < other.timestamp
         return super().__lt__(other)
 
+class ClassificationWorker(QObject):
+    """Worker object to run AI classification in a separate thread."""
+    finished = pyqtSignal(list) # Emits list of matching file paths
+    error = pyqtSignal(str)
+    progress = pyqtSignal(int, int) # Emits current_processed, total_files
+
+    def __init__(self, model, filenames, config):
+        super().__init__()
+        self.groq_model = model
+        self.filenames = filenames
+        self.prompt_config = config
+        self.is_cancelled = False # Flag to signal cancellation
+
+    def run(self):
+        """Runs the classification task."""
+        results = [] # Initialize results
+        try:
+            # Callback for progress
+            def progress_handler(current, total):
+                if total > 0:
+                    percent = int((current / total) * 100)
+                    self.progress.emit(percent, total)
+
+            # Function for the model to check cancellation
+            def cancellation_check():
+                return self.is_cancelled
+
+            # Call classify_filenames, passing the necessary callbacks
+            results = self.groq_model.classify_filenames(
+                self.filenames, 
+                self.prompt_config,
+                worker_cancelled_check=cancellation_check,
+                progress_callback=progress_handler,
+                # Pass the worker's main error signal directly as the callback for CRITICAL errors
+                error_callback=self.error.emit 
+            )
+            
+            # Check cancellation *after* the main call returns
+            if self.is_cancelled:
+                print("[Worker] Task cancelled after completion.")
+                self.finished.emit([]) # Emit empty list if cancelled
+            else:
+                self.finished.emit(results)
+                
+        except Exception as e:
+            # Catch any other unhandled exception in the worker itself
+            print(f"[Worker] Unhandled exception: {e}")
+            self.error.emit(f"Worker thread error: {e}")
+            # Ensure finished is emitted even on unhandled exception, potentially with empty results
+            self.finished.emit([]) # Emit empty list on major error
+
 class SelectionPoolWidget(QWidget):
     """
     Widget representing the Selection Pool area in Play Mode.
@@ -75,14 +130,35 @@ class SelectionPoolWidget(QWidget):
     play_single_file_requested = pyqtSignal(str) # Emits filepath
     
     def __init__(self, parent=None):
+        """
+        Initializes the SelectionPoolWidget.
+
+        Args:
+            parent (QWidget, optional): Parent widget. Defaults to None.
+        """
         super().__init__(parent)
         self.setObjectName("selectionPoolWidget")
+        
         self.theme = ThemeManager.instance()
-        self.settings = SettingsManager.instance()
+        # Reinstate SettingsManager instance if it was fully removed, 
+        # or ensure it's available for methods like _save/_load_column_widths
+        # Note: We only removed it previously in the context of not needing it for AI config.
+        # If other methods need it, it should be here or instantiated locally.
+        # Let's keep it instantiated locally in the methods that need it for now.
         
         # Keep track of added paths to avoid duplicates in the table
         self._pool_paths = set()
         
+        # AI Model Initialization
+        self.groq_model: Optional[GroqMusicModel] = None
+        self.ai_enabled: bool = False
+        # Call initialize *after* ai_config is stored
+        self._initialize_ai_model() 
+
+        # Threading attributes
+        self.classification_thread: Optional[QThread] = None
+        self.classification_worker: Optional[ClassificationWorker] = None
+
         # Column indices
         self.COL_FILENAME = 0
         self.COL_SIZE = 1
@@ -98,12 +174,25 @@ class SelectionPoolWidget(QWidget):
         
         self._setup_ui()
         self._connect_signals()
+        self._populate_ai_prompts() # Populate combo after UI setup
         
         # Load column widths from settings
         self._load_column_widths()
         
         # Set initial sort indicator
         self._update_sort_indicators()
+        
+    def _initialize_ai_model(self):
+        """Initializes the Groq Music Model and checks readiness."""
+        try:
+            # GroqMusicModel now reads config internally from SettingsManager
+            self.groq_model = GroqMusicModel() # No longer pass config
+            self.ai_enabled = self.groq_model.api_ready
+            if not self.ai_enabled:
+                print("[SelectionPool] AI features disabled (Groq API not ready).")
+        except Exception as e:
+            print(f"[SelectionPool] Error initializing AI Model: {e}")
+            self.ai_enabled = False
         
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -127,6 +216,33 @@ class SelectionPoolWidget(QWidget):
         # Set a maximum width or flexible sizing as needed
         # self.search_field.setMaximumWidth(250) 
         
+        # --- AI Controls --- 
+        self.ai_prompt_combo = QComboBox()
+        self.ai_prompt_combo.setToolTip("Select AI prompt to filter pool")
+        self.ai_prompt_combo.setMinimumWidth(150) # Give it some minimum width
+        self.ai_prompt_combo.setEnabled(self.ai_enabled)
+        header_layout.addWidget(self.ai_prompt_combo)
+
+        self.ai_run_button = IconButton(
+            icon_name='fa5s.magic', 
+            tooltip='Classify pool using selected AI prompt',
+            icon_color_key=('text', 'secondary'), 
+            parent=self
+        )
+        self.ai_run_button.setEnabled(self.ai_enabled)
+        header_layout.addWidget(self.ai_run_button)
+
+        self.ai_clear_filter_button = IconButton(
+            icon_name='fa5s.times-circle', 
+            tooltip='Clear AI filter',
+            icon_color_key=('text', 'secondary'),
+            parent=self
+        )
+        self.ai_clear_filter_button.setEnabled(self.ai_enabled) # Enable based on AI readiness
+        self.ai_clear_filter_button.hide() # Hide initially
+        header_layout.addWidget(self.ai_clear_filter_button)
+        # ---------------------
+
         # Use IconButton for Browse button
         self.browse_button = IconButton(
             icon_name='fa5s.folder-open',
@@ -237,6 +353,24 @@ class SelectionPoolWidget(QWidget):
         layout.addLayout(header_layout)
         layout.addWidget(self.pool_table)
         
+        # --- Progress Overlay --- 
+        self.progress_overlay = QWidget(self.pool_table) # Child of table
+        self.progress_overlay.setObjectName("progressOverlay")
+        overlay_layout = QVBoxLayout(self.progress_overlay)
+        overlay_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.progress_label = QLabel("Processing...")
+        self.progress_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.progress_label.setStyleSheet("color: white; font-weight: bold;")
+        # Optional: Add spinner icon here if needed
+        # self.spinner_label = QLabel()
+        # movie = QMovie(":/qt-project.org/styles/commonstyle/images/standardbutton-cancel-16.png") # Placeholder
+        # self.spinner_label.setMovie(movie)
+        # movie.start()
+        # overlay_layout.addWidget(self.spinner_label)
+        overlay_layout.addWidget(self.progress_label)
+        self.progress_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.7); border-radius: 4px;")
+        self.progress_overlay.hide() # Initially hidden
+        
     def _connect_signals(self):
         self.browse_button.clicked.connect(self._browse_folder)
         self.add_selected_button.clicked.connect(self._emit_add_selected)
@@ -250,6 +384,28 @@ class SelectionPoolWidget(QWidget):
         # Connect column resize signal
         self.pool_table.horizontalHeader().sectionResized.connect(self._on_column_resized)
 
+        # --- AI Signal Connections ---
+        if self.ai_enabled:
+            self.ai_run_button.clicked.connect(self._on_classify_requested)
+            self.ai_clear_filter_button.clicked.connect(self._clear_ai_filter)
+        # ---------------------------
+
+    def _populate_ai_prompts(self):
+        """Populates the AI prompt dropdown."""
+        if not self.ai_enabled or not self.groq_model:
+            self.ai_prompt_combo.addItem("AI Disabled")
+            return
+
+        prompt_labels = self.groq_model.get_available_prompts()
+        self.ai_prompt_combo.clear()
+        self.ai_prompt_combo.addItem("-- Select AI Filter --") # Default/placeholder item
+        if prompt_labels:
+            self.ai_prompt_combo.addItems(prompt_labels)
+        else:
+            self.ai_prompt_combo.addItem("No Prompts Found")
+            self.ai_prompt_combo.setEnabled(False)
+            self.ai_run_button.setEnabled(False)
+        
     def _show_context_menu(self, position):
         """Display context menu for selection pool items"""
         if self.pool_table.rowCount() == 0:
@@ -372,21 +528,25 @@ class SelectionPoolWidget(QWidget):
         
     def _save_column_widths(self):
         """Save column widths to settings"""
+        # Get settings instance here if needed, or ensure it's available
+        settings = SettingsManager.instance() 
         column_widths = {
             'filename': self.pool_table.columnWidth(self.COL_FILENAME),
             'size': self.pool_table.columnWidth(self.COL_SIZE),
             'modified': self.pool_table.columnWidth(self.COL_MODIFIED)
         }
-        self.settings.set('ui/selection_pool/column_widths', column_widths, SettingType.DICT)
+        settings.set('ui/selection_pool/column_widths', column_widths, SettingType.DICT)
         
     def _load_column_widths(self):
         """Load column widths from settings"""
+        # Get settings instance here if needed
+        settings = SettingsManager.instance()
         default_widths = {
             'filename': 250,
             'size': 80,
             'modified': 170
         }
-        column_widths = self.settings.get('ui/selection_pool/column_widths', default_widths, SettingType.DICT)
+        column_widths = settings.get('ui/selection_pool/column_widths', default_widths, SettingType.DICT)
         
         self.pool_table.setColumnWidth(self.COL_FILENAME, column_widths['filename'])
         self.pool_table.setColumnWidth(self.COL_SIZE, column_widths['size'])
@@ -504,8 +664,10 @@ class SelectionPoolWidget(QWidget):
         Opens a directory dialog and scans the selected folder for media files.
         The last used directory is remembered for future sessions.
         """
+        # Get settings instance here
+        settings = SettingsManager.instance()
         # Get the last used directory from settings, or default to user's home
-        last_dir = self.settings.get('playlists/last_browse_dir', str(Path.home()), SettingType.PATH)
+        last_dir = settings.get('playlists/last_browse_dir', str(Path.home()), SettingType.PATH)
         
         directory = QFileDialog.getExistingDirectory(
             self,
@@ -516,8 +678,8 @@ class SelectionPoolWidget(QWidget):
         
         if directory:
             # Save the selected directory for next time
-            self.settings.set('playlists/last_browse_dir', directory, SettingType.PATH)
-            self.settings.sync()  # Ensure settings are saved immediately
+            settings.set('playlists/last_browse_dir', directory, SettingType.PATH)
+            settings.sync()  # Ensure settings are saved immediately
             
             # --- Get current playlist tracks (if available) --- 
             current_playlist_tracks_set = set()
@@ -527,7 +689,8 @@ class SelectionPoolWidget(QWidget):
                 # and content_widget is directly inside PlaylistPlaymodeWidget
                 playlist_playmode_widget = self.parentWidget().parentWidget()
                 if hasattr(playlist_playmode_widget, 'current_playlist') and playlist_playmode_widget.current_playlist:
-                    current_playlist_tracks_set = set(os.path.normpath(p) for p in playlist_playmode_widget.current_playlist.tracks)
+                    # Extract the 'path' from the track dictionary before normalizing
+                    current_playlist_tracks_set = set(os.path.normpath(p.get('path','')) for p in playlist_playmode_widget.current_playlist.tracks if p.get('path'))
                     print(f"[SelectionPool] Found {len(current_playlist_tracks_set)} tracks in current playlist to exclude.")
             except AttributeError:
                  print("[SelectionPool] Could not reliably access parent playlist tracks.")
@@ -646,4 +809,228 @@ class SelectionPoolWidget(QWidget):
                 if filepath and os.path.isfile(filepath): # Ensure it's a file
                     print(f"[SelectionPool] Double-click detected, requesting single play: {filepath}")
                     self.play_single_file_requested.emit(filepath)
+
+    def resizeEvent(self, event):
+        """Handle resize to keep overlay positioned correctly."""
+        super().resizeEvent(event)
+        # Resize overlay to match the table geometry within the widget
+        if hasattr(self, 'progress_overlay') and self.progress_overlay.isVisible():
+            self.progress_overlay.setGeometry(self.pool_table.geometry())
+
+    # --- AI Classification Methods --- 
+
+    def _on_classify_requested(self):
+        """Starts the AI classification process in a background thread."""
+        # --- Strict Check: Prevent starting if a thread is already running/cleaning up --- 
+        if self.classification_thread is not None:
+            print("[SelectionPool] Cannot start classification: Previous thread is still active or cleaning up.")
+            QMessageBox.warning(self, "Busy", "Please wait for the previous AI task to fully complete.")
+            return
+        # ------------------------------------------------------------------------------
+        
+        if not self.ai_enabled or not self.groq_model:
+            QMessageBox.warning(self, "AI Feature Disabled", "Groq API is not available or not configured correctly.")
+            return
+
+        # Check if a valid prompt is selected
+        if self.ai_prompt_combo.currentIndex() == 0:
+            QMessageBox.information(self, "Select Prompt", "Please select an AI filter prompt from the dropdown first.")
+            return
+            
+        selected_label = self.ai_prompt_combo.currentText()
+        prompt_config = self.groq_model.get_prompt_config_by_label(selected_label)
+        if not prompt_config:
+            QMessageBox.warning(self, "Prompt Error", f"Could not find configuration for prompt: {selected_label}")
+            return
+            
+        # Get currently VISIBLE filenames from the pool table
+        visible_filenames = []
+        for row in range(self.pool_table.rowCount()):
+            if not self.pool_table.isRowHidden(row):
+                item = self.pool_table.item(row, self.COL_FILENAME)
+                if item:
+                    path = item.data(Qt.ItemDataRole.UserRole)
+                    if path:
+                        visible_filenames.append(path)
+                        
+        if not visible_filenames:
+            QMessageBox.information(self, "Empty Pool", "The selection pool (or visible filter) is empty.")
+            return
+            
+        # --- Change Button State (Start) --- 
+        try:
+            self.ai_run_button.clicked.disconnect(self._on_classify_requested)
+        except TypeError: # Signal not connected
+            pass 
+        self.ai_run_button.setIcon(qta.icon('fa5s.stop'))
+        self.ai_run_button.setToolTip('Stop AI classification')
+        try:
+            self.ai_run_button.clicked.connect(self._on_stop_classification_requested)
+        except TypeError: # Already connected?
+            pass
+        self.ai_run_button.setEnabled(True) # Keep enabled to allow stopping
+        self.ai_prompt_combo.setEnabled(False) # Disable combo during processing
+        self.ai_clear_filter_button.setEnabled(False) # Disable clear during processing
+        self.search_field.setEnabled(False) # Disable search during processing
+        # ------------------------------------
+        
+        # --- Show Overlay --- 
+        self.progress_overlay.setGeometry(self.pool_table.geometry())
+        self.progress_label.setText("Starting...") # Initial progress text
+        self.progress_overlay.raise_()
+        self.progress_overlay.show()
+        # --------------------
+        
+        # --- Start Thread --- 
+        self.classification_worker = ClassificationWorker(self.groq_model, visible_filenames, prompt_config)
+        self.classification_thread = QThread()
+        self.classification_worker.moveToThread(self.classification_thread)
+
+        # --- Add the missing started signal connection --- 
+        self.classification_thread.started.connect(self.classification_worker.run)
+        # -------------------------------------------------
+
+        # Connect worker signals to UI slots
+        self.classification_worker.finished.connect(self._on_classification_finished)
+        self.classification_worker.error.connect(self._on_classification_error)
+        self.classification_worker.progress.connect(self._update_progress_text)
+        
+        # --- Explicitly quit thread when worker is done --- 
+        self.classification_worker.finished.connect(self.classification_thread.quit)
+        self.classification_worker.error.connect(self.classification_thread.quit)
+        # -------------------------------------------------
+        
+        # Clean up worker and thread AFTER thread finishes
+        self.classification_thread.finished.connect(self.classification_worker.deleteLater) 
+        # self.classification_thread.finished.connect(self.classification_thread.quit) # Already connected above
+        self.classification_thread.finished.connect(self.classification_thread.deleteLater) 
+        # Connect thread finished signal to _clear_thread_references (for UI reset and clearing refs)
+        self.classification_thread.finished.connect(self._clear_thread_references)
+
+        # Start the thread AFTER storing the reference and connecting signals
+        self.classification_thread.start()
+        print(f"[SelectionPool] Started classification thread for '{selected_label}'.")
+
+    def _on_stop_classification_requested(self):
+        """Signals the background worker thread to stop."""
+        if hasattr(self, 'classification_thread') and self.classification_thread and self.classification_thread.isRunning():
+            if hasattr(self, 'classification_worker') and self.classification_worker:
+                print("[SelectionPool] Stop requested. Signalling worker...")
+                self.classification_worker.is_cancelled = True
+                
+                # Change button state immediately to indicate request received
+                self.ai_run_button.setEnabled(False) # Disable until worker confirms stop
+                self.ai_run_button.setToolTip('Stopping...')
+            else:
+                print("[SelectionPool] Stop requested but worker reference is missing.")
+        else:
+            print("[SelectionPool] Stop requested but classification thread is not running.")
+            # Might need to reset button state here if thread died unexpectedly?
+            self._reset_ai_button_state()
+
+    def _on_classification_finished(self, matching_paths: list):
+        """Handles the results when the classification worker finishes."""
+        print(f"[SelectionPool] Classification finished signal received. Received {len(matching_paths)} matching paths.")
+        self.progress_overlay.hide()
+        
+        # --- Apply filter results (Handles empty list correctly) --- 
+        # Remove the special "if not matching_paths:" block
+        # Let the filtering logic run even for an empty list
+        
+        matching_paths_set = set(os.path.normpath(p) for p in matching_paths)
+        rows_shown = 0
+        # Assuming we only want to filter rows that were visible *before* the classification
+        # Let's iterate through all rows and hide/show based on the result set
+        for row in range(self.pool_table.rowCount()):
+            item = self.pool_table.item(row, self.COL_FILENAME)
+            should_hide = True # Default to hiding
+            if item:
+                path = item.data(Qt.ItemDataRole.UserRole)
+                # Hide if path is invalid or not in the matching set
+                if path and os.path.normpath(path) in matching_paths_set:
+                    should_hide = False
+                    rows_shown += 1
+            self.pool_table.setRowHidden(row, should_hide)
+            
+        print(f"[SelectionPool] Filter applied. Showing {rows_shown} rows.")
+        
+        # Show the clear filter button if any filtering occurred OR if result is empty
+        # Determine total rows that *could* have been shown (non-hidden before filtering)
+        # This is tricky without storing initial state. Simpler: show clear if rows shown != total rows OR if rows_shown == 0
+        total_rows = self.pool_table.rowCount() # Check total rows in table
+        if rows_shown < total_rows: # If filtering happened OR result was empty (rows_shown == 0)
+            self.ai_clear_filter_button.show()
+            self.ai_clear_filter_button.setEnabled(True) # Enable moved to _clear_thread_references
+        else: # No filtering actually happened (all items matched, or table was empty)
+            self.ai_clear_filter_button.hide()
+        # -------------------------------------------
+
+        # --- UI Reset is handled by _clear_thread_references ---
+
+    def _on_classification_error(self, error_message: str):
+        """Handles errors reported by the classification worker."""
+        print(f"[SelectionPool] Classification error signal received: {error_message}")
+        self.progress_overlay.hide()
+        QMessageBox.critical(self, "AI Classification Error", error_message)
+        # Ensure filter is cleared on error (existing logic)
+        self._clear_ai_filter(show_message=False)
+        
+        # --- UI Reset REMOVED from here --- 
+        # print("[SelectionPool] Resetting UI controls after error.")
+        # self._reset_ai_button_state()
+        # self.ai_prompt_combo.setEnabled(self.ai_enabled)
+        # self.search_field.setEnabled(True)
+        # ----------------------------------
+
+    def _update_progress_text(self, percent: int, total: int):
+        """Updates the progress label on the overlay."""
+        if hasattr(self, 'progress_label'):
+            self.progress_label.setText(f"Processing... {percent}% ({total} files)")
+            
+    def _clear_ai_filter(self, show_message=True): # Added show_message flag
+        """Shows all rows in the pool table and hides the clear button."""
+        if show_message:
+            print("[SelectionPool] Clearing AI filter.")
+        for row in range(self.pool_table.rowCount()):
+            self.pool_table.setRowHidden(row, False)
+        self.ai_clear_filter_button.hide()
+        # Also reset the prompt combo to the default selection?
+        # self.ai_prompt_combo.setCurrentIndex(0)
+
+    def _reset_ai_button_state(self):
+        """Resets the Run/Stop AI button to its initial state."""
+        if not hasattr(self, 'ai_run_button'): return
+        try:
+            self.ai_run_button.clicked.disconnect(self._on_stop_classification_requested)
+        except TypeError:
+            pass # Not connected or already disconnected
+        self.ai_run_button.setIcon(qta.icon('fa5s.magic'))
+        self.ai_run_button.setToolTip('Classify pool using selected AI prompt')
+        try:
+            # Only reconnect if not already connected (prevents multiple connections)
+            self.ai_run_button.clicked.disconnect(self._on_classify_requested)
+        except TypeError:
+             pass # Assume it might be disconnected, proceed to connect
+        finally: 
+             try:
+                 self.ai_run_button.clicked.connect(self._on_classify_requested)
+             except TypeError:
+                 print("[SelectionPool] Warning: Could not reconnect run button signal.")
+                 pass # Avoid error if somehow still connected
+                 
+        self.ai_run_button.setEnabled(self.ai_enabled) 
+
+    def _clear_thread_references(self):
+        """Callback solely to clear worker/thread references AND RESET UI after QThread finishes."""
+        print("[SelectionPool] QThread finished signal received. Clearing references and resetting UI.")
+        # --- Clear references --- 
+        self.classification_worker = None
+        self.classification_thread = None
+        # --- Reset UI controls HERE --- 
+        self._reset_ai_button_state() # Reset the run/stop button appearance/connections
+        self.ai_prompt_combo.setEnabled(self.ai_enabled) # Re-enable combo based on AI status
+        self.search_field.setEnabled(True) # Re-enable search field
+        # Re-enable clear button only if it's visible
+        if not self.ai_clear_filter_button.isHidden():
+             self.ai_clear_filter_button.setEnabled(True)
 

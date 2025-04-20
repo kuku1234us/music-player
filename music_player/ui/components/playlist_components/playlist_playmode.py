@@ -62,8 +62,15 @@ class PlaylistPlaymodeWidget(QWidget):
     playlist_play_requested = pyqtSignal(Playlist) # Signal to request playing the entire current playlist
 
     def __init__(self, parent=None):
+        """
+        Initializes the PlaylistPlaymodeWidget.
+
+        Args:
+            parent (QWidget, optional): Parent widget. Defaults to None.
+        """
         super().__init__(parent)
         self.setObjectName("playlistPlaymodeWidget")
+        
         self.theme = ThemeManager.instance()
         self.settings = SettingsManager.instance()
         self.current_playlist = None  # The currently loaded playlist
@@ -239,7 +246,7 @@ class PlaylistPlaymodeWidget(QWidget):
         content_layout.addWidget(self.empty_label)
         
         # --- Selection Pool --- 
-        self.selection_pool_widget = SelectionPoolWidget(self.content_widget)
+        self.selection_pool_widget = SelectionPoolWidget(parent=self.content_widget)
         content_layout.addWidget(self.selection_pool_widget)
         
         # Position the content below the breadcrumb

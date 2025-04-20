@@ -14,10 +14,12 @@ from PyQt6.QtGui import QIcon, QFont, QFontDatabase
 from .window.base_window import BaseWindow
 from .theme.theme_manager import ThemeManager
 from .models.resource_locator import ResourceLocator
+from .models.logger import Logger
 
 
 def setup_dark_title_bar(app):
     """Set up dark title bar for Windows applications."""
+    logger = Logger.instance()
     if platform.system() == "Windows":
         import ctypes
         app.setStyle("Fusion")
@@ -55,12 +57,13 @@ def setup_dark_title_bar(app):
                             value_size
                         )
                 except Exception as e:
-                    print(f"Failed to apply dark title bar: {e}")
+                    logger.error(f"Failed to apply dark title bar: {e}", exc_info=True)
         
         # Apply to all new windows
         app.focusWindowChanged.connect(
             lambda window: apply_dark_title_bar(window.winId()) if window else None
         )
+        logger.info("Dark title bar configured for Windows.")
 
 
 def load_custom_fonts(fonts_dir_relative: str, font_mappings: Optional[Dict[str, str]] = None) -> Dict[str, str]:
@@ -74,6 +77,7 @@ def load_custom_fonts(fonts_dir_relative: str, font_mappings: Optional[Dict[str,
     Returns:
         Dictionary of font family names by category
     """
+    logger = Logger.instance()
     # Default font mappings if none provided
     if font_mappings is None:
         font_mappings = {
@@ -94,7 +98,7 @@ def load_custom_fonts(fonts_dir_relative: str, font_mappings: Optional[Dict[str,
 
     # Add custom fonts if available using the absolute path
     if os.path.isdir(fonts_dir_abs):
-        print(f"Loading fonts from: {fonts_dir_abs}")
+        logger.info(f"Loading fonts from: {fonts_dir_abs}")
         for font_file, category in font_mappings.items():
             font_path = os.path.join(fonts_dir_abs, font_file)
             if os.path.exists(font_path):
@@ -103,10 +107,13 @@ def load_custom_fonts(fonts_dir_relative: str, font_mappings: Optional[Dict[str,
                     families = QFontDatabase.applicationFontFamilies(font_id)
                     if families:
                         font_families[category] = families[0]
+                        logger.debug(f"Loaded font '{families[0]}' for '{category}' from {font_file}")
                 else:
-                    print(f"Warning: Failed to load font: {font_path}")
+                    logger.warning(f"Failed to load font file: {font_path}")
+            # else: # Optional: log if specific font file doesn't exist
+                # logger.debug(f"Font file not found: {font_path}")
     else:
-         print(f"Warning: Fonts directory not found at {fonts_dir_abs}")
+         logger.warning(f"Fonts directory not found at {fonts_dir_abs}")
 
     return font_families
 
@@ -161,23 +168,26 @@ def set_application_icon(app: QApplication, window: QWidget, icon_paths: List[st
         window: Main application window
         icon_paths: List of icon paths to try in order of preference
     """
+    logger = Logger.instance()
     app_icon = None
     
     for icon_path in icon_paths:
-        # Get absolute path
         icon_path_abs = ResourceLocator.get_path(icon_path)
         if os.path.exists(icon_path_abs):
-            app_icon = QIcon(icon_path_abs)
-            print(f"Using icon: {icon_path_abs}")
-            break
+            try:
+                app_icon = QIcon(icon_path_abs)
+                logger.info(f"Using application icon: {icon_path_abs}")
+                break
+            except Exception as e:
+                logger.warning(f"Failed to create QIcon from {icon_path_abs}: {e}")
     
-    # Apply icon if found (to both app and window)
+    # Apply icon if found
     if app_icon:
         app.setWindowIcon(app_icon)
         window.setWindowIcon(app_icon)
     else:
         paths_str = ", ".join(icon_paths)
-        print(f"Warning: No valid icon found in: {paths_str}")
+        logger.warning(f"No valid application icon found in searched paths: {paths_str}")
 
 
 def create_application(
