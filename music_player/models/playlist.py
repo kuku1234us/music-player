@@ -458,7 +458,23 @@ class Playlist:
         if not self.tracks:
             self._current_index = -1
             return None
-            
+
+        # --- Handle REPEAT_ALL with sorted indices first --- 
+        if self._current_repeat_mode == REPEAT_ALL and self._sorted_indices:
+            if len(self._sorted_indices) > 0:
+                first_sorted_original_index = self._sorted_indices[0]
+                # Validate the index before using it
+                if 0 <= first_sorted_original_index < len(self.tracks):
+                    self._current_index = first_sorted_original_index
+                    self._sorted_playback_index = 0 # Start at beginning of sorted list
+                    print(f"[Playlist] First sorted track index: {self._current_index}")
+                    track_data = self.tracks[self._current_index]
+                    return track_data.get('path') if isinstance(track_data, dict) else None
+                else:
+                     print(f"[Playlist] Warning: First sorted index {first_sorted_original_index} is invalid. Falling back.")
+            # If _sorted_indices is somehow empty, fall through to default logic
+        # -----------------------------------------------------
+
         # For REPEAT_RANDOM, use the first track in shuffle order
         if self._current_repeat_mode == REPEAT_RANDOM:
             # Force a true random shuffle by temporarily setting _current_index to -1

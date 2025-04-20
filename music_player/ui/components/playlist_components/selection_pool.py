@@ -3,26 +3,25 @@ import os
 import time # Import time for throttling
 import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Any # Added Any
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QFileDialog, QAbstractItemView, QMenu, QApplication,
-    QTableWidget, QTableWidgetItem, QHeaderView, QComboBox, # Added QComboBox
-    QMessageBox # Added QMessageBox
+    QComboBox, QMessageBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QObject, QThread
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QObject, QThread, QSortFilterProxyModel, QModelIndex
 from PyQt6.QtGui import QCursor, QIcon, QMovie # Added QMovie for spinner
 import qtawesome as qta
 
 from qt_base_app.theme.theme_manager import ThemeManager
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
-# Import the new SearchField component
 from music_player.ui.components.search_field import SearchField
-# Import the new IconButton component
 from music_player.ui.components.icon_button import IconButton
-# Import the AI Model
 from music_player.ai.groq_music_model import GroqMusicModel
+
+# Import BaseTable components
+from music_player.ui.components.base_table import BaseTableView, BaseTableModel, ColumnDefinition
 
 # Define common audio file extensions
 AUDIO_EXTENSIONS = {
@@ -32,6 +31,7 @@ AUDIO_EXTENSIONS = {
 
 def format_file_size(size_bytes):
     """Format file size from bytes to human-readable format"""
+    if size_bytes is None: return "Unknown"
     if size_bytes < 1024:
         return f"{size_bytes} B"
     elif size_bytes < 1024 * 1024:
@@ -43,30 +43,39 @@ def format_file_size(size_bytes):
 
 def format_modified_time(mod_time):
     """Format modified time to human-readable format"""
-    dt = datetime.datetime.fromtimestamp(mod_time)
-    return dt.strftime("%Y-%m-%d %H:%M")
+    if not mod_time: return "Unknown"
+    try:
+      dt = datetime.datetime.fromtimestamp(mod_time)
+      return dt.strftime("%Y-%m-%d %H:%M")
+    except Exception: return "Invalid Date"
 
-class SizeAwareTableItem(QTableWidgetItem):
-    """Custom QTableWidgetItem that correctly sorts file sizes"""
-    def __init__(self, text, size_bytes):
-        super().__init__(text)
-        self.size_bytes = size_bytes
-        
-    def __lt__(self, other):
-        if isinstance(other, SizeAwareTableItem):
-            return self.size_bytes < other.size_bytes
-        return super().__lt__(other)
-
-class DateAwareTableItem(QTableWidgetItem):
-    """Custom QTableWidgetItem that correctly sorts dates"""
-    def __init__(self, text, timestamp):
-        super().__init__(text)
-        self.timestamp = timestamp
-        
-    def __lt__(self, other):
-        if isinstance(other, DateAwareTableItem):
-            return self.timestamp < other.timestamp
-        return super().__lt__(other)
+# --- Update Column Definitions ---
+pool_col_defs = [
+    ColumnDefinition(
+        header="Filename",
+        data_key=lambda td: Path(td.get('path', '')).name,
+        sort_key=lambda td: Path(td.get('path', '')).name.lower(),
+        width=300, stretch=1,
+        tooltip_key='path'
+    ),
+    ColumnDefinition(
+        header="Size",
+        data_key='size_bytes', # Use stored key
+        display_formatter=format_file_size,
+        sort_key='size_bytes', # Sort by stored key
+        width=100,
+        alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+        sort_role=Qt.ItemDataRole.EditRole
+    ),
+    ColumnDefinition(
+        header="Modified",
+        data_key='mod_stamp', # Use stored key
+        display_formatter=format_modified_time,
+        sort_key='mod_stamp', # Sort by stored key
+        width=150,
+        sort_role=Qt.ItemDataRole.EditRole
+    ),
+]
 
 class ClassificationWorker(QObject):
     """Worker object to run AI classification in a separate thread."""
@@ -159,28 +168,13 @@ class SelectionPoolWidget(QWidget):
         self.classification_thread: Optional[QThread] = None
         self.classification_worker: Optional[ClassificationWorker] = None
 
-        # Column indices
-        self.COL_FILENAME = 0
-        self.COL_SIZE = 1
-        self.COL_MODIFIED = 2
-        
-        # Sorting state
-        self.sort_column = self.COL_FILENAME
-        self.sort_order = Qt.SortOrder.AscendingOrder
-        
-        # Sort indicator icons
-        self.sort_up_icon = qta.icon('fa5s.sort-up', color=self.theme.get_color('text', 'secondary'))
-        self.sort_down_icon = qta.icon('fa5s.sort-down', color=self.theme.get_color('text', 'secondary'))
+        # Model references
+        self.model: Optional[BaseTableModel] = None
+        self.proxy_model: Optional[QSortFilterProxyModel] = None
         
         self._setup_ui()
         self._connect_signals()
         self._populate_ai_prompts() # Populate combo after UI setup
-        
-        # Load column widths from settings
-        self._load_column_widths()
-        
-        # Set initial sort indicator
-        self._update_sort_indicators()
         
     def _initialize_ai_model(self):
         """Initializes the Groq Music Model and checks readiness."""
@@ -291,62 +285,10 @@ class SelectionPoolWidget(QWidget):
         header_layout.addWidget(self.add_selected_button)
         
         # --- Pool Table --- 
-        self.pool_table = QTableWidget()
-        self.pool_table.setColumnCount(3)
-        self.pool_table.setHorizontalHeaderLabels(["Filename", "Size", "Modified"])
-        self.pool_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.pool_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.pool_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.pool_table.setAlternatingRowColors(True)
-        self.pool_table.verticalHeader().setVisible(False)
-        self.pool_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.pool_table.horizontalHeader().setStretchLastSection(True)
-        self.pool_table.horizontalHeader().setSortIndicatorShown(True)
-        self.pool_table.setSortingEnabled(False)  # Disable automatic sorting
-        self.pool_table.setShowGrid(False)
+        self.pool_table = BaseTableView(table_name="selection_pool_table", parent=self)
+        self.pool_table.setObjectName("poolTable") # Use different object name if needed
+        # Set context menu policy here if re-enabling later
         self.pool_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        
-        # Set default row height for the vertical header
-        self.pool_table.verticalHeader().setDefaultSectionSize(22)
-        
-        # Set initial column widths
-        self.pool_table.setColumnWidth(self.COL_FILENAME, 250)
-        self.pool_table.setColumnWidth(self.COL_SIZE, 80)
-        
-        # Style the table
-        self.pool_table.setStyleSheet(f"""
-            QTableWidget {{
-                background-color: {self.theme.get_color('background', 'secondary')}20;
-                alternate-background-color: {self.theme.get_color('background', 'alternate_row')};
-                border: 1px solid {self.theme.get_color('border', 'secondary')};
-                border-radius: 4px;
-                padding: 5px;
-                selection-background-color: {self.theme.get_color('background', 'selected_row')};
-                selection-color: {self.theme.get_color('text', 'primary')};
-            }}
-            QTableWidget::item {{
-                padding: 0px 5px;
-                height: 22px;
-                min-height: 22px;
-            }}
-            QTableWidget::item:selected {{
-                background-color: {self.theme.get_color('background', 'selected_row')};
-                color: {self.theme.get_color('text', 'primary')};
-                border-radius: 0px;
-                border: none;
-            }}
-            QHeaderView::section {{
-                background-color: {self.theme.get_color('background', 'tertiary')};
-                color: {self.theme.get_color('text', 'secondary')};
-                padding: 0px 5px;
-                height: 22px;
-                border: none;
-                border-right: 1px solid {self.theme.get_color('border', 'secondary')};
-            }}
-            QHeaderView::section:hover {{
-                background-color: {self.theme.get_color('background', 'quaternary')};
-            }}
-        """)
         self.pool_table.setMinimumHeight(100) # Give it some initial size
         
         # Add components to main layout
@@ -374,21 +316,11 @@ class SelectionPoolWidget(QWidget):
     def _connect_signals(self):
         self.browse_button.clicked.connect(self._browse_folder)
         self.add_selected_button.clicked.connect(self._emit_add_selected)
-        self.pool_table.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
         self.pool_table.customContextMenuRequested.connect(self._show_context_menu)
         # Connect the search field signal
-        self.search_field.textChanged.connect(self._filter_pool_table)
+        self.search_field.textChanged.connect(self._filter_pool_table_proxy)
         # Connect double-click signal
         self.pool_table.doubleClicked.connect(self._on_item_double_clicked)
-        
-        # Connect column resize signal
-        self.pool_table.horizontalHeader().sectionResized.connect(self._on_column_resized)
-
-        # --- AI Signal Connections ---
-        if self.ai_enabled:
-            self.ai_run_button.clicked.connect(self._on_classify_requested)
-            self.ai_clear_filter_button.clicked.connect(self._clear_ai_filter)
-        # ---------------------------
 
     def _populate_ai_prompts(self):
         """Populates the AI prompt dropdown."""
@@ -461,96 +393,242 @@ class SelectionPoolWidget(QWidget):
         
     def _copy_selected_paths_to_clipboard(self):
         """Copy selected file paths to clipboard"""
-        selected_paths = []
-        for item in self.pool_table.selectedItems():
-            if item.column() == self.COL_FILENAME:
-                path = item.data(Qt.ItemDataRole.UserRole)
-                if path:
-                    selected_paths.append(path)
-        
+        selected_paths = self.get_selected_tracks()
         if selected_paths:
             clipboard = QApplication.clipboard()
             clipboard.setText("\n".join(selected_paths))
             
     def _remove_selected_items(self):
         """Remove selected items from the selection pool"""
-        selected_paths = []
-        for item in self.pool_table.selectedItems():
-            if item.column() == self.COL_FILENAME:
-                path = item.data(Qt.ItemDataRole.UserRole)
-                if path:
-                    selected_paths.append(path)
-                    
+        selected_paths = self.get_selected_tracks()
         if selected_paths:
             self.remove_tracks(selected_paths)
 
-    def _on_header_clicked(self, column_index):
-        """Handle column header clicks for sorting"""
-        if self.sort_column == column_index:
-            # Toggle sort order if clicking the same column again
-            new_order = Qt.SortOrder.DescendingOrder if self.sort_order == Qt.SortOrder.AscendingOrder else Qt.SortOrder.AscendingOrder
-            self.sort_order = new_order
-        else:
-            # Set new sort column with default ascending order
-            self.sort_column = column_index
-            self.sort_order = Qt.SortOrder.AscendingOrder
+    def _on_item_double_clicked(self, index: QModelIndex):
+        """Handle double-click on an item in the pool table."""
+        if not self.proxy_model or not index.isValid():
+            return
+        # Get source object via proxy model
+        source_object = self.proxy_model.data(index, Qt.ItemDataRole.UserRole)
+        if isinstance(source_object, dict):
+            filepath = source_object.get('path')
+            if filepath and os.path.isfile(filepath): # Ensure it's a file
+              print(f"[SelectionPool] Double-click detected, requesting single play: {filepath}")
+              self.play_single_file_requested.emit(filepath)
+
+    def resizeEvent(self, event):
+        """Handle resize to keep overlay positioned correctly."""
+        super().resizeEvent(event)
+        # Resize overlay to match the table geometry within the widget
+        if hasattr(self, 'progress_overlay') and self.progress_overlay.isVisible():
+            self.progress_overlay.setGeometry(self.pool_table.geometry())
+
+    # --- AI Classification Methods --- 
+
+    def _on_classify_requested(self):
+        """Starts the AI classification process in a background thread."""
+        # --- Strict Check: Prevent starting if a thread is already running/cleaning up --- 
+        if self.classification_thread is not None:
+            print("[SelectionPool] Cannot start classification: Previous thread is still active or cleaning up.")
+            QMessageBox.warning(self, "Busy", "Please wait for the previous AI task to fully complete.")
+            return
+        # ------------------------------------------------------------------------------
         
-        # Update sort indicator in headers
-        self._update_sort_indicators()
+        if not self.ai_enabled or not self.groq_model:
+            QMessageBox.warning(self, "AI Feature Disabled", "Groq API is not available or not configured correctly.")
+            return
+
+        # Check if a valid prompt is selected
+        if self.ai_prompt_combo.currentIndex() == 0:
+            QMessageBox.information(self, "Select Prompt", "Please select an AI filter prompt from the dropdown first.")
+            return
             
-        self.pool_table.sortItems(column_index, self.sort_order)
-        
-        # Ensure row heights are maintained after sorting
-        for row in range(self.pool_table.rowCount()):
-            self.pool_table.setRowHeight(row, 22)
+        selected_label = self.ai_prompt_combo.currentText()
+        prompt_config = self.groq_model.get_prompt_config_by_label(selected_label)
+        if not prompt_config:
+            QMessageBox.warning(self, "Prompt Error", f"Could not find configuration for prompt: {selected_label}")
+            return
             
-    def _update_sort_indicators(self):
-        """Update the sort indicators in headers"""
-        header = self.pool_table.horizontalHeader()
+        # Get filenames from the MODEL, not the view items
+        if not self.model:
+             QMessageBox.information(self, "Empty Pool", "The selection pool is empty.")
+             return
         
-        # Clear all previous indicators
-        for col in range(header.count()):
-            header_item = self.pool_table.horizontalHeaderItem(col)
-            if header_item:
-                header_item.setIcon(QIcon())
+        # Get paths from ALL objects in the source model
+        all_pool_paths = [obj.get('path') for obj in self.model.get_all_objects() if isinstance(obj, dict) and obj.get('path')]
+        if not all_pool_paths:
+            QMessageBox.information(self, "Empty Pool", "The selection pool contains no valid paths.")
+            return
+            
+        # --- Change Button State (Start) --- 
+        try:
+            self.ai_run_button.clicked.disconnect(self._on_classify_requested)
+        except TypeError: # Signal not connected
+            pass 
+        self.ai_run_button.setIcon(qta.icon('fa5s.stop'))
+        self.ai_run_button.setToolTip('Stop AI classification')
+        try:
+            self.ai_run_button.clicked.connect(self._on_stop_classification_requested)
+        except TypeError: # Already connected?
+            pass
+        self.ai_run_button.setEnabled(True) # Keep enabled to allow stopping
+        self.ai_prompt_combo.setEnabled(False) # Disable combo during processing
+        self.ai_clear_filter_button.setEnabled(False) # Disable clear during processing
+        self.search_field.setEnabled(False) # Disable search during processing
+        # ------------------------------------
         
-        # Add indicator to the sorted column
-        header_item = self.pool_table.horizontalHeaderItem(self.sort_column)
-        if header_item:
-            if self.sort_order == Qt.SortOrder.AscendingOrder:
-                header_item.setIcon(self.sort_up_icon)
-            else:
-                header_item.setIcon(self.sort_down_icon)
+        # --- Show Overlay --- 
+        self.progress_overlay.setGeometry(self.pool_table.geometry())
+        self.progress_label.setText("Starting...") # Initial progress text
+        self.progress_overlay.raise_()
+        self.progress_overlay.show()
+        # --------------------
+        
+        # --- Start Thread --- 
+        self.classification_worker = ClassificationWorker(self.groq_model, all_pool_paths, prompt_config)
+        self.classification_thread = QThread()
+        self.classification_worker.moveToThread(self.classification_thread)
+
+        # --- Add the missing started signal connection --- 
+        self.classification_thread.started.connect(self.classification_worker.run)
+        # -------------------------------------------------
+
+        # Connect worker signals to UI slots
+        self.classification_worker.finished.connect(self._on_classification_finished)
+        self.classification_worker.error.connect(self._on_classification_error)
+        self.classification_worker.progress.connect(self._update_progress_text)
+        
+        # --- Explicitly quit thread when worker is done --- 
+        self.classification_worker.finished.connect(self.classification_thread.quit)
+        self.classification_worker.error.connect(self.classification_thread.quit)
+        # -------------------------------------------------
+        
+        # Clean up worker and thread AFTER thread finishes
+        self.classification_thread.finished.connect(self.classification_worker.deleteLater) 
+        # self.classification_thread.finished.connect(self.classification_thread.quit) # Already connected above
+        self.classification_thread.finished.connect(self.classification_thread.deleteLater) 
+        # Connect thread finished signal to _clear_thread_references (for UI reset and clearing refs)
+        self.classification_thread.finished.connect(self._clear_thread_references)
+
+        # Start the thread AFTER storing the reference and connecting signals
+        self.classification_thread.start()
+        print(f"[SelectionPool] Started classification thread for '{selected_label}'.")
+
+    def _on_stop_classification_requested(self):
+        """Signals the background worker thread to stop."""
+        if hasattr(self, 'classification_thread') and self.classification_thread and self.classification_thread.isRunning():
+            if hasattr(self, 'classification_worker') and self.classification_worker:
+                print("[SelectionPool] Stop requested. Signalling worker...")
+                self.classification_worker.is_cancelled = True
                 
-    def _on_column_resized(self, column, oldWidth, newWidth):
-        """Save column widths when resized"""
-        self._save_column_widths()
+                # Change button state immediately to indicate request received
+                self.ai_run_button.setEnabled(False) # Disable until worker confirms stop
+                self.ai_run_button.setToolTip('Stopping...')
+            else:
+                print("[SelectionPool] Stop requested but worker reference is missing.")
+        else:
+            print("[SelectionPool] Stop requested but classification thread is not running.")
+            # Might need to reset button state here if thread died unexpectedly?
+            self._reset_ai_button_state()
+
+    def _on_classification_finished(self, matching_paths: list):
+        """Handles the results when the classification worker finishes."""
+        print(f"[SelectionPool] Classification finished. Received {len(matching_paths)} matching paths.")
+        self.progress_overlay.hide()
         
-    def _save_column_widths(self):
-        """Save column widths to settings"""
-        # Get settings instance here if needed, or ensure it's available
-        settings = SettingsManager.instance() 
-        column_widths = {
-            'filename': self.pool_table.columnWidth(self.COL_FILENAME),
-            'size': self.pool_table.columnWidth(self.COL_SIZE),
-            'modified': self.pool_table.columnWidth(self.COL_MODIFIED)
-        }
-        settings.set('ui/selection_pool/column_widths', column_widths, SettingType.DICT)
+        if not self.model:
+             print("[SelectionPool] Model not available to apply filter.")
+             self._clear_thread_references() # Ensure UI reset even if model gone
+             return
+             
+        # If worker was cancelled, matching_paths should be empty
+        cancelled = False
+        if hasattr(self.classification_worker, 'is_cancelled') and self.classification_worker.is_cancelled:
+            cancelled = True
+            print("[SelectionPool] Classification was cancelled by user.")
+            # Don't apply filter if cancelled
+            self._clear_thread_references() # Reset UI
+            return # Stop here
+
+        # Filter the source model's data
+        matching_paths_set = {os.path.normpath(p) for p in matching_paths}
+        all_objects = self.model.get_all_objects() # Get from source model
+        filtered_objects = [obj for obj in all_objects 
+                            if isinstance(obj, dict) and os.path.normpath(obj.get('path','')) in matching_paths_set]
+
+        print(f"[SelectionPool] Applying AI filter. {len(filtered_objects)} matching objects found.")
+        self.model.set_source_objects(filtered_objects) # Reset the source model
+        # View updates automatically
+
+        # Show clear button if filter resulted in fewer items or none
+        if len(filtered_objects) < len(all_objects):
+            self.ai_clear_filter_button.show()
+        else:
+            self.ai_clear_filter_button.hide()
+
+        # UI reset is handled by _clear_thread_references which is called via thread.finished
+
+    def _on_classification_error(self, error_message: str):
+        """Handles errors reported by the classification worker."""
+        print(f"[SelectionPool] Classification error signal received: {error_message}")
+        self.progress_overlay.hide()
+        QMessageBox.critical(self, "AI Classification Error", error_message)
+        # Ensure filter is cleared on error (existing logic)
+        self._clear_ai_filter(show_message=False)
         
-    def _load_column_widths(self):
-        """Load column widths from settings"""
-        # Get settings instance here if needed
-        settings = SettingsManager.instance()
-        default_widths = {
-            'filename': 250,
-            'size': 80,
-            'modified': 170
-        }
-        column_widths = settings.get('ui/selection_pool/column_widths', default_widths, SettingType.DICT)
-        
-        self.pool_table.setColumnWidth(self.COL_FILENAME, column_widths['filename'])
-        self.pool_table.setColumnWidth(self.COL_SIZE, column_widths['size'])
-        self.pool_table.setColumnWidth(self.COL_MODIFIED, column_widths['modified'])
+        # UI reset is handled by _clear_thread_references
+
+    def _update_progress_text(self, percent: int, total: int):
+        """Updates the progress label on the overlay."""
+        if hasattr(self, 'progress_label'):
+            self.progress_label.setText(f"Processing... {percent}% ({total} files)")
+            
+    def _clear_ai_filter(self, show_message=True): # Added show_message flag
+        """Shows all rows in the pool table and hides the clear button."""
+        if show_message:
+            print("[SelectionPool] Clearing AI filter.")
+        # Instead of showing rows, reload the full data from the internal set
+        all_paths = list(self._pool_paths)
+        self.clear_pool() # Clear the table model first
+        self.add_tracks(all_paths) # Re-add all tracks
+        self.ai_clear_filter_button.hide()
+
+    def _reset_ai_button_state(self):
+        """Resets the Run/Stop AI button to its initial state."""
+        if not hasattr(self, 'ai_run_button'): return
+        try:
+            self.ai_run_button.clicked.disconnect(self._on_stop_classification_requested)
+        except TypeError:
+            pass # Not connected or already disconnected
+        self.ai_run_button.setIcon(qta.icon('fa5s.magic'))
+        self.ai_run_button.setToolTip('Classify pool using selected AI prompt')
+        try:
+            # Only reconnect if not already connected (prevents multiple connections)
+            self.ai_run_button.clicked.disconnect(self._on_classify_requested)
+        except TypeError:
+             pass # Assume it might be disconnected, proceed to connect
+        finally: 
+             try:
+                 self.ai_run_button.clicked.connect(self._on_classify_requested)
+             except TypeError:
+                 print("[SelectionPool] Warning: Could not reconnect run button signal.")
+                 pass # Avoid error if somehow still connected
+                 
+        self.ai_run_button.setEnabled(self.ai_enabled) 
+
+    def _clear_thread_references(self):
+        """Callback solely to clear worker/thread references AND RESET UI after QThread finishes."""
+        print("[SelectionPool] QThread finished signal received. Clearing references and resetting UI.")
+        # --- Clear references --- 
+        self.classification_worker = None
+        self.classification_thread = None
+        # --- Reset UI controls HERE --- 
+        self._reset_ai_button_state() # Reset the run/stop button appearance/connections
+        self.ai_prompt_combo.setEnabled(self.ai_enabled) # Re-enable combo based on AI status
+        self.search_field.setEnabled(True) # Re-enable search field
+        # Re-enable clear button only if it's visible
+        if not self.ai_clear_filter_button.isHidden():
+             self.ai_clear_filter_button.setEnabled(True)
 
     def add_tracks(self, track_paths: List[str]):
         """
@@ -559,104 +637,112 @@ class SelectionPoolWidget(QWidget):
         Args:
             track_paths (List[str]): A list of absolute paths to track files.
         """
-        added_count = 0
+        new_paths_normalized = []
         for path_str in track_paths:
-            # Normalize path for consistent checking
             norm_path = os.path.normpath(path_str)
             if norm_path not in self._pool_paths:
-                self._pool_paths.add(norm_path)
-                
-                # Get file info
-                file_path = Path(norm_path)
-                filename = file_path.name
-                
-                # Get file size and modified time if available
-                try:
-                    file_stats = file_path.stat()
-                    file_size = format_file_size(file_stats.st_size)
-                    file_size_bytes = file_stats.st_size
-                    modified_time = format_modified_time(file_stats.st_mtime)
-                    modified_timestamp = file_stats.st_mtime
-                except Exception:
-                    file_size = "Unknown"
-                    file_size_bytes = 0
-                    modified_time = "Unknown"
-                    modified_timestamp = 0
-                
-                # Insert a new row
-                row_position = self.pool_table.rowCount()
-                self.pool_table.insertRow(row_position)
-                # Set fixed row height explicitly
-                self.pool_table.setRowHeight(row_position, 22)
-                
-                # Filename
-                filename_item = QTableWidgetItem(filename)
-                filename_item.setData(Qt.ItemDataRole.UserRole, norm_path)  # Store full path
-                filename_item.setToolTip(norm_path)  # Show full path on hover
-                self.pool_table.setItem(row_position, self.COL_FILENAME, filename_item)
-                
-                # File size with proper sorting
-                size_item = SizeAwareTableItem(file_size, file_size_bytes)
-                self.pool_table.setItem(row_position, self.COL_SIZE, size_item)
-                
-                # Modified time with proper sorting
-                modified_item = DateAwareTableItem(modified_time, modified_timestamp)
-                self.pool_table.setItem(row_position, self.COL_MODIFIED, modified_item)
-                
-                added_count += 1
-                
-        # Auto sort after adding new items
-        if added_count > 0:
-            self.pool_table.sortItems(self.sort_column, self.sort_order)
-            
-            # Ensure row heights are maintained after sorting
-            for row in range(self.pool_table.rowCount()):
-                self.pool_table.setRowHeight(row, 22)
-                
-            # Update the sort indicators
-            self._update_sort_indicators()
+                new_paths_normalized.append(norm_path)
         
+        if not new_paths_normalized:
+            return # Nothing new to add
+
+        new_track_objects = []
+        for norm_path in new_paths_normalized:
+             # Create the dictionary for the model
+             # --- Pre-fetch stats --- 
+             size_bytes: Optional[int] = None
+             mod_stamp: Optional[float] = None
+             try:
+                 # Check existence before statting
+                 p = Path(norm_path)
+                 if p.exists():
+                     stats = p.stat()
+                     size_bytes = stats.st_size
+                     mod_stamp = stats.st_mtime
+                 else:
+                      print(f"[SelectionPool] Warning: File not found when adding to pool: {norm_path}")
+             except Exception as e:
+                 print(f"[SelectionPool] Error stating file {norm_path} on add: {e}")
+             # -----------------------
+             new_track_objects.append({
+                 'path': norm_path,
+                 'size_bytes': size_bytes, # Store fetched size (or None)
+                 'mod_stamp': mod_stamp    # Store fetched timestamp (or None)
+             })
+             self._pool_paths.add(norm_path) # Update tracking set
+
+        if not new_track_objects:
+             return # Should not happen if new_paths_normalized was not empty
+
+        if self.model is None:
+            # First time adding: Create model and proxy
+            print("[SelectionPool] First tracks added, creating model.")
+            self.model = BaseTableModel(source_objects=new_track_objects, column_definitions=pool_col_defs)
+            self.proxy_model = QSortFilterProxyModel()
+            self.proxy_model.setSourceModel(self.model)
+            self.proxy_model.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            self.proxy_model.setFilterKeyColumn(0) # Filter on filename column
+            self.pool_table.setModel(self.proxy_model)
+            self.pool_table.resizeRowsToContents()
+        else:
+            # Model exists: Insert rows
+            print(f"[SelectionPool] Adding {len(new_track_objects)} tracks to existing model.")
+            insert_row_index = self.model.rowCount()
+            if not self.model.insert_rows(insert_row_index, new_track_objects):
+                 print("[SelectionPool] Error inserting rows into model.")
+                 # Remove paths we failed to add from tracking set?
+                 for obj in new_track_objects:
+                     self._pool_paths.discard(obj.get('path'))
+
     def get_selected_tracks(self) -> List[str]:
         """
         Returns a list of full file paths for the currently selected items in the pool.
         """
-        selected_paths = []
-        for item in self.pool_table.selectedItems():
-            # Only process items from the filename column
-            if item.column() == self.COL_FILENAME:
-                full_path = item.data(Qt.ItemDataRole.UserRole)
-                if full_path:
-                    selected_paths.append(full_path)
-        return selected_paths
+        if not self.model: # Check if model exists
+            return []
+        selected_objects = self.pool_table.get_selected_items_data()
+        return [obj.get('path', '') for obj in selected_objects if isinstance(obj, dict) and obj.get('path')]
         
     def remove_tracks(self, track_paths: List[str]):
         """
         Removes tracks from the pool based on a list of full file paths.
         """
-        paths_to_remove_set = {os.path.normpath(p) for p in track_paths}
-        
-        # We need to remove rows from bottom to top to avoid index shifting issues
-        rows_to_remove = []
-        
-        for row in range(self.pool_table.rowCount()):
-            item = self.pool_table.item(row, self.COL_FILENAME)
-            if item:
-                item_path = os.path.normpath(item.data(Qt.ItemDataRole.UserRole))
-                if item_path in paths_to_remove_set:
-                    rows_to_remove.append(row)
-                    # Remove from internal tracking set as well
-                    if item_path in self._pool_paths:
-                        self._pool_paths.remove(item_path)
-        
-        # Remove rows in reverse order to avoid index shifting
-        for row in sorted(rows_to_remove, reverse=True):
-            self.pool_table.removeRow(row)
+        if not self.model or not track_paths:
+            return
             
+        paths_to_remove_set = {os.path.normpath(p) for p in track_paths}
+        objects_to_remove = []
+        paths_actually_removed = set()
+
+        # Find corresponding objects in the model
+        all_current_objects = self.model.get_all_objects()
+        for obj in all_current_objects:
+             if isinstance(obj, dict):
+                 obj_path = obj.get('path')
+                 if obj_path:
+                     norm_obj_path = os.path.normpath(obj_path)
+                     if norm_obj_path in paths_to_remove_set:
+                         objects_to_remove.append(obj)
+                         paths_actually_removed.add(norm_obj_path)
+        
+        if objects_to_remove:
+            print(f"[SelectionPool] Requesting model remove {len(objects_to_remove)} objects.")
+            self.model.remove_rows_by_objects(objects_to_remove)
+            # Update internal tracking set
+            self._pool_paths -= paths_actually_removed # Remove the paths from the set
+        else:
+            print("[SelectionPool] remove_tracks: No matching objects found in model.")
+
     def clear_pool(self):
         """
         Removes all items from the selection pool table and internal set.
         """
-        self.pool_table.setRowCount(0)
+        if self.model:
+            print("[SelectionPool] Clearing model.")
+            self.model.set_source_objects([])
+            # View updates automatically
+        else:
+             print("[SelectionPool] Clearing pool (model was already None).")
         self._pool_paths.clear()
         
     def _browse_folder(self):
@@ -766,271 +852,29 @@ class SelectionPoolWidget(QWidget):
         selected_paths = self.get_selected_tracks()
         if selected_paths:
             self.add_selected_requested.emit(selected_paths)
-            # Decide if items should be removed from pool after adding
-            # self.remove_tracks(selected_paths) # Uncomment to remove after adding
 
-    def _filter_pool_table(self, text: str):
-        """Filters the pool table rows based on the search text, using an AND logic for space-separated tokens."""
-        search_text = text.lower().strip()
-        search_tokens = search_text.split() if search_text else []
-        
-        for row in range(self.pool_table.rowCount()):
-            filename_item = self.pool_table.item(row, self.COL_FILENAME)
-            should_hide = False # Default to showing the row
-            if filename_item:
-                filename = filename_item.text().lower()
-                # Hide if there are tokens and any token is NOT found in the filename
-                if search_tokens:
-                    should_hide = not all(token in filename for token in search_tokens)
-            else:
-                # If somehow the item doesn't exist, hide the row during filtering if there are tokens
-                should_hide = bool(search_tokens)
-                
-            self.pool_table.setRowHidden(row, should_hide)
+    def _filter_pool_table_proxy(self, text: str):
+        """Filters the pool table using the proxy model."""
+        if self.proxy_model:
+            search_text = text.strip() # No need for lower here if case-insensitive
+            # Use setFilterRegularExpression for more flexibility, though setFilterFixedString is simpler
+            # For basic contains, regex is fine. Escape special chars if needed.
+            # Using regex allows multiple terms maybe? Let's stick to simple contains for now.
+            # QSortFilterProxyModel uses QRegularExpression which handles basic patterns well.
+            self.proxy_model.setFilterRegularExpression(search_text)
+        else:
+             print("[SelectionPool] Cannot filter: Proxy model not available.")
 
     def keyPressEvent(self, event):
         """Handle key press events, specifically the Delete key."""
         if event.key() == Qt.Key.Key_Delete:
-            if self.pool_table.selectedItems():
+            selected_paths = self.get_selected_tracks()
+            if selected_paths:
                 print("[SelectionPool] Delete key pressed, removing selected items.")
-                self._remove_selected_items()
+                self.remove_tracks(selected_paths)
                 event.accept() # Indicate we handled the event
                 return
                 
         # If not handled, pass to parent
         super().keyPressEvent(event)
-
-    def _on_item_double_clicked(self, index):
-        """Handle double-click on an item in the pool table."""
-        if index.isValid():
-            item = self.pool_table.item(index.row(), self.COL_FILENAME)
-            if item:
-                filepath = item.data(Qt.ItemDataRole.UserRole)
-                if filepath and os.path.isfile(filepath): # Ensure it's a file
-                    print(f"[SelectionPool] Double-click detected, requesting single play: {filepath}")
-                    self.play_single_file_requested.emit(filepath)
-
-    def resizeEvent(self, event):
-        """Handle resize to keep overlay positioned correctly."""
-        super().resizeEvent(event)
-        # Resize overlay to match the table geometry within the widget
-        if hasattr(self, 'progress_overlay') and self.progress_overlay.isVisible():
-            self.progress_overlay.setGeometry(self.pool_table.geometry())
-
-    # --- AI Classification Methods --- 
-
-    def _on_classify_requested(self):
-        """Starts the AI classification process in a background thread."""
-        # --- Strict Check: Prevent starting if a thread is already running/cleaning up --- 
-        if self.classification_thread is not None:
-            print("[SelectionPool] Cannot start classification: Previous thread is still active or cleaning up.")
-            QMessageBox.warning(self, "Busy", "Please wait for the previous AI task to fully complete.")
-            return
-        # ------------------------------------------------------------------------------
-        
-        if not self.ai_enabled or not self.groq_model:
-            QMessageBox.warning(self, "AI Feature Disabled", "Groq API is not available or not configured correctly.")
-            return
-
-        # Check if a valid prompt is selected
-        if self.ai_prompt_combo.currentIndex() == 0:
-            QMessageBox.information(self, "Select Prompt", "Please select an AI filter prompt from the dropdown first.")
-            return
-            
-        selected_label = self.ai_prompt_combo.currentText()
-        prompt_config = self.groq_model.get_prompt_config_by_label(selected_label)
-        if not prompt_config:
-            QMessageBox.warning(self, "Prompt Error", f"Could not find configuration for prompt: {selected_label}")
-            return
-            
-        # Get currently VISIBLE filenames from the pool table
-        visible_filenames = []
-        for row in range(self.pool_table.rowCount()):
-            if not self.pool_table.isRowHidden(row):
-                item = self.pool_table.item(row, self.COL_FILENAME)
-                if item:
-                    path = item.data(Qt.ItemDataRole.UserRole)
-                    if path:
-                        visible_filenames.append(path)
-                        
-        if not visible_filenames:
-            QMessageBox.information(self, "Empty Pool", "The selection pool (or visible filter) is empty.")
-            return
-            
-        # --- Change Button State (Start) --- 
-        try:
-            self.ai_run_button.clicked.disconnect(self._on_classify_requested)
-        except TypeError: # Signal not connected
-            pass 
-        self.ai_run_button.setIcon(qta.icon('fa5s.stop'))
-        self.ai_run_button.setToolTip('Stop AI classification')
-        try:
-            self.ai_run_button.clicked.connect(self._on_stop_classification_requested)
-        except TypeError: # Already connected?
-            pass
-        self.ai_run_button.setEnabled(True) # Keep enabled to allow stopping
-        self.ai_prompt_combo.setEnabled(False) # Disable combo during processing
-        self.ai_clear_filter_button.setEnabled(False) # Disable clear during processing
-        self.search_field.setEnabled(False) # Disable search during processing
-        # ------------------------------------
-        
-        # --- Show Overlay --- 
-        self.progress_overlay.setGeometry(self.pool_table.geometry())
-        self.progress_label.setText("Starting...") # Initial progress text
-        self.progress_overlay.raise_()
-        self.progress_overlay.show()
-        # --------------------
-        
-        # --- Start Thread --- 
-        self.classification_worker = ClassificationWorker(self.groq_model, visible_filenames, prompt_config)
-        self.classification_thread = QThread()
-        self.classification_worker.moveToThread(self.classification_thread)
-
-        # --- Add the missing started signal connection --- 
-        self.classification_thread.started.connect(self.classification_worker.run)
-        # -------------------------------------------------
-
-        # Connect worker signals to UI slots
-        self.classification_worker.finished.connect(self._on_classification_finished)
-        self.classification_worker.error.connect(self._on_classification_error)
-        self.classification_worker.progress.connect(self._update_progress_text)
-        
-        # --- Explicitly quit thread when worker is done --- 
-        self.classification_worker.finished.connect(self.classification_thread.quit)
-        self.classification_worker.error.connect(self.classification_thread.quit)
-        # -------------------------------------------------
-        
-        # Clean up worker and thread AFTER thread finishes
-        self.classification_thread.finished.connect(self.classification_worker.deleteLater) 
-        # self.classification_thread.finished.connect(self.classification_thread.quit) # Already connected above
-        self.classification_thread.finished.connect(self.classification_thread.deleteLater) 
-        # Connect thread finished signal to _clear_thread_references (for UI reset and clearing refs)
-        self.classification_thread.finished.connect(self._clear_thread_references)
-
-        # Start the thread AFTER storing the reference and connecting signals
-        self.classification_thread.start()
-        print(f"[SelectionPool] Started classification thread for '{selected_label}'.")
-
-    def _on_stop_classification_requested(self):
-        """Signals the background worker thread to stop."""
-        if hasattr(self, 'classification_thread') and self.classification_thread and self.classification_thread.isRunning():
-            if hasattr(self, 'classification_worker') and self.classification_worker:
-                print("[SelectionPool] Stop requested. Signalling worker...")
-                self.classification_worker.is_cancelled = True
-                
-                # Change button state immediately to indicate request received
-                self.ai_run_button.setEnabled(False) # Disable until worker confirms stop
-                self.ai_run_button.setToolTip('Stopping...')
-            else:
-                print("[SelectionPool] Stop requested but worker reference is missing.")
-        else:
-            print("[SelectionPool] Stop requested but classification thread is not running.")
-            # Might need to reset button state here if thread died unexpectedly?
-            self._reset_ai_button_state()
-
-    def _on_classification_finished(self, matching_paths: list):
-        """Handles the results when the classification worker finishes."""
-        print(f"[SelectionPool] Classification finished signal received. Received {len(matching_paths)} matching paths.")
-        self.progress_overlay.hide()
-        
-        # --- Apply filter results (Handles empty list correctly) --- 
-        # Remove the special "if not matching_paths:" block
-        # Let the filtering logic run even for an empty list
-        
-        matching_paths_set = set(os.path.normpath(p) for p in matching_paths)
-        rows_shown = 0
-        # Assuming we only want to filter rows that were visible *before* the classification
-        # Let's iterate through all rows and hide/show based on the result set
-        for row in range(self.pool_table.rowCount()):
-            item = self.pool_table.item(row, self.COL_FILENAME)
-            should_hide = True # Default to hiding
-            if item:
-                path = item.data(Qt.ItemDataRole.UserRole)
-                # Hide if path is invalid or not in the matching set
-                if path and os.path.normpath(path) in matching_paths_set:
-                    should_hide = False
-                    rows_shown += 1
-            self.pool_table.setRowHidden(row, should_hide)
-            
-        print(f"[SelectionPool] Filter applied. Showing {rows_shown} rows.")
-        
-        # Show the clear filter button if any filtering occurred OR if result is empty
-        # Determine total rows that *could* have been shown (non-hidden before filtering)
-        # This is tricky without storing initial state. Simpler: show clear if rows shown != total rows OR if rows_shown == 0
-        total_rows = self.pool_table.rowCount() # Check total rows in table
-        if rows_shown < total_rows: # If filtering happened OR result was empty (rows_shown == 0)
-            self.ai_clear_filter_button.show()
-            self.ai_clear_filter_button.setEnabled(True) # Enable moved to _clear_thread_references
-        else: # No filtering actually happened (all items matched, or table was empty)
-            self.ai_clear_filter_button.hide()
-        # -------------------------------------------
-
-        # --- UI Reset is handled by _clear_thread_references ---
-
-    def _on_classification_error(self, error_message: str):
-        """Handles errors reported by the classification worker."""
-        print(f"[SelectionPool] Classification error signal received: {error_message}")
-        self.progress_overlay.hide()
-        QMessageBox.critical(self, "AI Classification Error", error_message)
-        # Ensure filter is cleared on error (existing logic)
-        self._clear_ai_filter(show_message=False)
-        
-        # --- UI Reset REMOVED from here --- 
-        # print("[SelectionPool] Resetting UI controls after error.")
-        # self._reset_ai_button_state()
-        # self.ai_prompt_combo.setEnabled(self.ai_enabled)
-        # self.search_field.setEnabled(True)
-        # ----------------------------------
-
-    def _update_progress_text(self, percent: int, total: int):
-        """Updates the progress label on the overlay."""
-        if hasattr(self, 'progress_label'):
-            self.progress_label.setText(f"Processing... {percent}% ({total} files)")
-            
-    def _clear_ai_filter(self, show_message=True): # Added show_message flag
-        """Shows all rows in the pool table and hides the clear button."""
-        if show_message:
-            print("[SelectionPool] Clearing AI filter.")
-        for row in range(self.pool_table.rowCount()):
-            self.pool_table.setRowHidden(row, False)
-        self.ai_clear_filter_button.hide()
-        # Also reset the prompt combo to the default selection?
-        # self.ai_prompt_combo.setCurrentIndex(0)
-
-    def _reset_ai_button_state(self):
-        """Resets the Run/Stop AI button to its initial state."""
-        if not hasattr(self, 'ai_run_button'): return
-        try:
-            self.ai_run_button.clicked.disconnect(self._on_stop_classification_requested)
-        except TypeError:
-            pass # Not connected or already disconnected
-        self.ai_run_button.setIcon(qta.icon('fa5s.magic'))
-        self.ai_run_button.setToolTip('Classify pool using selected AI prompt')
-        try:
-            # Only reconnect if not already connected (prevents multiple connections)
-            self.ai_run_button.clicked.disconnect(self._on_classify_requested)
-        except TypeError:
-             pass # Assume it might be disconnected, proceed to connect
-        finally: 
-             try:
-                 self.ai_run_button.clicked.connect(self._on_classify_requested)
-             except TypeError:
-                 print("[SelectionPool] Warning: Could not reconnect run button signal.")
-                 pass # Avoid error if somehow still connected
-                 
-        self.ai_run_button.setEnabled(self.ai_enabled) 
-
-    def _clear_thread_references(self):
-        """Callback solely to clear worker/thread references AND RESET UI after QThread finishes."""
-        print("[SelectionPool] QThread finished signal received. Clearing references and resetting UI.")
-        # --- Clear references --- 
-        self.classification_worker = None
-        self.classification_thread = None
-        # --- Reset UI controls HERE --- 
-        self._reset_ai_button_state() # Reset the run/stop button appearance/connections
-        self.ai_prompt_combo.setEnabled(self.ai_enabled) # Re-enable combo based on AI status
-        self.search_field.setEnabled(True) # Re-enable search field
-        # Re-enable clear button only if it's visible
-        if not self.ai_clear_filter_button.isHidden():
-             self.ai_clear_filter_button.setEnabled(True)
 

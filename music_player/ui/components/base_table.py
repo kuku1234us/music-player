@@ -231,16 +231,33 @@ class BaseTableView(QTableView):
             except TypeError: pass
 
         super().setModel(model)
+        self._column_definitions = [] # Reset column definitions
 
-        # Store column definitions if it's our custom model
+        # Determine the source model and retrieve column definitions
+        source_for_defs = None
         if isinstance(model, BaseTableModel):
-            self._column_definitions = model.column_definitions
+            source_for_defs = model
+            print(f"[BaseTableView] Set model is BaseTableModel: {type(model)}") # Debug
+        elif isinstance(model, QSortFilterProxyModel):
+            print(f"[BaseTableView] Set model is QSortFilterProxyModel: {type(model)}") # Debug
+            source_model = model.sourceModel()
+            if isinstance(source_model, BaseTableModel):
+                source_for_defs = source_model
+                print(f"[BaseTableView] Proxy source model is BaseTableModel: {type(source_model)}") # Debug
+            else:
+                print(f"[BaseTableView] Warning: Proxy source model is NOT BaseTableModel ({type(source_model)}). Persistence/Features limited.")
         else:
-             self._column_definitions = []
-             if model is not None:
-                 print(f"[BaseTableView] Warning: Using non-BaseTableModel ({type(model)}). Persistence/Features may be limited.")
+            if model is not None:
+                 print(f"[BaseTableView] Warning: Using non-BaseTableModel/Proxy model ({type(model)}). Persistence/Features may be limited.")
 
-        # Load persistent state or apply defaults
+        # Store column definitions if found
+        if source_for_defs:
+            self._column_definitions = source_for_defs.column_definitions
+            print(f"[BaseTableView] Stored {len(self._column_definitions)} column definitions.") # Debug
+        else:
+             print("[BaseTableView] No column definitions stored.") # Debug
+
+        # Load persistent state or apply defaults (now uses potentially loaded definitions)
         if self.table_name:
             self._load_table_state()
         else:
@@ -293,11 +310,18 @@ class BaseTableView(QTableView):
                 border: 1px solid {self.theme.get_color('border', 'primary')};
                 border-radius: 4px;
                 selection-background-color: {self.theme.get_color('background', 'selected_row')};
-                selection-color: {self.theme.get_color('text', 'primary')};
+                selection-color: {self.theme.get_color('text', 'selected_row')};
                 gridline-color: transparent;
             }}
-             QTableView::item {{ padding: 0px 8px; border: none; color: {self.theme.get_color('text', 'primary')}; }}
-             QTableView::item:selected {{ background-color: {self.theme.get_color('background', 'selected_row')}; color: {self.theme.get_color('text', 'selected_row')}; }}
+             QTableView::item {{
+                 padding: 0px 8px;
+                 border: none;
+                 color: {self.theme.get_color('text', 'primary')};
+                 background-color: transparent;
+             }}
+             QTableView::item:selected {{
+                 background-color: {self.theme.get_color('background', 'selected_row')};
+             }}
             QHeaderView::section {{
                 background-color: {self.theme.get_color('background', 'tertiary')};
                 color: {self.theme.get_color('text', 'secondary')};

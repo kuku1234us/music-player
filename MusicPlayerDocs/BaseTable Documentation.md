@@ -150,6 +150,8 @@ While you *can* connect `BaseTableView` directly to `BaseTableModel`, it's usual
     5.  Enable sorting on the view: `view.setSortingEnabled(True)`.
 *   **Result:** When you click a header in the `BaseTableView`, the view tells the `proxy_model` to sort. The proxy model efficiently sorts based on the data it gets from your `source_model` (using the `sort_role` you defined in `ColumnDefinition`) and presents the sorted view to the `BaseTableView`. Your original data in `source_model` remains untouched. Filtering works similarly by setting filter properties on the proxy model.
 
+You might wonder how features like column width persistence work when the view only sees the proxy model, and persistence relies on the `ColumnDefinition` list (which belongs to the `BaseTableModel`). To handle this common and recommended pattern, the `BaseTableView.setModel` method includes specific logic. It checks if the model being set is an instance of `QSortFilterProxyModel`. If it is, the view then attempts to access the proxy's *source model* using `proxy_model.sourceModel()`. If that source model is an instance of our `BaseTableModel`, the view retrieves the `ColumnDefinition` list from *it*. This clever step ensures that `BaseTableView` can access the necessary column configuration to correctly load and save its persistent state (like column widths and sort order) even when operating through the proxy model, making the setup seamless.
+
 ## Handling Data Changes: Signals are Key
 
 The power of Model/View shines when data changes.
@@ -280,4 +282,3 @@ playlist_col_defs = [
 #         pass # Or granular updates
 ```
 
-This revised documentation structure provides a better tutorial flow, explaining the concepts before showing usage examples and omitting the internal implementation details.
