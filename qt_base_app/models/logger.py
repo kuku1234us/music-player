@@ -103,6 +103,7 @@ class Logger:
 
                     file_handler = logging.FileHandler(log_file_path, mode=filemode, encoding='utf-8')
                     file_handler.setFormatter(formatter)
+                    file_handler.setLevel(log_level)
                     logger_instance.addHandler(file_handler)
                     print(f"Logging to file: {log_file_path} (Level: {log_level_str}, Clear: {clear_on_startup})")
                 except Exception as e:
@@ -113,6 +114,7 @@ class Logger:
                 try:
                     console_handler = logging.StreamHandler(sys.stdout)
                     console_handler.setFormatter(formatter)
+                    console_handler.setLevel(log_level)
                     logger_instance.addHandler(console_handler)
                     print(f"Logging to console enabled (Level: {log_level_str})")
                 except Exception as e:

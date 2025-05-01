@@ -21,6 +21,8 @@ from music_player.models import player_state
 from .selection_pool import SelectionPoolWidget, format_file_size, format_modified_time
 from music_player.ui.components.icon_button import IconButton
 from music_player.ui.components.base_table import BaseTableModel, ColumnDefinition
+from music_player.models.file_pool_model import FilePoolModel
+from qt_base_app.models.logger import Logger
 from .playlist_table_view import PlaylistTableView
 
 # Define common audio file extensions (can be moved to a shared location)
@@ -121,7 +123,7 @@ class PlaylistPlaymodeWidget(QWidget):
         self.theme = ThemeManager.instance()
         self.settings = SettingsManager.instance()
         self.current_playlist: Optional[Playlist] = None # Type hint
-        self.model: Optional[BaseTableModel] = None # Model reference
+        self.model: Optional[FilePoolModel] = None # <-- Use FilePoolModel
         self.proxy_model: Optional[QSortFilterProxyModel] = None # Proxy model reference
         
         self.setLayout(QVBoxLayout(self))
@@ -287,6 +289,8 @@ class PlaylistPlaymodeWidget(QWidget):
         self.current_playlist = playlist
         display_name = playlist.name if playlist.name else "Untitled Playlist"
         self.playlist_name_label.setText(display_name)
+        logger = Logger.instance() # Get logger instance
+        logger.info(f"[PlayMode] Loading playlist '{display_name}' into view.") # Log playlist name
         
         # --- Prepare data for the model, adding original index --- 
         source_track_data = []
@@ -300,11 +304,17 @@ class PlaylistPlaymodeWidget(QWidget):
         if not source_track_data: # Check the prepared list
             self.tracks_table.hide()
             self.empty_label.show()
-            self.model = BaseTableModel(source_objects=[], column_definitions=playlist_col_defs)
+            # --- Use FilePoolModel ---
+            logger.debug("[PlayMode] Playlist is empty, creating empty FilePoolModel.")
+            self.model = FilePoolModel(source_objects=[], column_definitions=playlist_col_defs)
+            # -------------------------
         else:
             self.empty_label.hide()
             self.tracks_table.show()
-            self.model = BaseTableModel(source_objects=source_track_data, column_definitions=playlist_col_defs)
+            # --- Use FilePoolModel ---
+            logger.debug(f"[PlayMode] Creating FilePoolModel for playlist with {len(source_track_data)} tracks.")
+            self.model = FilePoolModel(source_objects=source_track_data, column_definitions=playlist_col_defs)
+            # -------------------------
         
         # Set up proxy model and link to table
         self.proxy_model = QSortFilterProxyModel()
@@ -319,12 +329,13 @@ class PlaylistPlaymodeWidget(QWidget):
 
     def _handle_delete_requested(self, objects_to_delete: List[Any]):
         """Handles the delete request signal from PlaylistTableView."""
+        logger = Logger.instance()
         if not self.current_playlist or not objects_to_delete:
             return
         
-        print(f"[PlayMode] Handling delete request for {len(objects_to_delete)} items.")
+        logger.debug(f"[PlayMode] Handling delete request for {len(objects_to_delete)} items.")
         paths_to_remove = []
-        successfully_removed_from_playlist = []
+        successfully_removed_from_playlist_obj = True # Assume success initially
 
         # 1. Update the Playlist object
         for track_obj in objects_to_delete:
@@ -332,43 +343,44 @@ class PlaylistPlaymodeWidget(QWidget):
                 path = track_obj.get('path')
                 if path:
                     paths_to_remove.append(path)
-                    # Try removing from the playlist model
-                    if self.current_playlist.remove_track(path):
-                        successfully_removed_from_playlist.append(track_obj)
-                    else:
-                        print(f"[PlayMode] Warning: Path '{path}' requested for delete, but not found in playlist object.")
-            
-        if not successfully_removed_from_playlist:
-            print("[PlayMode] No tracks were actually removed from the playlist object.")
-            return # Don't proceed if nothing changed in the playlist data
+                    # Try removing from the playlist DATA model
+                    if not self.current_playlist.remove_track(path):
+                        successfully_removed_from_playlist_obj = False
+                        logger.warning(f"[PlayMode] Path '{path}' requested for delete, but not found in playlist object data.")
+                else:
+                     successfully_removed_from_playlist_obj = False # Track object had no path
+                     logger.warning(f"[PlayMode] Track object requested for delete missing 'path': {track_obj}")
+            else:
+                successfully_removed_from_playlist_obj = False # Item wasn't a dict
+                logger.warning(f"[PlayMode] Item requested for delete was not a dictionary: {track_obj}")
 
-        # 2. Save the Playlist
-        save_success = self.current_playlist.save()
-        if not save_success:
-            print(f"[PlayMode] ERROR saving playlist '{self.current_playlist.name}' after track removal! View may be inconsistent.")
-            # Decide how to handle save failure? Maybe don't update view?
-            # For now, we proceed but log the error.
-        
-        # 3. Add removed tracks to selection pool
-        paths_actually_removed = [obj.get('path') for obj in successfully_removed_from_playlist if obj.get('path')]
-        if paths_actually_removed:
-             self.selection_pool_widget.add_tracks(paths_actually_removed)
+        # 2. Save the Playlist (only if all removals from Playlist object seemed successful)
+        if successfully_removed_from_playlist_obj:
+            save_success = self.current_playlist.save()
+            if not save_success:
+                logger.error(f"[PlayMode] ERROR saving playlist '{self.current_playlist.name}' after track removal! View may be inconsistent.")
+                # Decide how to handle save failure? Maybe don't update view?
+                # For now, we proceed but log the error.
+        else:
+            logger.error("[PlayMode] Not saving playlist or updating view due to errors removing tracks from Playlist object.")
+            return # Stop here if the Playlist object wasn't updated correctly
+
+        # 3. Add removed tracks to selection pool (use the collected paths)
+        if paths_to_remove:
+             self.selection_pool_widget.add_tracks(paths_to_remove)
 
         # 4. Tell the model to remove rows (this updates the view)
-        # Ensure we use the correct model reference (source or proxy)
-        target_model = self.tracks_table.model() # This should be the proxy model
+        target_model = self.model # Directly target the source FilePoolModel
         if target_model and hasattr(target_model, 'remove_rows_by_objects') and callable(target_model.remove_rows_by_objects):
-             target_model.remove_rows_by_objects(successfully_removed_from_playlist)
-             print(f"[PlayMode] Requested model update to remove {len(successfully_removed_from_playlist)} rows.")
-        elif self.model and hasattr(self.model, 'remove_rows_by_objects') and callable(self.model.remove_rows_by_objects):
-             # Fallback to source model if proxy doesn't have the method? (Shouldn't happen with BaseTableModel)
-             print("[PlayMode] Warning: Calling remove_rows_by_objects on source model directly.")
-             self.model.remove_rows_by_objects(successfully_removed_from_playlist)
+             # --- Pass the ORIGINAL objects received from the signal --- 
+             logger.debug(f"[PlayMode] Requesting model remove {len(objects_to_delete)} object(s) received from view signal.")
+             target_model.remove_rows_by_objects(objects_to_delete)
+             # --------------------------------------------------------
         else:
-             print("[PlayMode] ERROR: Could not find remove_rows_by_objects method on model to update view.")
+             logger.error("[PlayMode] Could not find remove_rows_by_objects method on model to update view.")
              
         # Update empty message if needed
-        if self.model and self.model.rowCount() == 0:
+        if target_model and target_model.rowCount() == 0: # Check model row count AFTER potential removal
             self.tracks_table.hide()
             self.empty_label.show()
 
@@ -539,7 +551,14 @@ class PlaylistPlaymodeWidget(QWidget):
                  current_playlist_tracks_set = set(os.path.normpath(p.get('path', ''))
                                                      for p in self.current_playlist.tracks)
 
-        current_pool_tracks_set = self.selection_pool_widget._pool_paths
+        # === Get pool paths from the SELECTION POOL MODEL ===
+        current_pool_tracks_set = set()
+        if self.selection_pool_widget.model: # Check if model exists
+             # Call the model's method to get all paths
+             pool_paths_list = self.selection_pool_widget.model.get_all_paths()
+             current_pool_tracks_set = set(os.path.normpath(p) for p in pool_paths_list)
+        # ====================================================
+        
         files_to_add = []
         for file_path in audio_files_found:
             norm_path = os.path.normpath(file_path) # Normalize path for comparison

@@ -217,26 +217,37 @@ def create_application(
     # Create application
     app = QApplication(sys.argv)
     
-    # Initialize theme manager
+    # Initialize theme manager (can potentially use settings now, though they aren't loaded yet)
     theme = ThemeManager.instance()
     
-    # Set up dark title bar for Windows
+    # Set up dark title bar for Windows (will init logger with defaults if not already)
     setup_dark_title_bar(app)
     
-    # Load fonts if directory specified
+    # Load fonts if directory specified (will init logger with defaults if not already)
     font_families = {}
     if fonts_dir:
         font_families = load_custom_fonts(fonts_dir, font_mappings)
         apply_application_styles(app, font_families, custom_stylesheet)
     
-    # Resolve config path if provided
+    # Resolve config path *before* creating window
+    resolved_config_path = None
     if config_path:
-        config_path = ResourceLocator.get_path(config_path)
+        try:
+            resolved_config_path = ResourceLocator.get_path(config_path)
+            # Optional: print or log that path was resolved if needed
+            # print(f"Resolved config path to: {resolved_config_path}")
+        except FileNotFoundError:
+             # Handle case where ResourceLocator fails
+             print(f"Warning: Config path {config_path} not found by ResourceLocator.", file=sys.stderr)
+             # Keep original path as fallback?
+             resolved_config_path = config_path 
+
+    # Create main window, passing the RESOLVED path
+    # The window's __init__ (BaseWindow or subclass) is now responsible 
+    # for loading the config into SettingsManager.
+    window = window_class(resolved_config_path, **window_kwargs)
     
-    # Create main window
-    window = window_class(config_path, **window_kwargs)
-    
-    # Set application icon if paths provided
+    # Set application icon if paths provided (will init logger with defaults if not already)
     if icon_paths:
         set_application_icon(app, window, icon_paths)
     

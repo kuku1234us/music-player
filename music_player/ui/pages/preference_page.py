@@ -14,9 +14,6 @@ from pathlib import Path
 from qt_base_app.theme.theme_manager import ThemeManager
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 
-# Import OPlayer service
-from music_player.services.oplayer_service import OPlayerService
-
 
 class PreferencePage(QWidget):
     """
@@ -31,9 +28,6 @@ class PreferencePage(QWidget):
         # Initialize settings
         self.settings = SettingsManager.instance()
         self.theme = ThemeManager.instance()
-        
-        # Initialize OPlayer service for settings
-        self.oplayer_service = OPlayerService()
         
         self.setup_ui()
         self.load_settings()
@@ -114,51 +108,6 @@ class PreferencePage(QWidget):
         
         form_layout.addRow(self.working_dir_label, self.working_dir_container)
         
-        # --- OPlayer Settings ---
-        
-        # FTP Host setting with port on the same line
-        self.ftp_host_label = QLabel("FTP Server Address:")
-        self.ftp_host_label.setStyleSheet(label_style)
-        
-        # Container for host and port on the same line
-        self.ftp_connection_container = QWidget()
-        self.ftp_connection_layout = QHBoxLayout(self.ftp_connection_container)
-        self.ftp_connection_layout.setContentsMargins(0, 0, 0, 0)
-        self.ftp_connection_layout.setSpacing(8)
-        
-        # FTP host input
-        self.ftp_host_edit = QLineEdit()
-        self.ftp_host_edit.setPlaceholderText("Enter OPlayer IP address (e.g., 192.168.0.107)")
-        # IP address validation: Allow standard IPv4 addresses
-        ip_regex = QRegularExpression(
-            "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
-        )
-        ip_validator = QRegularExpressionValidator(ip_regex)
-        self.ftp_host_edit.setValidator(ip_validator)
-        self.ftp_host_edit.editingFinished.connect(self.save_oplayer_settings)
-        self.ftp_host_edit.setStyleSheet(input_style)
-        
-        # Port colon label
-        port_colon = QLabel(":")
-        port_colon.setStyleSheet(label_style)
-        
-        # FTP port input
-        self.ftp_port_spinbox = QSpinBox()
-        self.ftp_port_spinbox.setMinimum(1)
-        self.ftp_port_spinbox.setMaximum(65535)
-        self.ftp_port_spinbox.setValue(2121)  # Default value
-        self.ftp_port_spinbox.valueChanged.connect(self.save_oplayer_settings)
-        self.ftp_port_spinbox.setStyleSheet(input_style)
-        self.ftp_port_spinbox.setFixedWidth(80)  # Make the port input smaller
-        
-        # Add components to the layout
-        self.ftp_connection_layout.addWidget(self.ftp_host_edit, 1)  # IP gets more space
-        self.ftp_connection_layout.addWidget(port_colon)
-        self.ftp_connection_layout.addWidget(self.ftp_port_spinbox, 0)  # Port gets less space
-        
-        # Add to form layout
-        form_layout.addRow(self.ftp_host_label, self.ftp_connection_container)
-        
         # Add form layout to main layout
         self.main_layout.addLayout(form_layout)
         
@@ -194,13 +143,6 @@ class PreferencePage(QWidget):
         working_dir = self.settings.get('preferences/working_dir', str(Path.home()), SettingType.PATH)
         self.working_dir_edit.setText(str(working_dir))
         
-        # Load OPlayer settings
-        ftp_host = self.settings.get('oplayer/ftp_host', OPlayerService.DEFAULT_HOST, SettingType.STRING)
-        self.ftp_host_edit.setText(ftp_host)
-        
-        ftp_port = self.settings.get('oplayer/ftp_port', OPlayerService.DEFAULT_PORT, SettingType.INT)
-        self.ftp_port_spinbox.setValue(ftp_port)
-        
     def _save_seek_interval(self):
         """Save only the seek interval setting."""
         seek_interval = self.seek_interval_spinbox.value()
@@ -214,36 +156,6 @@ class PreferencePage(QWidget):
         # Kept temporarily to avoid breaking reset_settings logic, will refactor reset.
         pass # Do nothing here anymore
         
-    def save_oplayer_settings(self):
-        """Save OPlayer connection settings when focus leaves the fields"""
-        host = self.ftp_host_edit.text().strip()
-        port = self.ftp_port_spinbox.value()
-        
-        if host:
-            # Use the OPlayerService to update the connection settings
-            # This will also save them to the SettingsManager
-            self.oplayer_service.update_connection_settings(host=host, port=port)
-            print(f"[PreferencePage] Updated OPlayer FTP settings: {host}:{port}")
-        
-    def test_oplayer_connection(self):
-        """Test the connection to the OPlayer device using current settings"""
-        # First, save any pending changes
-        self.save_oplayer_settings()
-        
-        # Now test the connection
-        if self.oplayer_service.test_connection():
-            QMessageBox.information(
-                self,
-                "Connection Successful",
-                f"Successfully connected to OPlayer FTP server at {self.ftp_host_edit.text()}:{self.ftp_port_spinbox.value()}"
-            )
-        else:
-            QMessageBox.critical(
-                self,
-                "Connection Failed",
-                f"Could not connect to OPlayer FTP server at {self.ftp_host_edit.text()}:{self.ftp_port_spinbox.value()}.\n\nPlease check:\n- OPlayer device is powered on\n- Your device is connected to the same network\n- The IP address and port are correct"
-            )
-        
     def reset_settings(self):
         """Reset settings to default values and save them immediately."""
         # Reset general settings
@@ -255,15 +167,15 @@ class PreferencePage(QWidget):
         self.working_dir_edit.setText(str(default_working_dir))
         self.settings.set('preferences/working_dir', default_working_dir, SettingType.PATH)
         
-        # Reset OPlayer settings
-        default_host = OPlayerService.DEFAULT_HOST
-        default_port = OPlayerService.DEFAULT_PORT
-        self.ftp_host_edit.setText(default_host)
-        self.ftp_port_spinbox.setValue(default_port)
-        # Use the service method which also calls settings.set and sync
-        self.oplayer_service.update_connection_settings(host=default_host, port=default_port)
+        # Reset OPlayer settings DIRECTLY in SettingsManager
+        # Need to import OPlayerService just for defaults, or define defaults elsewhere
+        # Temporary workaround: Define defaults locally (better: centralize defaults)
+        DEFAULT_HOST = "192.168.0.107" # Assuming this was the default
+        DEFAULT_PORT = 2121           # Assuming this was the default
+        self.settings.set('oplayer/ftp_host', DEFAULT_HOST, SettingType.STRING)
+        self.settings.set('oplayer/ftp_port', DEFAULT_PORT, SettingType.INT)
         
-        # Sync all changes made during reset (oplayer syncs itself)
+        # Sync all changes made during reset
         self.settings.sync()
         
     def showEvent(self, event):

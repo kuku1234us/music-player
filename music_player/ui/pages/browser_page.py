@@ -9,10 +9,10 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QFileDialog, QLabel,
-    QSizePolicy, QMessageBox
+    QSizePolicy, QMessageBox, QHBoxLayout, QLineEdit, QSpinBox, QPushButton
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSlot, QTimer, pyqtSignal, QSortFilterProxyModel
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt, QSize, pyqtSlot, QTimer, pyqtSignal, QSortFilterProxyModel, QRegularExpression
+from PyQt6.QtGui import QIcon, QRegularExpressionValidator
 import qtawesome as qta
 
 # Import from framework and components
@@ -118,9 +118,67 @@ class BrowserPage(QWidget):
     def _setup_ui(self):
         # Main layout
         self.main_layout = QVBoxLayout(self)
-        # Use margins from the parent dashboard/content area
         self.main_layout.setContentsMargins(16, 16, 16, 16)
         self.main_layout.setSpacing(16)
+
+        # --- START: OPlayer Settings Row --- 
+        self.oplayer_settings_container = QWidget()
+        self.oplayer_settings_layout = QHBoxLayout(self.oplayer_settings_container)
+        self.oplayer_settings_layout.setContentsMargins(0, 0, 0, 0) # No extra margins
+        self.oplayer_settings_layout.setSpacing(8)
+
+        # Style for input fields in this row
+        input_style = f"""
+            background-color: {self.theme.get_color('background', 'secondary')};
+            color: {self.theme.get_color('text', 'primary')};
+            border: 1px solid {self.theme.get_color('border', 'primary')};
+            border-radius: 4px;
+            padding: 4px 6px; 
+            font-size: 9pt; 
+        """
+        # Style for the button
+        button_style = f"""
+            background-color: {self.theme.get_color('background', 'tertiary')};
+            color: {self.theme.get_color('text', 'primary')};
+            border-radius: 4px;
+            padding: 5px 10px; 
+            font-size: 9pt;
+            font-weight: bold;
+        """
+
+        # Host Label and Input
+        self.ftp_host_label = QLabel("OPlayer FTP:")
+        self.ftp_host_label.setStyleSheet(f"color: {self.theme.get_color('text', 'secondary')}; font-size: 9pt;")
+        self.ftp_host_edit = QLineEdit()
+        self.ftp_host_edit.setPlaceholderText("IP Address")
+        ip_regex = QRegularExpression(
+            "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
+        )
+        ip_validator = QRegularExpressionValidator(ip_regex)
+        self.ftp_host_edit.setValidator(ip_validator)
+        self.ftp_host_edit.setStyleSheet(input_style)
+        self.ftp_host_edit.setMinimumWidth(120)
+
+        # Port Label and Input
+        self.ftp_port_label = QLabel(":")
+        self.ftp_port_label.setStyleSheet(f"color: {self.theme.get_color('text', 'secondary')}; font-size: 9pt;")
+        self.ftp_port_spinbox = QSpinBox()
+        self.ftp_port_spinbox.setMinimum(1)
+        self.ftp_port_spinbox.setMaximum(65535)
+        self.ftp_port_spinbox.setValue(OPlayerService.DEFAULT_PORT) # Use default from service
+        self.ftp_port_spinbox.setStyleSheet(input_style)
+        self.ftp_port_spinbox.setFixedWidth(70)
+
+        # Add to layout
+        self.oplayer_settings_layout.addWidget(self.ftp_host_label)
+        self.oplayer_settings_layout.addWidget(self.ftp_host_edit, 1) # Host gets stretch
+        self.oplayer_settings_layout.addWidget(self.ftp_port_label)
+        self.oplayer_settings_layout.addWidget(self.ftp_port_spinbox)
+        self.oplayer_settings_layout.addStretch(0) # Push elements together
+
+        # Add the settings row to the main layout
+        self.main_layout.addWidget(self.oplayer_settings_container)
+        # --- END: OPlayer Settings Row --- 
 
         # --- Browser Table ---
         self.file_table = BrowserTableView(table_name="browser_file_table", parent=self)
@@ -196,6 +254,8 @@ class BrowserPage(QWidget):
         self.oplayer_service.upload_completed.connect(self._on_upload_completed)
         self.oplayer_service.upload_failed.connect(self._on_upload_failed)
         self.temp_message_timer.timeout.connect(self.temp_message_label.hide)
+        self.ftp_host_edit.editingFinished.connect(self._handle_oplayer_setting_changed)
+        self.ftp_port_spinbox.valueChanged.connect(self._handle_oplayer_setting_changed)
 
     def _browse_folder(self):
         """Opens a directory dialog and populates the table."""
@@ -462,9 +522,19 @@ class BrowserPage(QWidget):
 
     def showEvent(self, event):
         """
-        Automatically load the last browsed directory when the page is shown.
+        Load settings and automatically load the last browsed directory 
+        when the page is shown.
         """
         super().showEvent(event)
+        
+        # --- Load OPlayer settings into UI --- 
+        ftp_host = self.settings.get('oplayer/ftp_host', OPlayerService.DEFAULT_HOST, SettingType.STRING)
+        ftp_port = self.settings.get('oplayer/ftp_port', OPlayerService.DEFAULT_PORT, SettingType.INT)
+        self.ftp_host_edit.setText(ftp_host)
+        self.ftp_port_spinbox.setValue(ftp_port)
+        # Ensure the service instance also has the latest settings on show
+        self.oplayer_service.update_connection_settings(host=ftp_host, port=ftp_port)
+        # --------------------------------------
         
         # Get the last browsed directory from settings
         last_dir_str = self.settings.get('browser/last_browse_dir', None, SettingType.PATH)
@@ -483,6 +553,39 @@ class BrowserPage(QWidget):
             # If no setting exists and nothing loaded, show empty message
             self._update_empty_message()
         
+    def _handle_oplayer_setting_changed(self):
+        """Handles changes in OPlayer host or port fields and saves them."""
+        host = self.ftp_host_edit.text().strip()
+        port = self.ftp_port_spinbox.value()
+
+        # Validate host input (simple check for non-empty)
+        if not host:
+            # Maybe briefly highlight the field or show a status icon?
+            # For now, just log and don't save if host is empty. 
+            # The validator should prevent invalid IPs, but not empty strings.
+            print("[BrowserPage] OPlayer host cannot be empty. Settings not saved.")
+            return
+        
+        # Check if settings actually changed compared to current service config
+        # to avoid unnecessary updates/logs
+        current_host = self.oplayer_service.host
+        current_port = self.oplayer_service.ftp_port
+        if host == current_host and port == current_port:
+            # print("[BrowserPage] OPlayer settings unchanged.") # Optional: reduce noise
+            return
+
+        # 1. Save to SettingsManager
+        print(f"[BrowserPage] Auto-saving OPlayer settings: {host}:{port}")
+        self.settings.set('oplayer/ftp_host', host, SettingType.STRING)
+        self.settings.set('oplayer/ftp_port', port, SettingType.INT)
+        self.settings.sync() # Persist immediately
+
+        # 2. Update the service instance used by this page
+        self.oplayer_service.update_connection_settings(host=host, port=port)
+
+        # 3. Log success (no temporary message needed for auto-save)
+        print("[BrowserPage] OPlayer settings updated and service reconfigured.")
+
     def _show_temporary_message(self, message: str, is_error: bool = False):
         """Displays a temporary message overlay."""
         self.temp_message_label.setText(message)
@@ -495,3 +598,23 @@ class BrowserPage(QWidget):
         # Raise it again just in case
         self.temp_message_label.raise_()
         self.temp_message_timer.start() # Timer will hide it after interval 
+
+        # Adjust style based on error or success
+        if is_error:
+             style = f"""
+                background-color: {self.theme.get_color('status', 'error')};
+                color: {self.theme.get_color('text', 'on_error')};
+             """
+        else:
+             style = f"""
+                background-color: {self.theme.get_color('status', 'success')};
+                color: {self.theme.get_color('text', 'on_success')};
+             """
+        self.temp_message_label.setStyleSheet(f"""
+            QLabel#tempMessageLabel {{ 
+                {style} 
+                padding: 8px 15px; 
+                border-radius: 5px; 
+                font-size: 9pt; 
+            }}
+        """) 

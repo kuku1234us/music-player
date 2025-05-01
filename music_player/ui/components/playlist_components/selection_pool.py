@@ -21,7 +21,8 @@ from music_player.ui.components.icon_button import IconButton
 from music_player.ai.groq_music_model import GroqMusicModel
 
 # Import BaseTable components
-from music_player.ui.components.base_table import BaseTableView, BaseTableModel, ColumnDefinition
+from music_player.ui.components.base_table import BaseTableView, ColumnDefinition
+from music_player.models.file_pool_model import FilePoolModel # <-- ADD
 
 # Define common audio file extensions
 AUDIO_EXTENSIONS = {
@@ -149,27 +150,19 @@ class SelectionPoolWidget(QWidget):
         self.setObjectName("selectionPoolWidget")
         
         self.theme = ThemeManager.instance()
-        # Reinstate SettingsManager instance if it was fully removed, 
-        # or ensure it's available for methods like _save/_load_column_widths
-        # Note: We only removed it previously in the context of not needing it for AI config.
-        # If other methods need it, it should be here or instantiated locally.
-        # Let's keep it instantiated locally in the methods that need it for now.
-        
-        # Keep track of added paths to avoid duplicates in the table
-        self._pool_paths = set()
-        
+        # Remove SettingsManager instance - no longer needed here
+
         # AI Model Initialization
         self.groq_model: Optional[GroqMusicModel] = None
         self.ai_enabled: bool = False
-        # Call initialize *after* ai_config is stored
-        self._initialize_ai_model() 
+        self._initialize_ai_model()
 
         # Threading attributes
         self.classification_thread: Optional[QThread] = None
         self.classification_worker: Optional[ClassificationWorker] = None
 
-        # Model references
-        self.model: Optional[BaseTableModel] = None
+        # Model references - Type hint changed
+        self.model: Optional[FilePoolModel] = None # <-- Use FilePoolModel type hint
         self.proxy_model: Optional[QSortFilterProxyModel] = None
         
         self._setup_ui()
@@ -295,7 +288,7 @@ class SelectionPoolWidget(QWidget):
         layout.addLayout(header_layout)
         layout.addWidget(self.pool_table)
         
-        # --- Progress Overlay --- 
+        # --- Progress Overlay (Re-added for folder scanning) --- 
         self.progress_overlay = QWidget(self.pool_table) # Child of table
         self.progress_overlay.setObjectName("progressOverlay")
         overlay_layout = QVBoxLayout(self.progress_overlay)
@@ -304,11 +297,6 @@ class SelectionPoolWidget(QWidget):
         self.progress_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.progress_label.setStyleSheet("color: white; font-weight: bold;")
         # Optional: Add spinner icon here if needed
-        # self.spinner_label = QLabel()
-        # movie = QMovie(":/qt-project.org/styles/commonstyle/images/standardbutton-cancel-16.png") # Placeholder
-        # self.spinner_label.setMovie(movie)
-        # movie.start()
-        # overlay_layout.addWidget(self.spinner_label)
         overlay_layout.addWidget(self.progress_label)
         self.progress_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.7); border-radius: 4px;")
         self.progress_overlay.hide() # Initially hidden
@@ -321,6 +309,10 @@ class SelectionPoolWidget(QWidget):
         self.search_field.textChanged.connect(self._filter_pool_table_proxy)
         # Connect double-click signal
         self.pool_table.doubleClicked.connect(self._on_item_double_clicked)
+        # --- Connect AI signals if enabled --- 
+        if self.ai_enabled:
+             self.ai_run_button.clicked.connect(self._on_classify_requested)
+             self.ai_clear_filter_button.clicked.connect(self._clear_ai_filter)
 
     def _populate_ai_prompts(self):
         """Populates the AI prompt dropdown."""
@@ -400,9 +392,15 @@ class SelectionPoolWidget(QWidget):
             
     def _remove_selected_items(self):
         """Remove selected items from the selection pool"""
-        selected_paths = self.get_selected_tracks()
-        if selected_paths:
-            self.remove_tracks(selected_paths)
+        if hasattr(self.pool_table, '_on_delete_items') and callable(self.pool_table._on_delete_items):
+            print("[SelectionPool] Context menu: Triggering table's delete handler.")
+            self.pool_table._on_delete_items()
+        else:
+            print("[SelectionPool] Context menu: Cannot find table's delete handler.")
+            # Fallback: Manually remove via model (less ideal as it duplicates logic)
+            # selected_paths = self.get_selected_tracks()
+            # if selected_paths:
+            #     self.remove_tracks(selected_paths)
 
     def _on_item_double_clicked(self, index: QModelIndex):
         """Handle double-click on an item in the pool table."""
@@ -413,8 +411,8 @@ class SelectionPoolWidget(QWidget):
         if isinstance(source_object, dict):
             filepath = source_object.get('path')
             if filepath and os.path.isfile(filepath): # Ensure it's a file
-              print(f"[SelectionPool] Double-click detected, requesting single play: {filepath}")
-              self.play_single_file_requested.emit(filepath)
+                print(f"[SelectionPool] Double-click detected, requesting single play: {filepath}")
+                self.play_single_file_requested.emit(filepath)
 
     def resizeEvent(self, event):
         """Handle resize to keep overlay positioned correctly."""
@@ -449,13 +447,8 @@ class SelectionPoolWidget(QWidget):
             QMessageBox.warning(self, "Prompt Error", f"Could not find configuration for prompt: {selected_label}")
             return
             
-        # Get filenames from the MODEL, not the view items
-        if not self.model:
-             QMessageBox.information(self, "Empty Pool", "The selection pool is empty.")
-             return
-        
         # Get paths from ALL objects in the source model
-        all_pool_paths = [obj.get('path') for obj in self.model.get_all_objects() if isinstance(obj, dict) and obj.get('path')]
+        all_pool_paths = self.model.get_all_paths() if self.model else []
         if not all_pool_paths:
             QMessageBox.information(self, "Empty Pool", "The selection pool contains no valid paths.")
             return
@@ -550,23 +543,38 @@ class SelectionPoolWidget(QWidget):
             self._clear_thread_references() # Reset UI
             return # Stop here
 
-        # Filter the source model's data
-        matching_paths_set = {os.path.normpath(p) for p in matching_paths}
-        all_objects = self.model.get_all_objects() # Get from source model
-        filtered_objects = [obj for obj in all_objects 
-                            if isinstance(obj, dict) and os.path.normpath(obj.get('path','')) in matching_paths_set]
+        # Filter the stored unfiltered list based on results
+        # matching_paths_set = {os.path.normpath(p) for p in matching_paths}
+        # filtered_objects = [obj for obj in all_objects 
+        #                     if isinstance(obj, dict) and os.path.normpath(obj.get('path','')) in matching_paths_set]
 
-        print(f"[SelectionPool] Applying AI filter. {len(filtered_objects)} matching objects found.")
-        self.model.set_source_objects(filtered_objects) # Reset the source model
-        # View updates automatically
+        # print(f"[SelectionPool] Applying AI filter. {len(filtered_objects)} matching objects found.")
+        # Reset the source model with the filtered list
+        if self.model:
+            # === Simply call the model's filter method === 
+            self.model.apply_path_filter(set(matching_paths))
+            # ============================================
+            # The model's override handles the path set update
+            # View updates automatically because apply_path_filter calls begin/endResetModel
+            # Need to check row count *after* filtering
+            filtered_row_count = self.model.rowCount() # Get count after filter
+            total_row_count = len(self.model.get_all_paths()) # Get total from source
+            if filtered_row_count < total_row_count:
+                 self.ai_clear_filter_button.show()
+            else:
+                 self.ai_clear_filter_button.hide()
+        else:
+             print("[SelectionPool] Error: Model is None, cannot apply filter results.")
 
         # Show clear button if filter resulted in fewer items or none
-        if len(filtered_objects) < len(all_objects):
-            self.ai_clear_filter_button.show()
-        else:
-            self.ai_clear_filter_button.hide()
-
-        # UI reset is handled by _clear_thread_references which is called via thread.finished
+        # if len(filtered_objects) < len(all_objects):
+        #     self.ai_clear_filter_button.show()
+        # else:
+        #     self.ai_clear_filter_button.hide()
+        
+        # Clear the stored unfiltered list
+        # self._unfiltered_pool_objects = None 
+        # UI reset is handled by _clear_thread_references
 
     def _on_classification_error(self, error_message: str):
         """Handles errors reported by the classification worker."""
@@ -574,8 +582,10 @@ class SelectionPoolWidget(QWidget):
         self.progress_overlay.hide()
         QMessageBox.critical(self, "AI Classification Error", error_message)
         # Ensure filter is cleared on error (existing logic)
-        self._clear_ai_filter(show_message=False)
-        
+        if self.model:
+            self.model.clear_path_filter()
+        self._clear_ai_filter(show_message=False) # Keep this to hide button maybe? Or remove?
+                                                   # Let's remove it, model.clear_path_filter handles state.
         # UI reset is handled by _clear_thread_references
 
     def _update_progress_text(self, percent: int, total: int):
@@ -583,15 +593,23 @@ class SelectionPoolWidget(QWidget):
         if hasattr(self, 'progress_label'):
             self.progress_label.setText(f"Processing... {percent}% ({total} files)")
             
-    def _clear_ai_filter(self, show_message=True): # Added show_message flag
-        """Shows all rows in the pool table and hides the clear button."""
+    def _clear_ai_filter(self, show_message=True): 
         if show_message:
             print("[SelectionPool] Clearing AI filter.")
-        # Instead of showing rows, reload the full data from the internal set
-        all_paths = list(self._pool_paths)
-        self.clear_pool() # Clear the table model first
-        self.add_tracks(all_paths) # Re-add all tracks
-        self.ai_clear_filter_button.hide()
+        # === Simply call the model's clear method ===
+        if self.model:
+             self.model.clear_path_filter()
+        # ==========================================
+        # Use the stored unfiltered list if available
+        # objects_to_restore = self._unfiltered_pool_objects
+        # if objects_to_restore is None:
+        #      # ... (Fallback logic removed) ...
+        # else:
+        #      # ... (Restoration logic removed) ...
+        
+        # Clear the stored list and hide button
+        # self._unfiltered_pool_objects = None
+        self.ai_clear_filter_button.hide() # Hide button when filter cleared
 
     def _reset_ai_button_state(self):
         """Resets the Run/Stop AI button to its initial state."""
@@ -619,9 +637,9 @@ class SelectionPoolWidget(QWidget):
     def _clear_thread_references(self):
         """Callback solely to clear worker/thread references AND RESET UI after QThread finishes."""
         print("[SelectionPool] QThread finished signal received. Clearing references and resetting UI.")
-        # --- Clear references --- 
         self.classification_worker = None
         self.classification_thread = None
+        # REMOVED: self._unfiltered_pool_objects = None # Clear stored list here too
         # --- Reset UI controls HERE --- 
         self._reset_ai_button_state() # Reset the run/stop button appearance/connections
         self.ai_prompt_combo.setEnabled(self.ai_enabled) # Re-enable combo based on AI status
@@ -637,18 +655,25 @@ class SelectionPoolWidget(QWidget):
         Args:
             track_paths (List[str]): A list of absolute paths to track files.
         """
+        # Determine which paths are genuinely new (not in the model's set)
         new_paths_normalized = []
-        for path_str in track_paths:
-            norm_path = os.path.normpath(path_str)
-            if norm_path not in self._pool_paths:
-                new_paths_normalized.append(norm_path)
+        if self.model:
+             for path_str in track_paths:
+                 norm_path = os.path.normpath(path_str)
+                 if not self.model.contains_path(norm_path):
+                     new_paths_normalized.append(norm_path)
+        else:
+             # If model doesn't exist, all non-empty paths are potentially new
+             new_paths_normalized = [os.path.normpath(p) for p in track_paths if p]
+             # We rely on SelectionPoolModel.__init__ to build the initial set
         
         if not new_paths_normalized:
+            print("[SelectionPool] add_tracks: No new paths to add.")
             return # Nothing new to add
 
+        # Create objects only for the new paths
         new_track_objects = []
         for norm_path in new_paths_normalized:
-             # Create the dictionary for the model
              # --- Pre-fetch stats --- 
              size_bytes: Optional[int] = None
              mod_stamp: Optional[float] = None
@@ -669,30 +694,26 @@ class SelectionPoolWidget(QWidget):
                  'size_bytes': size_bytes, # Store fetched size (or None)
                  'mod_stamp': mod_stamp    # Store fetched timestamp (or None)
              })
-             self._pool_paths.add(norm_path) # Update tracking set
 
         if not new_track_objects:
-             return # Should not happen if new_paths_normalized was not empty
+             # This case should not happen if new_paths_normalized was non-empty
+             print("[SelectionPool] add_tracks: No track objects created despite new paths.")
+             return 
 
         if self.model is None:
-            # First time adding: Create model and proxy
-            print("[SelectionPool] First tracks added, creating model.")
-            self.model = BaseTableModel(source_objects=new_track_objects, column_definitions=pool_col_defs)
+            # First time adding: Create FilePoolModel
+            print("[SelectionPool] First tracks added, creating FilePoolModel.")
+            self.model = FilePoolModel(source_objects=new_track_objects, column_definitions=pool_col_defs)
             self.proxy_model = QSortFilterProxyModel()
             self.proxy_model.setSourceModel(self.model)
-            self.proxy_model.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-            self.proxy_model.setFilterKeyColumn(0) # Filter on filename column
             self.pool_table.setModel(self.proxy_model)
             self.pool_table.resizeRowsToContents()
         else:
-            # Model exists: Insert rows
+            # Model exists: Insert rows using FilePoolModel's insert_rows
             print(f"[SelectionPool] Adding {len(new_track_objects)} tracks to existing model.")
-            insert_row_index = self.model.rowCount()
+            insert_row_index = self.model.rowCount() # Get row count from potentially filtered model
             if not self.model.insert_rows(insert_row_index, new_track_objects):
                  print("[SelectionPool] Error inserting rows into model.")
-                 # Remove paths we failed to add from tracking set?
-                 for obj in new_track_objects:
-                     self._pool_paths.discard(obj.get('path'))
 
     def get_selected_tracks(self) -> List[str]:
         """
@@ -710,26 +731,20 @@ class SelectionPoolWidget(QWidget):
         if not self.model or not track_paths:
             return
             
+        # Find corresponding objects in the model
         paths_to_remove_set = {os.path.normpath(p) for p in track_paths}
         objects_to_remove = []
-        paths_actually_removed = set()
-
-        # Find corresponding objects in the model
         all_current_objects = self.model.get_all_objects()
         for obj in all_current_objects:
              if isinstance(obj, dict):
                  obj_path = obj.get('path')
-                 if obj_path:
-                     norm_obj_path = os.path.normpath(obj_path)
-                     if norm_obj_path in paths_to_remove_set:
-                         objects_to_remove.append(obj)
-                         paths_actually_removed.add(norm_obj_path)
+                 if obj_path and os.path.normpath(obj_path) in paths_to_remove_set:
+                      objects_to_remove.append(obj)
         
         if objects_to_remove:
-            print(f"[SelectionPool] Requesting model remove {len(objects_to_remove)} objects.")
+            print(f"[SelectionPool] Requesting model remove {len(objects_to_remove)} objects (remove_tracks).")
+            # Call the model's method, which now handles the path set
             self.model.remove_rows_by_objects(objects_to_remove)
-            # Update internal tracking set
-            self._pool_paths -= paths_actually_removed # Remove the paths from the set
         else:
             print("[SelectionPool] remove_tracks: No matching objects found in model.")
 
@@ -740,11 +755,10 @@ class SelectionPoolWidget(QWidget):
         if self.model:
             print("[SelectionPool] Clearing model.")
             self.model.set_source_objects([])
-            # View updates automatically
+            # Model's override handles clearing the path set
         else:
              print("[SelectionPool] Clearing pool (model was already None).")
-        self._pool_paths.clear()
-        
+
     def _browse_folder(self):
         """
         Opens a directory dialog and scans the selected folder for media files.
@@ -763,86 +777,76 @@ class SelectionPoolWidget(QWidget):
         )
         
         if directory:
-            # Save the selected directory for next time
-            settings.set('playlists/last_browse_dir', directory, SettingType.PATH)
-            settings.sync()  # Ensure settings are saved immediately
-            
-            # --- Get current playlist tracks (if available) --- 
-            current_playlist_tracks_set = set()
-            # Try to access the parent PlaylistPlaymodeWidget and its playlist
+            # --- Show Overlay --- 
+            self.progress_label.setText(f"Scanning {os.path.basename(directory)}...")
+            self.progress_overlay.setGeometry(self.pool_table.geometry())
+            self.progress_overlay.raise_()
+            self.progress_overlay.show()
+            QApplication.processEvents() # Allow UI update
+            # ------------------
             try:
-                # Assuming SelectionPoolWidget is directly inside content_widget,
-                # and content_widget is directly inside PlaylistPlaymodeWidget
-                playlist_playmode_widget = self.parentWidget().parentWidget()
-                if hasattr(playlist_playmode_widget, 'current_playlist') and playlist_playmode_widget.current_playlist:
-                    # Extract the 'path' from the track dictionary before normalizing
-                    current_playlist_tracks_set = set(os.path.normpath(p.get('path','')) for p in playlist_playmode_widget.current_playlist.tracks if p.get('path'))
-                    print(f"[SelectionPool] Found {len(current_playlist_tracks_set)} tracks in current playlist to exclude.")
-            except AttributeError:
-                 print("[SelectionPool] Could not reliably access parent playlist tracks.")
-                 # Proceed without excluding playlist tracks if access fails
-                 pass 
-
-            found_files_initial = []
-            try:
-                for root, _, files in os.walk(directory):
-                    for filename in files:
-                        if Path(filename).suffix.lower() in AUDIO_EXTENSIONS:
-                            full_path = os.path.join(root, filename)
-                            found_files_initial.append(full_path)
-            except Exception as e:
-                print(f"Error scanning directory '{directory}': {e}")
-                # Optionally show a message box to the user
-                return
-
-            # --- Filter and Delete Hidden/Small Files ---
-            files_to_add_to_pool = []
-            deleted_count = 0
-            KB_SIZE = 1024
-            for file_path_str in found_files_initial:
-                try:
-                    p = Path(file_path_str)
-                    filename = p.name
-                    norm_path = os.path.normpath(file_path_str) # Normalize path early
-                    
-                    # --- Check if already in pool or playlist --- 
-                    if norm_path in self._pool_paths:
-                        # print(f"[SelectionPool] Skipping (already in pool): {norm_path}")
-                        continue # Skip if already in the pool
-                    if norm_path in current_playlist_tracks_set:
-                        # print(f"[SelectionPool] Skipping (already in current playlist): {norm_path}")
-                        continue # Skip if already in the current playlist
-                        
-                    # --- Proceed with stats and deletion check --- 
-                    file_size = p.stat().st_size
-
-                    # Check deletion criteria for hidden/small files
-                    if filename.startswith('._') and file_size < KB_SIZE:
-                        try:
-                            os.remove(file_path_str)
-                            print(f"[SelectionPool] Deleted hidden/small file: {file_path_str}")
-                            deleted_count += 1
-                        except OSError as del_e:
-                            print(f"[SelectionPool] Error deleting file '{file_path_str}': {del_e}")
-                    else:
-                        # If not deleted, add it to the list for the pool
-                        files_to_add_to_pool.append(file_path_str)
-
-                except FileNotFoundError:
-                    print(f"[SelectionPool] Warning: File disappeared during scan: {file_path_str}")
-                except Exception as stat_e:
-                    print(f"[SelectionPool] Error accessing file info for '{file_path_str}': {stat_e}")
-                    # Decide whether to add the file even if info failed - probably not
-
-            if deleted_count > 0:
-                print(f"[SelectionPool] Finished cleanup. Deleted {deleted_count} hidden/small files.")
+                # Save the selected directory for next time
+                settings.set('playlists/last_browse_dir', directory, SettingType.PATH)
+                settings.sync()  # Ensure settings are saved immediately
                 
-            # Add the filtered list to the pool
-            if files_to_add_to_pool:
-                self.add_tracks(files_to_add_to_pool)
-            elif not found_files_initial: # Only show message if initial scan found nothing
-                print(f"No audio files found in '{directory}'")
-                # Optionally show a message box
+                # --- Get current playlist tracks (if available) --- 
+                current_playlist_tracks_set = set()
+                try:
+                    playlist_playmode_widget = self.parentWidget().parentWidget()
+                    if hasattr(playlist_playmode_widget, 'current_playlist') and playlist_playmode_widget.current_playlist:
+                        current_playlist_tracks_set = set(os.path.normpath(p.get('path','')) for p in playlist_playmode_widget.current_playlist.tracks if p.get('path'))
+                except AttributeError:
+                    pass # Ignore if parent cannot be accessed
+
+                found_files_initial = []
+                try:
+                    for root, _, files in os.walk(directory):
+                        for filename in files:
+                            if Path(filename).suffix.lower() in AUDIO_EXTENSIONS:
+                                full_path = os.path.join(root, filename)
+                                found_files_initial.append(full_path)
+                except Exception as e:
+                    print(f"Error scanning directory '{directory}': {e}")
+                    QMessageBox.warning(self, "Scan Error", f"Could not fully scan directory:\n{e}")
+                    # Don't return yet, hide overlay in finally
+
+                # --- Filter and Delete Hidden/Small Files ---
+                files_to_add_to_pool = []
+                deleted_count = 0
+                KB_SIZE = 1024
+                # --- Update Overlay Text for Processing --- 
+                self.progress_label.setText(f"Processing {len(found_files_initial)} found items...")
+                QApplication.processEvents() # Allow UI update
+                # -----------------------------------------
+                for file_path_str in found_files_initial:
+                    try:
+                        p = Path(file_path_str)
+                        filename = p.name
+                        norm_path = os.path.normpath(file_path_str)
+                        if norm_path in current_playlist_tracks_set:
+                            continue
+                        file_size = p.stat().st_size
+                        if filename.startswith('._') and file_size < KB_SIZE:
+                            try:
+                                os.remove(file_path_str)
+                                deleted_count += 1
+                            except OSError: pass
+                        else:
+                            files_to_add_to_pool.append(file_path_str)
+                    except Exception: pass # Ignore errors for individual files
+
+                if deleted_count > 0:
+                    print(f"[SelectionPool] Finished cleanup. Deleted {deleted_count} hidden/small files.")
+                    
+                # Add the filtered list to the pool
+                if files_to_add_to_pool:
+                    self.add_tracks(files_to_add_to_pool)
+                elif not found_files_initial:
+                    print(f"No audio files found in '{directory}'")
+            finally:
+                # --- Hide Overlay --- 
+                self.progress_overlay.hide()
+                # ------------------
                 
     def _emit_add_selected(self):
         """
@@ -864,17 +868,4 @@ class SelectionPoolWidget(QWidget):
             self.proxy_model.setFilterRegularExpression(search_text)
         else:
              print("[SelectionPool] Cannot filter: Proxy model not available.")
-
-    def keyPressEvent(self, event):
-        """Handle key press events, specifically the Delete key."""
-        if event.key() == Qt.Key.Key_Delete:
-            selected_paths = self.get_selected_tracks()
-            if selected_paths:
-                print("[SelectionPool] Delete key pressed, removing selected items.")
-                self.remove_tracks(selected_paths)
-                event.accept() # Indicate we handled the event
-                return
-                
-        # If not handled, pass to parent
-        super().keyPressEvent(event)
 

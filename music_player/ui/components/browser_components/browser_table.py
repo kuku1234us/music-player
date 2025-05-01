@@ -6,7 +6,7 @@ from typing import List, Optional, Any
 
 from PyQt6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QApplication, QWidget
 from PyQt6.QtGui import QPainter, QIcon
-from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QObject, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QObject, QSize, QSortFilterProxyModel
 
 import qtawesome as qta
 
@@ -157,22 +157,41 @@ class BrowserTableView(BaseTableView):
     # Override _on_delete_items to add disk deletion
     def _on_delete_items(self):
         """Handles Delete key press: Deletes from disk first, then asks model to remove rows."""
-        model = self.model()
-        # Check if the model supports our expected deletion method
-        if not (hasattr(model, 'remove_rows_by_objects') and callable(model.remove_rows_by_objects)):
-            print(f"[BrowserTableView] Model ({type(model)}) does not support 'remove_rows_by_objects'. Cannot perform deletion.")
+        proxy_model = self.model() # Get the model assigned to the view (likely the proxy)
+        if not proxy_model:
+            print("[BrowserTableView] No model set on the view.")
+            return
+            
+        # --- Access the Source Model --- 
+        source_model = None
+        if isinstance(proxy_model, QSortFilterProxyModel):
+            source_model = proxy_model.sourceModel()
+        elif isinstance(proxy_model, BaseTableModel): # Handle case where maybe proxy isn't used
+            source_model = proxy_model 
+        else:
+             print(f"[BrowserTableView] Unexpected model type ({type(proxy_model)}). Cannot determine source model.")
+             return
+
+        if not source_model:
+             print("[BrowserTableView] Could not retrieve source model.")
+             return
+        # -------------------------------
+
+        # Check if the SOURCE model supports our expected deletion method
+        if not (hasattr(source_model, 'remove_rows_by_objects') and callable(source_model.remove_rows_by_objects)):
+            print(f"[BrowserTableView] Source model ({type(source_model)}) does not support 'remove_rows_by_objects'. Cannot perform deletion.")
             return
 
-        selected_objects = self.get_selected_items_data()
+        selected_objects = self.get_selected_items_data() # This should get data from source model via proxy
         if not selected_objects:
             return
 
-        print(f"[BrowserTableView] Delete requested for {len(selected_objects)} item(s).")
+        print(f"[BrowserTableView] Delete requested for {len(selected_objects)} item(s). Performing disk deletion...")
         deleted_count = 0
         successfully_deleted_objects = []
         error_messages = []
 
-        # --- Perform Disk Deletion ---
+        # --- Perform Disk Deletion --- (Existing logic)
         for obj in selected_objects:
             path_str = None
             is_dir = False
@@ -219,18 +238,15 @@ class BrowserTableView(BaseTableView):
                 error_messages.append(err)
         # --- End Disk Deletion ---
 
-        # --- Update Model ---
-        # Ask the model to remove only the rows corresponding to successfully deleted objects
+        # --- Update Model --- 
+        # Ask the SOURCE model to remove only the rows corresponding to successfully deleted objects
         if successfully_deleted_objects:
-             print(f"[BrowserTableView] Requesting model to remove {len(successfully_deleted_objects)} rows from view.")
-             model.remove_rows_by_objects(successfully_deleted_objects)
+             print(f"[BrowserTableView] Requesting source model ({type(source_model)}) to remove {len(successfully_deleted_objects)} rows from view.")
+             source_model.remove_rows_by_objects(successfully_deleted_objects) # <-- Call on source_model
 
-        # --- Emit Signal ---
+        # --- Emit Signal --- 
         # Emit signal regardless of model update success, reporting disk operation results
         self.itemsDeletedFromDisk.emit(deleted_count, error_messages)
 
-        # Note: We do NOT call super()._on_delete_items() here,
-        # because that would just ask the model to delete again.
-        # We explicitly performed disk deletion and then asked the model
-        # to remove the corresponding *successfully* deleted items.
+        # Note: We do NOT call super()._on_delete_items() here...
 

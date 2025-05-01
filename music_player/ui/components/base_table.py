@@ -15,6 +15,7 @@ import qtawesome as qta
 
 from qt_base_app.theme.theme_manager import ThemeManager
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
+from qt_base_app.models.logger import Logger
 
 # --- Removed old helper functions and classes ---
 # def format_file_size(size_bytes): ...
@@ -144,27 +145,59 @@ class BaseTableModel(QAbstractTableModel):
 
     def remove_rows_by_objects(self, objects_to_remove: List[Any]):
         """Removes rows corresponding to the given objects."""
-        if not objects_to_remove: return
+        logger = Logger.instance() # Get logger instance
+        logger.debug(f"[BaseTableModel] remove_rows_by_objects called with {len(objects_to_remove)} objects.") # Corrected
+        
+        if not objects_to_remove: 
+            logger.debug("[BaseTableModel] No objects provided for removal.") # Corrected
+            return
+            
+        # Map object IDs to their current row indices
         current_objects_map = {id(obj): i for i, obj in enumerate(self._source_objects)}
         rows_to_remove_indices = []
+        
         for obj_to_remove in objects_to_remove:
             row_index = current_objects_map.get(id(obj_to_remove))
             if row_index is not None:
-                rows_to_remove_indices.append(row_index)
+                # Ensure index is still valid (list size might change if duplicates were passed)
+                if 0 <= row_index < len(self._source_objects):
+                    # Double check the object ID matches at that index now
+                    if id(self._source_objects[row_index]) == id(obj_to_remove):
+                         rows_to_remove_indices.append(row_index)
+                    else:
+                         logger.warning(f"[BaseTableModel] Index {row_index} found for object ID {id(obj_to_remove)}, but object ID mismatch occurred later.") # Corrected
+                else:
+                    logger.warning(f"[BaseTableModel] Index {row_index} found for object ID {id(obj_to_remove)}, but index became invalid.") # Corrected
+            else:
+                logger.warning(f"[BaseTableModel] Object ID {id(obj_to_remove)} not found in current map.") # Corrected
 
-        if not rows_to_remove_indices: return
+        if not rows_to_remove_indices:
+            logger.debug("[BaseTableModel] No valid row indices found for removal after mapping.") # Corrected
+            return
 
-        rows_to_remove_indices.sort(reverse=True)
-        removed_objects_list = [] # Track successfully removed objects for signal
+        # Remove duplicates and sort reversed
+        unique_rows_to_remove = sorted(list(set(rows_to_remove_indices)), reverse=True)
+        logger.debug(f"[BaseTableModel] Attempting to remove rows at indices: {unique_rows_to_remove}") # Corrected
 
-        for row_index in rows_to_remove_indices:
-            if 0 <= row_index < len(self._source_objects): # Check index validity again
-                self.beginRemoveRows(QModelIndex(), row_index, row_index)
-                removed_obj = self._source_objects.pop(row_index) # Remove and get obj
-                removed_objects_list.append(removed_obj)
-                self.endRemoveRows()
-        # Optionally emit a custom signal here if needed by external components
-        # e.g., self.items_actually_removed.emit(removed_objects_list)
+        removed_count = 0
+        for row_index in unique_rows_to_remove:
+            # Final check before emitting signals and popping
+            if 0 <= row_index < len(self._source_objects): 
+                logger.debug(f"[BaseTableModel] Emitting beginRemoveRows for index {row_index}") # Corrected
+                self.beginRemoveRows(QModelIndex(), row_index, row_index) # SIGNAL 1
+                try:
+                    removed_obj = self._source_objects.pop(row_index) # <-- THE ACTUAL REMOVAL
+                    removed_count += 1
+                    logger.debug(f"[BaseTableModel] Popped object from index {row_index}. List size now {len(self._source_objects)}") # Corrected
+                except IndexError as e:
+                    # Use %s for standard formatting of exception
+                    logger.error(f"[BaseTableModel] IndexError trying to pop row {row_index}: %s", e) # Corrected
+                finally:
+                    self.endRemoveRows() # SIGNAL 2
+            else:
+                logger.warning(f"[BaseTableModel] Skipping removal for index {row_index} as it became invalid.") # Corrected
+        
+        logger.debug(f"[BaseTableModel] Finished remove_rows_by_objects. Actually removed {removed_count} items.") # Corrected
 
     def insert_rows(self, row: int, objects_to_insert: List[Any], parent=QModelIndex()) -> bool:
          """Inserts rows into the model."""
@@ -198,6 +231,7 @@ class BaseTableView(QTableView):
     """
     # Optional signal (could be useful for parent widgets reacting to view-initiated deletion)
     # delete_requested = pyqtSignal(list) # Emits list of source objects requested for deletion
+    items_removed = pyqtSignal(list) # Emits list of source objects that were removed
 
     def __init__(self,
                  table_name: Optional[str] = None,
@@ -346,14 +380,21 @@ class BaseTableView(QTableView):
             self._save_table_state() # Save widths and current sort state
 
     def _on_sort_indicator_changed(self, logicalIndex: int, order: Qt.SortOrder):
-        """Update internal state and save after view sorting changes."""
-        # Check if sort actually changed before saving
-        if logicalIndex != self._sort_column or order != self._sort_order:
-             self._sort_column = logicalIndex
-             self._sort_order = order
-             if self.table_name:
-                 self._save_table_state()
-        # No signal emitted here, parent should connect to model layoutChanged or similar
+        """Slot connected to header's sortIndicatorChanged signal."""
+        # print(f"[{self.table_name}] Sort indicator changed: Col={logicalIndex}, Order={order}")
+        self._sort_column = logicalIndex
+        self._sort_order = order
+        # --- ADD Persistence --- 
+        # Save the new sort state immediately
+        if self.table_name:
+            key_base = self._get_table_state_setting_key()
+            print(f"[{self.table_name}] Saving sort state: Col={self._sort_column}, Order={self._sort_order.name}")
+            self.settings.set(f"{key_base}/sort_column", self._sort_column, SettingType.INT)
+            self.settings.set(f"{key_base}/sort_order", self._sort_order.value, SettingType.INT) # Store enum value as int
+            self.settings.sync() # Persist change immediately
+        # ----------------------
+        # No need to call _save_table_state() here, as that saves widths too.
+        # We only need to save the sort order when it changes.
 
     def _update_sort_indicator(self):
          """Sets the visual sort indicator on the header."""
@@ -443,37 +484,63 @@ class BaseTableView(QTableView):
 
     def _on_delete_items(self):
         """Handles item deletion request by asking the model."""
-        model = self.model()
-        # Use more robust check for the method presence
-        if not (hasattr(model, 'remove_rows_by_objects') and callable(model.remove_rows_by_objects)):
-            print(f"[BaseTableView] Model ({type(model)}) does not support 'remove_rows_by_objects'.")
+        view_model = self.model() # This could be the source or the proxy
+        if not view_model:
+            print("[BaseTableView] Cannot delete: No model set.")
             return
 
-        objects_to_delete = self.get_selected_items_data()
+        # Determine the actual source model where remove_rows_by_objects lives
+        source_model = None
+        if isinstance(view_model, QSortFilterProxyModel):
+            source_model = view_model.sourceModel()
+            print(f"[BaseTableView] Delete target is source model via proxy: {type(source_model)}")
+        else:
+            source_model = view_model # View model is the source model
+            print(f"[BaseTableView] Delete target is direct model: {type(source_model)}")
+
+        # Check if the *source* model supports the deletion method
+        if not (source_model and hasattr(source_model, 'remove_rows_by_objects') and callable(source_model.remove_rows_by_objects)):
+            print(f"[BaseTableView] Source model ({type(source_model)}) does not support 'remove_rows_by_objects'.")
+            return
+
+        objects_to_delete = self.get_selected_items_data() # This now handles proxy mapping
         if objects_to_delete:
-            print(f"[BaseTableView] Requesting model to delete {len(objects_to_delete)} object(s).")
-            model.remove_rows_by_objects(objects_to_delete)
-            # self.delete_requested.emit(objects_to_delete) # Optional view signal
+            print(f"[BaseTableView] Requesting source model to delete {len(objects_to_delete)} object(s).")
+            source_model.remove_rows_by_objects(objects_to_delete)
+            self.items_removed.emit(objects_to_delete)
 
     # --- Utility methods ---
     def get_selected_items_data(self) -> List[Any]:
          """Returns a list of source objects for the selected rows."""
-         model = self.model()
+         view_model = self.model()
          sel_model = self.selectionModel()
-         if not model or not sel_model: return []
+         if not view_model or not sel_model: return []
 
          selected_data = []
-         # Use selectedRows() for row-based selection
-         for index in sel_model.selectedRows():
-              # Map index if using proxy model
-              # source_index = proxy.mapToSource(index) if proxy else index
-              # Use the mapped row index
-              row_index = index.row() # Replace with mapped row index if using proxy
-              obj = model.data(model.index(row_index, 0), Qt.ItemDataRole.UserRole)
-              if obj is not None:
-                  # Check for duplicates just in case selectedRows gives multiple indices for same logical row sometimes
-                  if obj not in selected_data:
-                       selected_data.append(obj)
+         is_proxy = isinstance(view_model, QSortFilterProxyModel)
+         source_model = view_model.sourceModel() if is_proxy else view_model
+
+         if not source_model:
+             print("[BaseTableView] Cannot get selected data: Source model not found.")
+             return []
+
+         # Use selectedRows() which gives indices relative to the view_model
+         for view_index in sel_model.selectedRows():
+             # Map view index to source index if using a proxy
+             source_index = view_model.mapToSource(view_index) if is_proxy else view_index
+             # Get the object from the SOURCE model using the SOURCE index
+             obj = source_model.data(source_index, Qt.ItemDataRole.UserRole)
+             if obj is not None:
+                 # Check for duplicates just in case selectedRows gives multiple indices for same logical row sometimes
+                 # Using id() might be safer if objects are mutable and hash changes
+                 is_duplicate = False
+                 obj_id = id(obj)
+                 for existing_obj in selected_data:
+                     if id(existing_obj) == obj_id:
+                         is_duplicate = True
+                         break
+                 if not is_duplicate:
+                      selected_data.append(obj)
          return selected_data
 
     def get_all_items_data(self) -> List[Any]:
