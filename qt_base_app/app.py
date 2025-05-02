@@ -236,16 +236,9 @@ def create_application(
 
     # --- Early Initialization Step 3: Configure Logger --- #
     logger = Logger.instance() # Get logger instance
-    logging_config = settings.get_yaml_config('logging', default={}) # Get logging section from YAML
-    if logging_config:
-        logger.configure(logging_config) # Configure logger
-        logger.info("app.py", f"Logger configured from YAML settings.")
-    else:
-        # Basic fallback config if YAML or logging section is missing
-        logger.configure({'level': 'INFO', 'log_to_console': True})
-        logger.warning("app.py", "Logging config not found in YAML, using basic fallback.")
-    # -------------------------------------------------------- #
-
+    # Configure the logger; it will fetch settings internally from SettingsManager
+    logger.configure() 
+    
     # Create application
     app = QApplication(sys.argv)
     

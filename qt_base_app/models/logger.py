@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 from typing import Optional, Any, Dict
 
-# REMOVED: Dependency on SettingsManager
-# from .settings_manager import SettingsManager
+# Import SettingsManager
+from .settings_manager import SettingsManager
 
 def _sanitize_filename(name: str) -> str:
     """Removes invalid characters for filenames."""
@@ -60,22 +60,25 @@ class Logger:
             raise RuntimeError("Use Logger.instance() to get the logger, configuration already done.")
         # REMOVED: self._initialized = False # Moved to instance()
 
-    def configure(self, config: Dict[str, Any]):
-        """Configures the logger based on the provided config dictionary."""
+    def configure(self): # Remove config parameter
+        """Configures the logger by fetching settings from SettingsManager."""
         if self._initialized: # Check if already configured
              print("[Logger] Logger already configured. Skipping reconfiguration.") # Updated message
              return
-        self._configure(config)
+        self._configure() # Call internal method without config
         self._initialized = True # Mark as configured
 
-    def _configure(self, config: Dict[str, Any]): # Changed signature
-        """Internal method to configure logger from config dict."""
+    def _configure(self): # Remove config parameter
+        """Internal method to configure logger using SettingsManager."""
         if self._logger is not None:
             return
         try:
-            # Read Configuration from the passed dictionary
-            logging_config = config.get('logging', {}) # Get the logging section
-            app_config = config.get('app', {})       # Get the app section
+            # Get SettingsManager instance
+            settings = SettingsManager.instance()
+            
+            # Read Configuration directly from SettingsManager
+            logging_config = settings.get_yaml_config('logging', default={}) # Get the logging section
+            app_config = settings.get_yaml_config('app', default={})       # Get the app section
 
             log_level_str = logging_config.get('level', 'INFO').upper()
             log_to_file = logging_config.get('log_to_file', True)
@@ -88,15 +91,16 @@ class Logger:
 
             # Setup Logger instance
             logger_instance = logging.getLogger(app_title)
-            logger_instance.setLevel(log_level)
-            logger_instance.propagate = False
+            logger_instance.setLevel(log_level) # Set the main logger level FIRST
+            logger_instance.propagate = False # Prevent messages flowing to root logger
 
-            # Prevent adding handlers multiple times (redundant due to singleton check, but safe)
+            # --- Clear any existing handlers for THIS logger instance --- 
             if logger_instance.hasHandlers():
-                 print("[Logger] Logger already configured, skipping handler setup.")
-                 self._logger = logger_instance # Ensure self._logger is set
-                 return
-
+                print(f"[Logger] Clearing {len(logger_instance.handlers)} existing handlers for {app_title}.")
+                for handler in logger_instance.handlers[:]: # Iterate over a copy
+                    logger_instance.removeHandler(handler)
+            # -----------------------------------------------------------
+            
             # Define Formatters
             file_log_format = '[%(asctime)s-%(levelname)-5s][%(caller)s]%(message)s'
             console_log_format = '[%(levelname)-5s][%(caller)s]%(message)s' # No timestamp
@@ -118,9 +122,9 @@ class Logger:
                     filemode = 'w' if clear_on_startup else 'a'
 
                     file_handler = logging.FileHandler(log_file_path, mode=filemode, encoding='utf-8')
-                    file_handler.setFormatter(file_formatter) # Use file formatter
+                    file_handler.setLevel(log_level) # Set level on the handler
+                    file_handler.setFormatter(file_formatter)
                     logger_instance.addHandler(file_handler)
-                    # Keep internal setup print simple
                     print(f"[File Logger] Logging to file: {log_file_path}") 
                 except Exception as e:
                     print(f"[File Logger Error] Error setting up file logger: {e}", file=sys.stderr)
@@ -129,9 +133,9 @@ class Logger:
             if log_to_console:
                 try:
                     console_handler = logging.StreamHandler(sys.stdout)
-                    console_handler.setFormatter(console_formatter) # Use console formatter
+                    console_handler.setLevel(log_level) # Set level on the handler
+                    console_handler.setFormatter(console_formatter)
                     logger_instance.addHandler(console_handler)
-                    # Keep internal setup print simple
                     print(f"[Console Logger] Logging to console enabled") 
                 except Exception as e:
                     print(f"[Console Logger Error] Error setting up console logger: {e}", file=sys.stderr)
