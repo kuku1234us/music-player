@@ -9,9 +9,8 @@ from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import QApplication
 import sys
 
-# Import Logger and ResourceLocator
-from ..models.logger import Logger
 from ..models.resource_locator import ResourceLocator
+from ..models.logger import Logger
 
 
 class ThemeManager:
@@ -47,9 +46,6 @@ class ThemeManager:
              
         ThemeManager._instance = self
         
-        # Get logger instance early for use in initialization
-        self.logger = Logger.instance()
-        
         # Get absolute path using ResourceLocator
         # Ensure the path uses the correct separator for the OS
         normalized_relative_path = os.path.normpath(config_relative_path)
@@ -60,17 +56,18 @@ class ThemeManager:
 
     def _load_theme(self):
         """Load theme configuration from YAML file."""
+        logger = Logger.instance()
         theme_path = Path(__file__).parent / 'theme.yaml'
         try:
             with open(theme_path, 'r', encoding='utf-8') as f:
                 self._theme_data = yaml.safe_load(f)
         except Exception as e:
-            # Use logger for error
-            self.logger.error(f"Error loading base theme configuration from {theme_path}: {e}", exc_info=True)
+            logger.error("ThemeManager", f"Error loading theme configuration: {e}")
             self._theme_data = {}
 
     def _load_theme_config(self):
         """Load theme configuration from YAML file."""
+        logger = Logger.instance()
         try:
             # Try multiple possible locations for the theme file
             possible_paths = [
@@ -81,28 +78,22 @@ class ThemeManager:
             
             for path in possible_paths:
                 if os.path.exists(path):
-                    try:
-                        with open(path, 'r', encoding='utf-8') as f:
-                            config_data = yaml.safe_load(f)
-                            if config_data:
-                                self.logger.info(f"Theme configuration loaded from: {path}")
-                                return config_data
-                    except Exception as e:
-                        self.logger.error(f"Error reading theme file {path}: {e}", exc_info=True)
+                    with open(path, 'r', encoding='utf-8') as f:
+                        config_data = yaml.safe_load(f)
+                        if config_data:
+                            return config_data
                     
-            # Use logger for warning
-            self.logger.warning(f"Theme config not found in any of the expected locations. Using default.")
+            logger.warning("ThemeManager", f"Theme config not found in any of the expected locations")
             return self._get_default_theme_config()
             
         except Exception as e:
-            # Use logger for error
-            self.logger.error(f"Error loading theme config: {e}", exc_info=True)
+            logger.error("ThemeManager", f"Error loading theme config: {e}")
             return self._get_default_theme_config()
 
     def _get_default_theme_config(self):
         """Provide hardcoded default theme settings if loading fails."""
-        # Use logger for warning
-        self.logger.warning("Using default theme configuration.")
+        logger = Logger.instance()
+        logger.warning("ThemeManager", "Using default theme configuration.")
         # Define a basic default theme structure
         return {
             "name": "Default Dark",
@@ -240,10 +231,10 @@ class ThemeManager:
 
     def apply_theme(self, app: QApplication):
         """Apply the loaded theme to the application (placeholder)."""
-        # Use logger for info
-        self.logger.info(f"Theme '{self.config.get('name', 'Unknown')}' loaded.")
+        logger = Logger.instance()
         # In a full implementation, this would apply stylesheets, palettes, etc.
         # For now, it primarily ensures the config is loaded.
+        logger.info("ThemeManager", f"Theme '{self.config.get('name', 'Unknown')}' loaded.")
         # Example: app.setStyleSheet(self.get_stylesheet('global'))
 
     def get_resource_path(self, relative_resource_path: str) -> str:

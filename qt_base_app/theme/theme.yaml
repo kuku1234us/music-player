@@ -8,6 +8,7 @@ colors:
     selected_row: "#382b1a"
     card: "transparent"
     sidebar: "#18181b"
+    accent: "#784302"
   text:
     primary: "#fafafa"
     secondary: "#a1a1aa"

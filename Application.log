@@ -1,7 +1,23 @@
-2025-05-02 06:26:09 - INFO     - Application - --- Logger Initialized (Level: INFO) ---
-2025-05-02 06:26:09 - INFO     - Application - Theme configuration loaded from: D:\projects\musicplayer\qt_base_app\theme\theme.yaml
-2025-05-02 06:26:09 - INFO     - Application - Dark title bar configured for Windows.
-2025-05-02 06:26:09 - INFO     - Application - Loading fonts from: D:\projects\musicplayer\fonts
-2025-05-02 06:26:10 - INFO     - Application - BaseWindow initializing...
-2025-05-02 06:26:10 - INFO     - Application - MusicPlayerDashboard initializing...
-2025-05-02 06:26:10 - INFO     - Application - Using application icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-05-03 04:32:20-INFO ][logger]--- Logger Initialized (Level: INFO) ---
+[2025-05-03 04:32:20-INFO ][app.py]Logger configured from YAML settings.
+[2025-05-03 04:32:20-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-05-03 04:32:20-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-05-03 04:32:22-INFO ][YoutubePage]UI setup complete.
+[2025-05-03 04:32:22-INFO ][YoutubePage]Initialized.
+[2025-05-03 04:32:22-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-05-03 04:32:24-INFO ][YoutubePage]Shown.
+[2025-05-03 04:32:30-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=5jddDcV6V5Q (Type: audio)
+[2025-05-03 04:32:30-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=5jddDcV6V5Q, Type=audio
+[2025-05-03 04:32:30-INFO ][YoutubePage]Using default AUDIO options for protocol download.
+[2025-05-03 04:32:30-INFO ][YoutubePage]Adding download via auto_add_download: URL=https://www.youtube.com/watch?v=5jddDcV6V5Q, Dir=Z:\AAAAA01, Options={'format': 'bestaudio/best', 'merge_output_format': 'mp4', 'use_cookies': True, 'writesubtitles': False, 'writeautomaticsub': False, 'subtitleslangs': None, 'subtitlesformat': None}
+[2025-05-03 04:32:30-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-05-03 04:33:41-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=fkIvmfqX-t0 (Type: audio)
+[2025-05-03 04:33:41-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=fkIvmfqX-t0, Type=audio
+[2025-05-03 04:33:41-INFO ][YoutubePage]Using default AUDIO options for protocol download.
+[2025-05-03 04:33:41-INFO ][YoutubePage]Adding download via auto_add_download: URL=https://www.youtube.com/watch?v=fkIvmfqX-t0, Dir=Z:\AAAAA01, Options={'format': 'bestaudio/best', 'merge_output_format': 'mp4', 'use_cookies': True, 'writesubtitles': False, 'writeautomaticsub': False, 'subtitleslangs': None, 'subtitlesformat': None}
+[2025-05-03 04:33:41-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-05-03 04:34:40-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=5jddDcV6V5Q (Type: audio)
+[2025-05-03 04:34:40-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=5jddDcV6V5Q, Type=audio
+[2025-05-03 04:34:40-INFO ][YoutubePage]Using default AUDIO options for protocol download.
+[2025-05-03 04:34:40-INFO ][YoutubePage]Adding download via auto_add_download: URL=https://www.youtube.com/watch?v=5jddDcV6V5Q, Dir=Z:\AAAAA01, Options={'format': 'bestaudio/best', 'merge_output_format': 'mp4', 'use_cookies': True, 'writesubtitles': False, 'writeautomaticsub': False, 'subtitleslangs': None, 'subtitlesformat': None}
+[2025-05-03 04:34:40-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.

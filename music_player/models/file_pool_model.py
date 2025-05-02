@@ -29,17 +29,17 @@ class FilePoolModel(BaseTableModel):
         self._filtered_indices_map: List[int] = []
         # -------------------------
         
-        logger.debug(f"[FilePoolModel.__init__] Initializing. Provided source_objects count: {len(source_objects) if source_objects else 0}")
+        logger.debug(self.__class__.__name__, f"[FilePoolModel.__init__] Initializing. Provided source_objects count: {len(source_objects) if source_objects else 0}")
         # Note: super().__init__ will call our overridden set_source_objects if source_objects is provided
         #       Correction: BaseTableModel.__init__ does NOT call set_source_objects.
         super().__init__(source_objects, column_definitions, parent)
-        logger.debug(f"[FilePoolModel.__init__] After super().__init__. _source_objects count: {len(self._source_objects)}")
+        logger.debug(self.__class__.__name__, f"[FilePoolModel.__init__] After super().__init__. _source_objects count: {len(self._source_objects)}")
         
         # --- Explicitly rebuild path set AFTER super() sets _source_objects --- 
         if self._source_objects: # Only rebuild if super() actually set objects
-            logger.debug("[FilePoolModel.__init__] Calling _rebuild_path_set from __init__.")
+            logger.debug(self.__class__.__name__, "[FilePoolModel.__init__] Calling _rebuild_path_set from __init__.")
             self._rebuild_path_set(self._source_objects)
-            logger.debug(f"[FilePoolModel.__init__] Path set rebuilt. Size: {len(self._pool_paths)}")
+            logger.debug(self.__class__.__name__, f"[FilePoolModel.__init__] Path set rebuilt. Size: {len(self._pool_paths)}")
         # ---------------------------------------------------------------------
         
         # Initialize map *after* super() has potentially set source_objects
@@ -58,7 +58,7 @@ class FilePoolModel(BaseTableModel):
     def _rebuild_path_set(self, objects_list: List[Any]):
         """Helper to rebuild the internal path set from a list of objects."""
         logger = Logger.instance()
-        logger.debug(f"[FilePoolModel._rebuild_path_set] Rebuilding path set from {len(objects_list)} objects.")
+        logger.debug(self.__class__.__name__, f"[FilePoolModel._rebuild_path_set] Rebuilding path set from {len(objects_list)} objects.")
         self._pool_paths.clear()
         added_count = 0
         for obj in objects_list:
@@ -66,7 +66,7 @@ class FilePoolModel(BaseTableModel):
             if norm_path:
                 self._pool_paths.add(norm_path)
                 added_count += 1
-        logger.debug(f"[FilePoolModel._rebuild_path_set] Finished rebuilding. Added {added_count} unique paths. Set size: {len(self._pool_paths)}")
+        logger.debug(self.__class__.__name__, f"[FilePoolModel._rebuild_path_set] Finished rebuilding. Added {added_count} unique paths. Set size: {len(self._pool_paths)}")
 
     def _rebuild_filter_map(self):
         """Rebuilds the mapping from filtered rows to source rows."""
@@ -131,10 +131,10 @@ class FilePoolModel(BaseTableModel):
     def remove_rows_by_objects(self, objects_to_remove: List[Any]):
         """Removes rows corresponding to the given objects, syncing path set and filter."""
         logger = Logger.instance()
-        logger.debug(f"[FilePoolModel] remove_rows_by_objects called with {len(objects_to_remove)} objects.")
+        logger.debug(self.__class__.__name__, f"[FilePoolModel] remove_rows_by_objects called with {len(objects_to_remove)} objects.")
 
         if not objects_to_remove:
-            logger.debug("[FilePoolModel] No objects provided for removal.")
+            logger.debug(self.__class__.__name__, "[FilePoolModel] No objects provided for removal.")
             return
             
         # --- Identify paths to remove BEFORE calling super() --- 
@@ -150,38 +150,38 @@ class FilePoolModel(BaseTableModel):
                     paths_to_remove_from_set.add(norm_path)
                 valid_objects_for_super.append(obj_to_remove) # Add to list for super()
             else:
-                logger.warning(f"[FilePoolModel] Attempted to remove object ID {id(obj_to_remove)} which is not in _source_objects.")
+                logger.warning(self.__class__.__name__, f"[FilePoolModel] Attempted to remove object ID {id(obj_to_remove)} which is not in _source_objects.")
                 
         if not valid_objects_for_super:
-            logger.debug("[FilePoolModel] No valid objects found to pass to super().remove_rows_by_objects.")
+            logger.debug(self.__class__.__name__, "[FilePoolModel] No valid objects found to pass to super().remove_rows_by_objects.")
             return
         # ------------------------------------------------------
 
-        logger.debug(f"[FilePoolModel] Calling super().remove_rows_by_objects with {len(valid_objects_for_super)} valid objects.")
+        logger.debug(self.__class__.__name__, f"[FilePoolModel] Calling super().remove_rows_by_objects with {len(valid_objects_for_super)} valid objects.")
         try:
             # Let the parent handle the actual removal from _source_objects and signals
             super().remove_rows_by_objects(valid_objects_for_super)
-            logger.debug("[FilePoolModel] super().remove_rows_by_objects finished.")
+            logger.debug(self.__class__.__name__, "[FilePoolModel] super().remove_rows_by_objects finished.")
         except Exception as e:
-            logger.exception(f"[FilePoolModel] EXCEPTION during super().remove_rows_by_objects: %s", e)
+            logger.exception(self.__class__.__name__, f"[FilePoolModel] EXCEPTION during super().remove_rows_by_objects: %s", e)
             return # Don't proceed with path/filter updates if super failed
 
         # --- Sync path set and filter map AFTER successful removal --- 
-        logger.debug(f"[FilePoolModel] _source_objects size AFTER super(): {len(self._source_objects)}")
-        logger.debug(f"[FilePoolModel] _pool_paths size BEFORE sync: {len(self._pool_paths)}. Removing {len(paths_to_remove_from_set)} paths.")
+        logger.debug(self.__class__.__name__, f"[FilePoolModel] _source_objects size AFTER super(): {len(self._source_objects)}")
+        logger.debug(self.__class__.__name__, f"[FilePoolModel] _pool_paths size BEFORE sync: {len(self._pool_paths)}. Removing {len(paths_to_remove_from_set)} paths.")
         self._pool_paths -= paths_to_remove_from_set # Remove identified paths
-        logger.debug(f"[FilePoolModel] _pool_paths size AFTER sync: {len(self._pool_paths)}")
+        logger.debug(self.__class__.__name__, f"[FilePoolModel] _pool_paths size AFTER sync: {len(self._pool_paths)}")
         
         # Rebuild filter map if filter is active
         if self._is_path_filtered:
-            logger.debug("[FilePoolModel] Filter active, resetting model after removal.")
+            logger.debug(self.__class__.__name__, "[FilePoolModel] Filter active, resetting model after removal.")
             self.beginResetModel() # Filter map change requires full reset
-            logger.debug(f"[FilePoolModel] _filtered_indices_map size BEFORE rebuild: {len(self._filtered_indices_map)}")
+            logger.debug(self.__class__.__name__, f"[FilePoolModel] _filtered_indices_map size BEFORE rebuild: {len(self._filtered_indices_map)}")
             self._rebuild_filter_map()
-            logger.debug(f"[FilePoolModel] _filtered_indices_map size AFTER rebuild: {len(self._filtered_indices_map)}")
+            logger.debug(self.__class__.__name__, f"[FilePoolModel] _filtered_indices_map size AFTER rebuild: {len(self._filtered_indices_map)}")
             self.endResetModel()
         else: 
-            logger.debug("[FilePoolModel] Not filtered, relying on parent signals for removal update.")
+            logger.debug(self.__class__.__name__, "[FilePoolModel] Not filtered, relying on parent signals for removal update.")
         # ----------------------------------------------------------
 
     def rowCount(self, parent=QModelIndex()) -> int:

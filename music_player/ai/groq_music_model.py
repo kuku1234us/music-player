@@ -4,16 +4,14 @@ import os
 import json
 import time
 import groq # Import groq
-from dotenv import load_dotenv # Keep dotenv for API key loading
 from typing import List, Dict, Optional, Any, Callable # Added Callable
 
-# Reinstate SettingsManager import
-from qt_base_app.models.settings_manager import SettingsManager
+# Import SettingsManager and SettingType
+from qt_base_app.models.settings_manager import SettingsManager, SettingType
 from music_player.models.playlist import get_default_working_dir
 
-# Load environment variables for API key
-load_dotenv()
-groq_api_key = os.getenv("GROQ_API_KEY")
+# Import the QSettings key constant
+from music_player.models.settings_defs import GROQ_API_QSETTINGS_KEY
 
 # Helper function to generate prompt (could be moved to MusicPicks or kept here)
 # (Using the version defined previously in the plan documentation)
@@ -92,6 +90,10 @@ class GroqMusicModel:
         print(f"AI Config: Model={self.model_name}, BatchSize={self.batch_size}, Interval={self._min_request_interval_seconds:.2f}s")
         # ---------------------------------------------------------
         
+        # --- Get Groq API Key using SettingsManager (QSettings key) ---
+        self.groq_api_key = self.settings.get(GROQ_API_QSETTINGS_KEY, '', SettingType.STRING) 
+        # -----------------------------------------------------------
+        
         self._load_prompt_configs()
         self._initialize_groq_client()
 
@@ -119,11 +121,10 @@ class GroqMusicModel:
     def _initialize_groq_client(self):
         """Initializes the Groq client and checks API readiness."""
         try:
-            if not groq_api_key:
-                raise ValueError("GROQ_API_KEY not found in environment.")
-            self.groq_client = groq.Client(api_key=groq_api_key)
-            # Simple check: try a basic API call or assume client creation means readiness
-            # For now, assume client creation is enough, could add a test call later if needed
+            # Use the key retrieved in __init__
+            if not self.groq_api_key: 
+                raise ValueError("GROQ API Key not found via SettingsManager (check Preferences).")
+            self.groq_client = groq.Client(api_key=self.groq_api_key)
             self.api_ready = True 
             print("Groq API client initialized successfully.")
         except Exception as e:

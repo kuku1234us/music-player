@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "MusicPlayerDL Video Downloader",
+  "version": "1.0",
+  "description": "Download YouTube/Bilibili videos with MusicPlayerDL",
+  "action": {
+    "default_title": "Video MusicPlayerDL",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "permissions": ["contextMenus", "activeTab", "tabs"],
+  "host_permissions": ["*://*.youtube.com/*", "*://*.bilibili.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*", "*://*.bilibili.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

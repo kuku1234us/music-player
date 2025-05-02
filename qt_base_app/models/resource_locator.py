@@ -1,10 +1,8 @@
 # qt_base_app/models/resource_locator.py
 import sys
 import os
-import platform # Keep platform import if needed elsewhere, or remove if not
 
-# REMOVED: Import Logger
-# from .logger import Logger 
+from .logger import Logger
 
 class ResourceLocator:
     """
@@ -24,29 +22,34 @@ class ResourceLocator:
         Returns:
             The absolute path to the resource.
         """
-        # REMOVED: Get logger instance 
-        # logger = Logger.instance()
+        logger = Logger.instance()
         try:
             # PyInstaller creates a temp folder and stores path in _MEIPASS
+            # This is the base path when running as a bundled app
             base_path = sys._MEIPASS
-            # REMOVED: logger.debug(f"[ResourceLocator] Running bundled, _MEIPASS: {base_path}")
+            logger.debug("ResourceLocator", f"Running bundled, _MEIPASS: {base_path}")
         except AttributeError:
-            # Running from source. Use the directory of the main script.
+            # _MEIPASS attribute not found, running from source.
+            # Use the directory of the main script (sys.argv[0]) as the base.
+            # This assumes resources are relative to where the app starts.
             base_path = os.path.abspath(os.path.dirname(sys.argv[0]))
-            # Fallback if sys.argv[0] is not reliable 
+            # Fallback if sys.argv[0] is not reliable (e.g., interactive session)
             if not os.path.isdir(base_path):
-                 base_path = os.path.abspath(".") # Use CWD as last resort
-            # REMOVED: logger.debug(f"[ResourceLocator] Running from source, base_path: {base_path}")
+                 base_path = os.path.abspath(".") # Use current working directory as last resort
+
+            logger.debug("ResourceLocator", f"Running from source, base_path: {base_path}")
+
 
         # Ensure base_path exists
         if not os.path.isdir(base_path):
-             # Use print to stderr for warnings
-             print(f"[ResourceLocator] Warning: Determined base_path does not exist: {base_path}", file=sys.stderr)
-             # REMOVED: logger.warning(...)
-             # raise FileNotFoundError(...) # Keep commented out or decide on error handling
+             logger.warning("ResourceLocator", f"Determined base_path does not exist: {base_path}")
+             # Return the relative path hoping the system can find it? Or raise error?
+             # Let's return the joined path anyway for now.
+             # raise FileNotFoundError(f"Could not determine a valid base path for resources.")
 
-        # Use os.path.normpath to handle potential mixed slashes
+
+        # Important: Use os.path.normpath to handle potential mixed slashes
         resource_abs_path = os.path.normpath(os.path.join(base_path, relative_path))
-        # REMOVED: logger.debug(f"[ResourceLocator] Resolved '{relative_path}' to: {resource_abs_path}")
+        logger.debug("ResourceLocator", f"Resolved '{relative_path}' to: {resource_abs_path}")
 
         return resource_abs_path

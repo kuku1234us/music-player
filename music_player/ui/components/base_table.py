@@ -146,10 +146,10 @@ class BaseTableModel(QAbstractTableModel):
     def remove_rows_by_objects(self, objects_to_remove: List[Any]):
         """Removes rows corresponding to the given objects."""
         logger = Logger.instance() # Get logger instance
-        logger.debug(f"[BaseTableModel] remove_rows_by_objects called with {len(objects_to_remove)} objects.") # Corrected
+        logger.debug(self.__class__.__name__, f"[BaseTableModel] remove_rows_by_objects called with {len(objects_to_remove)} objects.")
         
         if not objects_to_remove: 
-            logger.debug("[BaseTableModel] No objects provided for removal.") # Corrected
+            logger.debug(self.__class__.__name__, "[BaseTableModel] No objects provided for removal.")
             return
             
         # Map object IDs to their current row indices
@@ -165,39 +165,39 @@ class BaseTableModel(QAbstractTableModel):
                     if id(self._source_objects[row_index]) == id(obj_to_remove):
                          rows_to_remove_indices.append(row_index)
                     else:
-                         logger.warning(f"[BaseTableModel] Index {row_index} found for object ID {id(obj_to_remove)}, but object ID mismatch occurred later.") # Corrected
+                         logger.warning(self.__class__.__name__, f"[BaseTableModel] Index {row_index} found for object ID {id(obj_to_remove)}, but object ID mismatch occurred later.")
                 else:
-                    logger.warning(f"[BaseTableModel] Index {row_index} found for object ID {id(obj_to_remove)}, but index became invalid.") # Corrected
+                    logger.warning(self.__class__.__name__, f"[BaseTableModel] Index {row_index} found for object ID {id(obj_to_remove)}, but index became invalid.")
             else:
-                logger.warning(f"[BaseTableModel] Object ID {id(obj_to_remove)} not found in current map.") # Corrected
+                logger.warning(self.__class__.__name__, f"[BaseTableModel] Object ID {id(obj_to_remove)} not found in current map.")
 
         if not rows_to_remove_indices:
-            logger.debug("[BaseTableModel] No valid row indices found for removal after mapping.") # Corrected
+            logger.debug(self.__class__.__name__, "[BaseTableModel] No valid row indices found for removal after mapping.")
             return
 
         # Remove duplicates and sort reversed
         unique_rows_to_remove = sorted(list(set(rows_to_remove_indices)), reverse=True)
-        logger.debug(f"[BaseTableModel] Attempting to remove rows at indices: {unique_rows_to_remove}") # Corrected
+        logger.debug(self.__class__.__name__, f"[BaseTableModel] Attempting to remove rows at indices: {unique_rows_to_remove}")
 
         removed_count = 0
         for row_index in unique_rows_to_remove:
             # Final check before emitting signals and popping
             if 0 <= row_index < len(self._source_objects): 
-                logger.debug(f"[BaseTableModel] Emitting beginRemoveRows for index {row_index}") # Corrected
+                logger.debug(self.__class__.__name__, f"[BaseTableModel] Emitting beginRemoveRows for index {row_index}")
                 self.beginRemoveRows(QModelIndex(), row_index, row_index) # SIGNAL 1
                 try:
                     removed_obj = self._source_objects.pop(row_index) # <-- THE ACTUAL REMOVAL
                     removed_count += 1
-                    logger.debug(f"[BaseTableModel] Popped object from index {row_index}. List size now {len(self._source_objects)}") # Corrected
+                    logger.debug(self.__class__.__name__, f"[BaseTableModel] Popped object from index {row_index}. List size now {len(self._source_objects)}")
                 except IndexError as e:
                     # Use %s for standard formatting of exception
-                    logger.error(f"[BaseTableModel] IndexError trying to pop row {row_index}: %s", e) # Corrected
+                    logger.error(self.__class__.__name__, f"[BaseTableModel] IndexError trying to pop row {row_index}: %s", e)
                 finally:
                     self.endRemoveRows() # SIGNAL 2
             else:
-                logger.warning(f"[BaseTableModel] Skipping removal for index {row_index} as it became invalid.") # Corrected
+                logger.warning(self.__class__.__name__, f"[BaseTableModel] Skipping removal for index {row_index} as it became invalid.")
         
-        logger.debug(f"[BaseTableModel] Finished remove_rows_by_objects. Actually removed {removed_count} items.") # Corrected
+        logger.debug(self.__class__.__name__, f"[BaseTableModel] Finished remove_rows_by_objects. Actually removed {removed_count} items.")
 
     def insert_rows(self, row: int, objects_to_insert: List[Any], parent=QModelIndex()) -> bool:
          """Inserts rows into the model."""

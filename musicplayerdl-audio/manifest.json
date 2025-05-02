@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "MusicPlayerDL Audio Downloader",
+  "version": "1.0",
+  "description": "Download YouTube/Bilibili audio with MusicPlayerDL",
+  "action": {
+    "default_title": "Audio MusicPlayerDL",
+    "default_icon": {
+      "16": "microphone_16.png",
+      "48": "microphone_48.png",
+      "128": "microphone_128.png"
+    }
+  },
+  "permissions": ["contextMenus", "activeTab", "tabs"],
+  "host_permissions": ["*://*.youtube.com/*", "*://*.bilibili.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*", "*://*.bilibili.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "16": "microphone_16.png",
+    "48": "microphone_48.png",
+    "128": "microphone_128.png"
+  }
+}

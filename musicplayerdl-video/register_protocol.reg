@@ -1,0 +1,15 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\youtubemaster]
+@="URL:YouTubeMaster Protocol"
+"URL Protocol"=""
+
+[HKEY_CLASSES_ROOT\youtubemaster\DefaultIcon]
+@="D:\\projects\\youtube-master\\dist\\YouTubeMaster.exe"
+
+[HKEY_CLASSES_ROOT\youtubemaster\shell]
+
+[HKEY_CLASSES_ROOT\youtubemaster\shell\open]
+
+[HKEY_CLASSES_ROOT\youtubemaster\shell\open\command]
+@="\"D:\\projects\\youtube-master\\dist\\YouTubeMaster.exe\" \"%1\"" 

@@ -2,7 +2,6 @@
 Sidebar component for Qt applications.
 """
 from pathlib import Path
-import yaml
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QScrollArea, QSizePolicy, QGraphicsOpacityEffect, QFrame,
@@ -153,7 +152,7 @@ class SidebarWidget(QWidget):
     # Signal emitted when sidebar is toggled
     toggled = pyqtSignal(bool)  # is_expanded
     
-    def __init__(self, parent=None, config_path=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
         self.theme = ThemeManager.instance()
@@ -164,7 +163,6 @@ class SidebarWidget(QWidget):
         
         self.animation = None
         self.menu_items = {}
-        self.config_path = config_path
         
         # Set fixed width when expanded
         self.expanded_width = self.theme.get_dimension('sidebar', 'expanded_width')
@@ -217,19 +215,9 @@ class SidebarWidget(QWidget):
     
     def setup_title(self):
         """Set up the title section of the sidebar."""
-        # Get title and icon from config
-        if self.config_path:
-            try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    config = yaml.safe_load(f)
-                    title = config.get('sidebar', {}).get('title', 'Application')
-                    icon_name = config.get('sidebar', {}).get('icon', 'fa5s.bars')
-            except Exception:
-                title = "Application"
-                icon_name = "fa5s.bars"
-        else:
-            title = "Application"
-            icon_name = "fa5s.bars"
+        # Get title and icon from SettingsManager
+        title = self.settings.get_yaml_config('sidebar.title', 'Application')
+        icon_name = self.settings.get_yaml_config('sidebar.icon', 'fa5s.bars')
         
         self.title_header = QWidget()
         self.title_header.setObjectName("titleHeader")
@@ -269,16 +257,8 @@ class SidebarWidget(QWidget):
             if item.widget():
                 item.widget().deleteLater()
         
-        # Load sections and items from config
-        if self.config_path:
-            try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    config = yaml.safe_load(f)
-                    sections = config.get('sidebar', {}).get('sections', [])
-            except Exception:
-                sections = []
-        else:
-            sections = []
+        # Load sections and items from SettingsManager
+        sections = self.settings.get_yaml_config('sidebar.sections', [])
         
         for section_data in sections:
             section = MenuSection(section_data.get('title', ''))
@@ -302,9 +282,6 @@ class SidebarWidget(QWidget):
         
         # Add a stretch at the end to push all items to the top
         self.menu_layout.addStretch()
-        
-        # Set dashboard as initially selected
-        self.set_selected_item('dashboard')
     
     def set_selected_item(self, item_id):
         """Set an item as selected without emitting the clicked signal."""

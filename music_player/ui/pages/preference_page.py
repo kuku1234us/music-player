@@ -13,6 +13,15 @@ from pathlib import Path
 # Import from the framework
 from qt_base_app.theme.theme_manager import ThemeManager
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
+# Import keys and defaults from settings_defs
+from music_player.models.settings_defs import (
+    PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL,
+    PREF_PLAYLISTS_DIR_KEY, DEFAULT_PLAYLISTS_DIR,
+    YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR,
+    # Import QSettings keys for API keys
+    YT_API_QSETTINGS_KEY, DEFAULT_YT_API_KEY, 
+    GROQ_API_QSETTINGS_KEY, DEFAULT_GROQ_API_KEY 
+)
 
 
 class PreferencePage(QWidget):
@@ -84,99 +93,151 @@ class PreferencePage(QWidget):
         
         # --- Library Settings ---
         
-        # Working directory setting
-        self.working_dir_label = QLabel("Working Directory:")
-        self.working_dir_label.setStyleSheet(label_style)
+        # Renamed this setting, now specific to playlists
+        self.playlists_dir_label = QLabel("Playlists Directory:")
+        self.playlists_dir_label.setStyleSheet(label_style)
         
-        self.working_dir_container = QWidget()
-        self.working_dir_layout = QHBoxLayout(self.working_dir_container)
-        self.working_dir_layout.setContentsMargins(0, 0, 0, 0)
-        self.working_dir_layout.setSpacing(8)
+        self.playlists_dir_container = QWidget()
+        self.playlists_dir_layout = QHBoxLayout(self.playlists_dir_container)
+        self.playlists_dir_layout.setContentsMargins(0, 0, 0, 0)
+        self.playlists_dir_layout.setSpacing(8)
         
-        self.working_dir_edit = QLineEdit()
-        self.working_dir_edit.setPlaceholderText("Choose working directory")
-        self.working_dir_edit.setReadOnly(True)
-        self.working_dir_edit.setStyleSheet(input_style)
+        self.playlists_dir_edit = QLineEdit()
+        self.playlists_dir_edit.setPlaceholderText("Choose playlists directory")
+        self.playlists_dir_edit.setReadOnly(True)
+        self.playlists_dir_edit.setStyleSheet(input_style)
         
-        self.browse_working_dir_button = QPushButton("Browse...")
-        self.browse_working_dir_button.setMaximumWidth(100)
-        self.browse_working_dir_button.clicked.connect(self.browse_working_dir)
-        self.browse_working_dir_button.setStyleSheet(button_style)
+        self.browse_playlists_dir_button = QPushButton("Browse...")
+        self.browse_playlists_dir_button.setMaximumWidth(100)
+        self.browse_playlists_dir_button.clicked.connect(self.browse_playlists_dir)
+        self.browse_playlists_dir_button.setStyleSheet(button_style)
         
-        self.working_dir_layout.addWidget(self.working_dir_edit)
-        self.working_dir_layout.addWidget(self.browse_working_dir_button)
+        self.playlists_dir_layout.addWidget(self.playlists_dir_edit)
+        self.playlists_dir_layout.addWidget(self.browse_playlists_dir_button)
         
-        form_layout.addRow(self.working_dir_label, self.working_dir_container)
+        form_layout.addRow(self.playlists_dir_label, self.playlists_dir_container)
         
-        # Add form layout to main layout
+        # --- Download Settings ---
+        
+        # Add Download Directory setting
+        self.download_dir_label = QLabel("Download Directory:")
+        self.download_dir_label.setStyleSheet(label_style)
+        
+        self.download_dir_container = QWidget()
+        self.download_dir_layout = QHBoxLayout(self.download_dir_container)
+        self.download_dir_layout.setContentsMargins(0, 0, 0, 0)
+        self.download_dir_layout.setSpacing(8)
+        
+        self.download_dir_edit = QLineEdit()
+        self.download_dir_edit.setPlaceholderText("Choose download directory")
+        self.download_dir_edit.setReadOnly(True)
+        self.download_dir_edit.setStyleSheet(input_style)
+        
+        self.browse_download_dir_button = QPushButton("Browse...")
+        self.browse_download_dir_button.setMaximumWidth(100)
+        self.browse_download_dir_button.clicked.connect(self.browse_download_dir)
+        self.browse_download_dir_button.setStyleSheet(button_style)
+        
+        self.download_dir_layout.addWidget(self.download_dir_edit)
+        self.download_dir_layout.addWidget(self.browse_download_dir_button)
+        
+        form_layout.addRow(self.download_dir_label, self.download_dir_container)
+        
+        # --- Youtube API Key (Uses QSettings Key) ---
+        self.yt_api_key_label = QLabel("YouTube API Key:")
+        self.yt_api_key_label.setStyleSheet(label_style)
+        self.yt_api_key_edit = QLineEdit()
+        self.yt_api_key_edit.setPlaceholderText("Enter YouTube Data API v3 key")
+        self.yt_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password) 
+        self.yt_api_key_edit.setStyleSheet(input_style)
+        self.yt_api_key_edit.textChanged.connect(self._save_yt_api_key)
+        form_layout.addRow(self.yt_api_key_label, self.yt_api_key_edit)
+
+        # --- Groq API Key (Uses QSettings Key) ---
+        self.groq_api_key_label = QLabel("Groq API Key:")
+        self.groq_api_key_label.setStyleSheet(label_style)
+        self.groq_api_key_edit = QLineEdit()
+        self.groq_api_key_edit.setPlaceholderText("Enter Groq API key")
+        self.groq_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password) 
+        self.groq_api_key_edit.setStyleSheet(input_style)
+        self.groq_api_key_edit.textChanged.connect(self._save_groq_api_key)
+        form_layout.addRow(self.groq_api_key_label, self.groq_api_key_edit)
+
         self.main_layout.addLayout(form_layout)
         
-        # --- Reset button ---
-        
-        # Add some space before the reset button
-        self.main_layout.addSpacing(20)
-        
-        # Reset button container
-        reset_container = QWidget()
-        reset_layout = QHBoxLayout(reset_container)
-        reset_layout.setContentsMargins(0, 0, 0, 0)
-        reset_layout.setSpacing(16)
-        
-        self.reset_button = QPushButton("Reset to Defaults")
-        self.reset_button.clicked.connect(self.reset_settings)
-        self.reset_button.setStyleSheet(button_style)
-        
-        reset_layout.addWidget(self.reset_button)
-        reset_layout.addStretch(1)
-        
-        self.main_layout.addWidget(reset_container)
-        
-        # Add a stretch at the end to push all content to the top
+        # --- Buttons --- 
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        self.reset_button = QPushButton("Reset All Settings")
+        self.reset_button.setStyleSheet(button_style + " background-color: #502020;") 
+        button_layout.addWidget(self.reset_button)
+        self.main_layout.addLayout(button_layout)
         self.main_layout.addStretch(1)
+        
+        # Connect reset button
+        self.reset_button.clicked.connect(self.reset_settings)
         
     def load_settings(self):
         """Load settings from SettingsManager"""
         # Load general settings
-        seek_interval = self.settings.get('preferences/seek_interval', 3, SettingType.INT)
+        seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.INT)
         self.seek_interval_spinbox.setValue(seek_interval)
         
-        working_dir = self.settings.get('preferences/working_dir', str(Path.home()), SettingType.PATH)
-        self.working_dir_edit.setText(str(working_dir))
+        # Load playlists directory (using specific key)
+        playlists_dir = self.settings.get(PREF_PLAYLISTS_DIR_KEY, DEFAULT_PLAYLISTS_DIR, SettingType.PATH)
+        self.playlists_dir_edit.setText(str(playlists_dir))
+
+        # Load download directory
+        download_dir = self.settings.get(YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR, SettingType.PATH)
+        self.download_dir_edit.setText(str(download_dir))
+        
+        # Load API keys using QSettings keys
+        yt_api_key = self.settings.get(YT_API_QSETTINGS_KEY, DEFAULT_YT_API_KEY, SettingType.STRING)
+        self.yt_api_key_edit.setText(yt_api_key)
+        
+        groq_api_key = self.settings.get(GROQ_API_QSETTINGS_KEY, DEFAULT_GROQ_API_KEY, SettingType.STRING)
+        self.groq_api_key_edit.setText(groq_api_key)
         
     def _save_seek_interval(self):
-        """Save only the seek interval setting."""
+        """Save the seek interval setting."""
         seek_interval = self.seek_interval_spinbox.value()
-        self.settings.set('preferences/seek_interval', seek_interval, SettingType.INT)
+        self.settings.set(PREF_SEEK_INTERVAL_KEY, seek_interval, SettingType.INT)
         self.settings.sync() # Sync immediately after changing this setting
+        print("[PreferencePage] Seek interval saved:", seek_interval)
         
-    def save_settings(self):
-        """Save settings to SettingsManager - DEPRECATED/REMOVED: Use specific save methods."""
-        # This method is no longer connected or used for general saving.
-        # Specific controls save their own settings.
-        # Kept temporarily to avoid breaking reset_settings logic, will refactor reset.
-        pass # Do nothing here anymore
+    def _save_yt_api_key(self):
+        """Save the YouTube API key setting."""
+        api_key = self.yt_api_key_edit.text()
+        self.settings.set(YT_API_QSETTINGS_KEY, api_key, SettingType.STRING)
+        self.settings.sync()
+        print("[PreferencePage] YouTube API key saved")
+        
+    def _save_groq_api_key(self):
+        """Save the Groq API key setting."""
+        api_key = self.groq_api_key_edit.text()
+        self.settings.set(GROQ_API_QSETTINGS_KEY, api_key, SettingType.STRING)
+        self.settings.sync()
+        print("[PreferencePage] Groq API key saved")
         
     def reset_settings(self):
-        """Reset settings to default values and save them immediately."""
-        # Reset general settings
-        default_seek = 3
-        self.seek_interval_spinbox.setValue(default_seek)
-        self.settings.set('preferences/seek_interval', default_seek, SettingType.INT)
-
-        default_working_dir = Path.home()
-        self.working_dir_edit.setText(str(default_working_dir))
-        self.settings.set('preferences/working_dir', default_working_dir, SettingType.PATH)
+        """Reset settings to default values."""
+        # Reset UI fields
+        self.seek_interval_spinbox.setValue(DEFAULT_SEEK_INTERVAL)
+        self.playlists_dir_edit.setText(str(DEFAULT_PLAYLISTS_DIR))
+        self.download_dir_edit.setText(str(DEFAULT_YT_DOWNLOAD_DIR))
+        self.yt_api_key_edit.setText(DEFAULT_YT_API_KEY)
+        self.groq_api_key_edit.setText(DEFAULT_GROQ_API_KEY)
         
-        # Reset OPlayer settings DIRECTLY in SettingsManager
-        # Need to import OPlayerService just for defaults, or define defaults elsewhere
-        # Temporary workaround: Define defaults locally (better: centralize defaults)
-        DEFAULT_HOST = "192.168.0.107" # Assuming this was the default
-        DEFAULT_PORT = 2121           # Assuming this was the default
-        self.settings.set('oplayer/ftp_host', DEFAULT_HOST, SettingType.STRING)
-        self.settings.set('oplayer/ftp_port', DEFAULT_PORT, SettingType.INT)
+        # Set QSettings back to defaults
+        self.settings.set(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.INT)
+        self.settings.set(PREF_PLAYLISTS_DIR_KEY, DEFAULT_PLAYLISTS_DIR, SettingType.PATH)
+        self.settings.set(YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR, SettingType.PATH)
+        self.settings.set(YT_API_QSETTINGS_KEY, DEFAULT_YT_API_KEY, SettingType.STRING)
+        self.settings.set(GROQ_API_QSETTINGS_KEY, DEFAULT_GROQ_API_KEY, SettingType.STRING)
+        # Add sets for any other QSettings managed here
         
-        # Sync all changes made during reset
         self.settings.sync()
+        print("[PreferencePage] Settings reset.")
         
     def showEvent(self, event):
         """Reload settings when the page becomes visible"""
@@ -184,29 +245,56 @@ class PreferencePage(QWidget):
         # Reload settings to ensure we display the most current values
         self.load_settings()
         
-    def browse_working_dir(self):
-        """Open directory browser dialog to select working directory"""
-        current_dir = self.settings.get('preferences/working_dir', str(Path.home()), SettingType.PATH)
+    def browse_playlists_dir(self):
+        """Open directory browser dialog to select playlists directory"""
+        current_dir = self.settings.get(PREF_PLAYLISTS_DIR_KEY, DEFAULT_PLAYLISTS_DIR, SettingType.PATH)
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Select Working Directory",
+            "Select Playlists Directory",
             str(current_dir),
             QFileDialog.Option.ShowDirsOnly
         )
         
         if directory:
             # Update the text field
-            self.working_dir_edit.setText(directory)
+            self.playlists_dir_edit.setText(directory)
             
             # Save the new directory path
             try:
                 # Convert to Path object and save
                 path_obj = Path(directory)
-                self.settings.set('preferences/working_dir', path_obj, SettingType.PATH)
+                self.settings.set(PREF_PLAYLISTS_DIR_KEY, path_obj, SettingType.PATH)
                 self.settings.sync() # Persist changes immediately
             except Exception as e:
                 QMessageBox.warning(
                     self,
                     "Save Error",
-                    f"Failed to save working directory setting: {str(e)}"
+                    f"Failed to save playlists directory: {str(e)}"
+                ) 
+
+    def browse_download_dir(self):
+        """Open directory browser dialog to select download directory"""
+        current_dir = self.settings.get(YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR, SettingType.PATH)
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select Download Directory",
+            str(current_dir),
+            QFileDialog.Option.ShowDirsOnly
+        )
+        
+        if directory:
+            # Update the text field
+            self.download_dir_edit.setText(directory)
+            
+            # Save the new directory path
+            try:
+                # Convert to Path object and save
+                path_obj = Path(directory)
+                self.settings.set(YT_DOWNLOAD_DIR_KEY, path_obj, SettingType.PATH)
+                self.settings.sync() # Persist changes immediately
+            except Exception as e:
+                QMessageBox.warning(
+                    self,
+                    "Save Error",
+                    f"Failed to save download directory: {str(e)}"
                 ) 

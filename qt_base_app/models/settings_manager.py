@@ -18,6 +18,7 @@ import yaml
 from datetime import datetime
 from pathlib import Path
 from PyQt6.QtCore import QSettings
+import sys # Added sys for stderr printing
 
 T = TypeVar('T')
 
@@ -58,27 +59,53 @@ class SettingsManager:
     """
     
     _instance = None
+    _initialized = False # Flag to track if initialize() has been called
+    _organization_name = None
+    _application_name = None
     
     @classmethod
+    def initialize(cls, organization_name: str, application_name: str):
+        """Initialize the SettingsManager singleton with application-specific names."""
+        if cls._instance is not None:
+            print("[SettingsManager WARN] Already initialized.", file=sys.stderr)
+            return
+            
+        if not organization_name or not application_name:
+            raise ValueError("Organization and Application names must be provided for SettingsManager initialization.")
+            
+        cls._organization_name = organization_name
+        cls._application_name = application_name
+        cls._instance = cls() # Call __init__ which will now use the stored names
+        cls._initialized = True
+        print(f"[SettingsManager] Initialized for Org: '{organization_name}', App: '{application_name}'")
+
+    @classmethod
     def instance(cls) -> 'SettingsManager':
-        """Get the singleton instance of SettingsManager"""
-        if cls._instance is None:
-            cls._instance = cls('MusicPlayer', 'App')
-            cls._instance._migrate_legacy_settings()
+        """Get the singleton instance of SettingsManager. Must call initialize() first."""
+        if not cls._initialized or cls._instance is None:
+            raise RuntimeError("SettingsManager must be initialized using initialize(org, app) before accessing the instance.")
         return cls._instance
     
-    def __init__(self, organization: str, application: str):
+    def __init__(self):
         """
-        Initialize the settings manager.
-        
-        Args:
-            organization: Organization name
-            application: Application name
+        Initialize the settings manager. Should only be called internally via initialize().
         """
-        if SettingsManager._instance is not None:
-            raise RuntimeError("Use SettingsManager.instance() to get the settings manager")
+        # Prevent direct instantiation after initialization
+        if not SettingsManager._initialized or SettingsManager._instance is not None:
+             # Check if it's the internal call from initialize()
+             import inspect
+             caller_frame = inspect.currentframe().f_back
+             caller_function = caller_frame.f_code.co_name
+             caller_class = caller_frame.f_locals.get('cls')
+             
+             if not (caller_function == 'initialize' and caller_class is SettingsManager):
+                 raise RuntimeError("Use SettingsManager.initialize() first, then SettingsManager.instance() to get the manager")
             
-        self._settings = QSettings(organization, application)
+        if not self._organization_name or not self._application_name:
+             raise RuntimeError("SettingsManager internal error: Org/App names not set before __init__.")
+             
+        # Use the names stored by initialize()
+        self._settings = QSettings(self._organization_name, self._application_name)
         
         # --- Add storage for loaded YAML config --- 
         self._yaml_config: Dict[str, Any] = {} 
@@ -95,14 +122,21 @@ class SettingsManager:
             SettingType.PATH: Path
         }
         
-        # Default settings (for registry/QSettings) - AI defaults removed previously
+        # --- REMOVE App-Specific Key Definitions ---
+        # SettingsManager.AI_ROOT_DIR_KEY = 'ai/root_dir'
+        # SettingsManager.DEFAULT_AI_ROOT_DIR = str(Path.home() / "AIRoot")
+        # SettingsManager.AI_FACE_SWAP_MOVE_SOURCE_KEY = 'ai/faceswap/move_source_to_completed'
+        # SettingsManager.AI_FACE_SWAP_RUN_HEADLESS_KEY = 'ai/faceswap/run_headless'
+        # -------------------------------------------
+
+        # Default settings (for registry/QSettings) - Keep only framework defaults
         self._defaults = {
             'player/volume': (100, SettingType.INT),
             'preferences/seek_interval': (3, SettingType.INT),
             'preferences/playlists_dir': (str(Path.home()), SettingType.PATH),
             'ui/sidebar/expanded': (True, SettingType.BOOL),
             'recent/files': ([], SettingType.LIST),
-            'recent/playlists': ([], SettingType.LIST)
+            'recent/playlists': ([], SettingType.LIST),
         }
         
         # Initialize QSettings with defaults if not set
@@ -111,39 +145,6 @@ class SettingsManager:
                 # Use the internal method to set QSettings values
                 self._set_qsetting(key, default_value, self._get_setting_type_enum(setting_type))
     
-    def _migrate_legacy_settings(self):
-        """Migrate settings from legacy QSettings to new format"""
-        # Legacy settings locations
-        legacy_player = QSettings('MusicPlayer', 'Player')
-        legacy_prefs = QSettings('MusicPlayer', 'Preferences')
-        
-        # Migration mappings (old_key, old_settings, new_key, setting_type)
-        migrations = [
-            # Player settings
-            ('player/volume', legacy_player, 'player/volume', SettingType.INT),
-            
-            # Preference settings
-            ('seek_interval', legacy_prefs, 'preferences/seek_interval', SettingType.INT),
-            ('playlists_dir', legacy_prefs, 'preferences/playlists_dir', SettingType.PATH),
-            ('sidebar_expanded', legacy_prefs, 'ui/sidebar/expanded', SettingType.BOOL)
-        ]
-        
-        # Perform migrations
-        for old_key, old_settings, new_key, setting_type in migrations:
-            if old_settings.contains(old_key):
-                value = old_settings.value(old_key)
-                if value is not None:
-                    try:
-                        self.set(new_key, value, setting_type)
-                        old_settings.remove(old_key)
-                    except (ValueError, TypeError) as e:
-                        print(f"Error migrating setting {old_key}: {e}")
-        
-        # Sync changes
-        legacy_player.sync()
-        legacy_prefs.sync()
-        self.sync()
-
     def set_defaults(self, defaults: Dict[str, tuple]):
         """
         Set default values for QSettings.
@@ -233,20 +234,68 @@ class SettingsManager:
                 return bool(value)
             
         if setting_type:
+            # --- Path Validation Logic --- #
+            if setting_type == SettingType.PATH:
+                try:
+                    path_obj = Path(value) # Convert first
+                    if not path_obj.exists():
+                        # Use Logger if available, otherwise print
+                        msg = f"Path setting '{key}' does not exist: {path_obj}"
+                        try:
+                            print(f"[SettingsManager WARNING] {msg}", file=sys.stderr)
+                        except Exception:
+                            print(f"[SettingsManager WARNING] {msg}")
+                        return None # Indicate invalid path
+                    if not path_obj.is_dir():
+                        msg = f"Path setting '{key}' is not a directory: {path_obj}"
+                        try:
+                            print(f"[SettingsManager WARNING] {msg}", file=sys.stderr)
+                        except Exception:
+                            print(f"[SettingsManager WARNING] {msg}")
+                        return None # Indicate invalid path
+                    # Path is valid, return the Path object
+                    return path_obj 
+                except Exception as e:
+                    # Handle potential errors during Path() conversion itself
+                    msg = f"Error converting path setting '{key}': {e}"
+                    try:
+                        print(f"[SettingsManager WARNING] {msg}", file=sys.stderr)
+                    except Exception:
+                        print(f"[SettingsManager WARNING] {msg}")
+                    return None # Indicate invalid path
+            # --- End Path Validation --- #
+
+            # --- Other Type Conversions --- #
+            converter: Optional[callable] = None
             if isinstance(setting_type, SettingType):
-                converter = self._type_converters[setting_type]
-            else:
+                # Handle other complex types needing deserialization first
+                if isinstance(value, str) and setting_type in [SettingType.LIST, SettingType.DICT, SettingType.DATETIME]:
+                    try:
+                        value = self._deserialize_value(value, setting_type)
+                    except (json.JSONDecodeError, ValueError) as e:
+                        # Use print instead of logger
+                        print(f"[SettingsManager WARN] Error deserializing setting '{key}' for type {setting_type}: {e}", file=sys.stderr)
+                        return default # Return default on deserialization error
+                # Get the final converter
+                converter = self._type_converters.get(setting_type)
+            elif callable(setting_type):
                 converter = setting_type
                 
-            try:
-                if isinstance(value, str) and setting_type in [SettingType.LIST, SettingType.DICT, 
-                                                             SettingType.DATETIME, SettingType.PATH]:
-                    value = self._deserialize_value(value, setting_type)
-                else:
-                    value = converter(value)
-            except (ValueError, TypeError) as e:
+            if converter:
+                try:
+                    return converter(value)
+                except (ValueError, TypeError) as e:
+                    # Use print instead of logger
+                    print(f"[SettingsManager WARN] Error converting setting '{key}' to type {setting_type}: {e}", file=sys.stderr)
+                    return default # Return default on final conversion error
+            else:
+                # Should not happen if setting_type is valid
+                # Use print instead of logger
+                print(f"[SettingsManager ERROR] Invalid setting_type provided for key '{key}': {setting_type}", file=sys.stderr)
                 return default
+            # --- End Other Type Conversions --- #
                 
+        # If no setting_type specified, return raw value from QSettings
         return value
         
     # Add a public 'get' method that calls the internal one
@@ -263,6 +312,7 @@ class SettingsManager:
             The setting value converted to the specified type, or the default value
         """
         st_enum = self._get_setting_type_enum(setting_type)
+        # Directly call internal getter without fallback
         return self._get_qsetting(key, default, st_enum)
 
     def remove(self, key: str) -> None:
@@ -337,17 +387,18 @@ class SettingsManager:
     def load_yaml_config(self, config_path: Union[str, Path]):
         """Loads configuration from a YAML file into the manager."""
         try:
+            config_path = Path(config_path) # Ensure it's a Path object
             with open(config_path, 'r', encoding='utf-8') as f:
                 self._yaml_config = yaml.safe_load(f) or {}
-                print(f"Successfully loaded YAML config from: {config_path}")
+                print(f"[SettingsManager] Loaded YAML config from: {config_path}") # Simple print
         except FileNotFoundError:
-            print(f"Warning: YAML config file not found at {config_path}. Using empty config.")
+            print(f"[SettingsManager WARN] YAML config file not found at {config_path}. Using empty config.", file=sys.stderr)
             self._yaml_config = {}
         except yaml.YAMLError as e:
-            print(f"Error parsing YAML config file {config_path}: {e}")
+            print(f"[SettingsManager ERROR] Error parsing YAML config file {config_path}: {e}", file=sys.stderr)
             self._yaml_config = {}
         except Exception as e:
-            print(f"Error loading YAML config {config_path}: {e}")
+            print(f"[SettingsManager ERROR] Error loading YAML config {config_path}: {e}", file=sys.stderr)
             self._yaml_config = {}
             
     def get_yaml_config(self, key_path: str, default: Any = None) -> Any:
@@ -375,6 +426,6 @@ class SettingsManager:
             # Key not found at some level
             return default
         except Exception as e:
-            print(f"Error accessing YAML config key '{key_path}': {e}")
+            print(f"[SettingsManager ERROR] Error accessing YAML config key '{key_path}': {e}", file=sys.stderr)
             return default
     # -------------------------------------------------------- 

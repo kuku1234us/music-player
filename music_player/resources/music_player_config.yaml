@@ -36,6 +36,10 @@ sidebar:
           title: "Browser"
           icon: "fa5s.folder-open"
           page: "BrowserPage"
+        - id: "youtube_downloader"
+          title: "Youtube"
+          icon: "fa5s.download"
+          page: "YoutubePage"
     - title: "Settings"
       items:
         - id: "preferences"

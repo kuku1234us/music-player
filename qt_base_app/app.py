@@ -15,6 +15,7 @@ from .window.base_window import BaseWindow
 from .theme.theme_manager import ThemeManager
 from .models.resource_locator import ResourceLocator
 from .models.logger import Logger
+from .models.settings_manager import SettingsManager
 
 
 def setup_dark_title_bar(app):
@@ -57,13 +58,12 @@ def setup_dark_title_bar(app):
                             value_size
                         )
                 except Exception as e:
-                    logger.error(f"Failed to apply dark title bar: {e}", exc_info=True)
+                    logger.error("app", f"Failed to apply dark title bar: {e}")
         
         # Apply to all new windows
         app.focusWindowChanged.connect(
             lambda window: apply_dark_title_bar(window.winId()) if window else None
         )
-        logger.info("Dark title bar configured for Windows.")
 
 
 def load_custom_fonts(fonts_dir_relative: str, font_mappings: Optional[Dict[str, str]] = None) -> Dict[str, str]:
@@ -80,6 +80,7 @@ def load_custom_fonts(fonts_dir_relative: str, font_mappings: Optional[Dict[str,
     logger = Logger.instance()
     # Default font mappings if none provided
     if font_mappings is None:
+        # Keep these defaults as the standard for our apps
         font_mappings = {
             "Geist-Regular.ttf": "default",
             "GeistMono-Regular.ttf": "monospace",
@@ -98,7 +99,7 @@ def load_custom_fonts(fonts_dir_relative: str, font_mappings: Optional[Dict[str,
 
     # Add custom fonts if available using the absolute path
     if os.path.isdir(fonts_dir_abs):
-        logger.info(f"Loading fonts from: {fonts_dir_abs}")
+        logger.info("app", f"Loading fonts from: {fonts_dir_abs}")
         for font_file, category in font_mappings.items():
             font_path = os.path.join(fonts_dir_abs, font_file)
             if os.path.exists(font_path):
@@ -107,13 +108,10 @@ def load_custom_fonts(fonts_dir_relative: str, font_mappings: Optional[Dict[str,
                     families = QFontDatabase.applicationFontFamilies(font_id)
                     if families:
                         font_families[category] = families[0]
-                        logger.debug(f"Loaded font '{families[0]}' for '{category}' from {font_file}")
                 else:
-                    logger.warning(f"Failed to load font file: {font_path}")
-            # else: # Optional: log if specific font file doesn't exist
-                # logger.debug(f"Font file not found: {font_path}")
+                    logger.warning("app", f"Failed to load font: {font_path}")
     else:
-         logger.warning(f"Fonts directory not found at {fonts_dir_abs}")
+         logger.warning("app", f"Fonts directory not found at {fonts_dir_abs}")
 
     return font_families
 
@@ -172,27 +170,27 @@ def set_application_icon(app: QApplication, window: QWidget, icon_paths: List[st
     app_icon = None
     
     for icon_path in icon_paths:
+        # Get absolute path
         icon_path_abs = ResourceLocator.get_path(icon_path)
         if os.path.exists(icon_path_abs):
-            try:
-                app_icon = QIcon(icon_path_abs)
-                logger.info(f"Using application icon: {icon_path_abs}")
-                break
-            except Exception as e:
-                logger.warning(f"Failed to create QIcon from {icon_path_abs}: {e}")
+            app_icon = QIcon(icon_path_abs)
+            logger.info("app", f"Using icon: {icon_path_abs}")
+            break
     
-    # Apply icon if found
+    # Apply icon if found (to both app and window)
     if app_icon:
         app.setWindowIcon(app_icon)
         window.setWindowIcon(app_icon)
     else:
         paths_str = ", ".join(icon_paths)
-        logger.warning(f"No valid application icon found in searched paths: {paths_str}")
+        logger.warning("app", f"No valid icon found in: {paths_str}")
 
 
 def create_application(
     window_class: Type[QWidget] = BaseWindow,
     config_path: Optional[str] = None,
+    organization_name: str = "MyOrg",      # Added Org Name (App MUST provide)
+    application_name: str = "MyApp",     # Added App Name (App MUST provide)
     icon_paths: Optional[List[str]] = None,
     fonts_dir: Optional[str] = None,
     font_mappings: Optional[Dict[str, str]] = None,
@@ -205,6 +203,8 @@ def create_application(
     Args:
         window_class: Class to instantiate for the main window (default: BaseWindow)
         config_path: Optional path to the application configuration file
+        organization_name: Name of the organization (for QSettings)
+        application_name: Name of the application (for QSettings)
         icon_paths: List of icon paths to try in order (e.g., .ico first, then .png)
         fonts_dir: Relative path to fonts directory
         font_mappings: Dictionary mapping font filenames to category keys
@@ -214,40 +214,58 @@ def create_application(
     Returns:
         tuple: (QApplication instance, window instance)
     """
+    # --- Early Initialization Step 0: Initialize SettingsManager --- #
+    # This MUST happen before SettingsManager.instance() is called anywhere else
+    SettingsManager.initialize(organization_name, application_name)
+    # -------------------------------------------------------------- #
+    
+    # --- Early Initialization Step 1: Get SettingsManager instance --- #
+    settings = SettingsManager.instance()
+
+    # --- Early Initialization Step 2: Load YAML Config --- #
+    if config_path:
+        # Resolve config path using ResourceLocator first
+        resolved_config_path = ResourceLocator.get_path(config_path)
+        if Path(resolved_config_path).exists():
+            settings.load_yaml_config(resolved_config_path)
+            print(f"[App] Loaded YAML config: {resolved_config_path}") # Simple confirmation
+        else:
+            print(f"[App WARNING] Specified config path not found: {resolved_config_path}", file=sys.stderr)
+    else:
+        print("[App WARNING] No config path provided to create_application.", file=sys.stderr)
+
+    # --- Early Initialization Step 3: Configure Logger --- #
+    logger = Logger.instance() # Get logger instance
+    logging_config = settings.get_yaml_config('logging', default={}) # Get logging section from YAML
+    if logging_config:
+        logger.configure(logging_config) # Configure logger
+        logger.info("app.py", f"Logger configured from YAML settings.")
+    else:
+        # Basic fallback config if YAML or logging section is missing
+        logger.configure({'level': 'INFO', 'log_to_console': True})
+        logger.warning("app.py", "Logging config not found in YAML, using basic fallback.")
+    # -------------------------------------------------------- #
+
     # Create application
     app = QApplication(sys.argv)
     
-    # Initialize theme manager (can potentially use settings now, though they aren't loaded yet)
+    # Initialize theme manager
     theme = ThemeManager.instance()
     
-    # Set up dark title bar for Windows (will init logger with defaults if not already)
+    # Set up dark title bar for Windows
     setup_dark_title_bar(app)
     
-    # Load fonts if directory specified (will init logger with defaults if not already)
+    # Load fonts if directory specified
     font_families = {}
     if fonts_dir:
         font_families = load_custom_fonts(fonts_dir, font_mappings)
         apply_application_styles(app, font_families, custom_stylesheet)
     
-    # Resolve config path *before* creating window
-    resolved_config_path = None
-    if config_path:
-        try:
-            resolved_config_path = ResourceLocator.get_path(config_path)
-            # Optional: print or log that path was resolved if needed
-            # print(f"Resolved config path to: {resolved_config_path}")
-        except FileNotFoundError:
-             # Handle case where ResourceLocator fails
-             print(f"Warning: Config path {config_path} not found by ResourceLocator.", file=sys.stderr)
-             # Keep original path as fallback?
-             resolved_config_path = config_path 
-
-    # Create main window, passing the RESOLVED path
-    # The window's __init__ (BaseWindow or subclass) is now responsible 
-    # for loading the config into SettingsManager.
-    window = window_class(resolved_config_path, **window_kwargs)
+    # Create main window
+    # Pass window_kwargs, but NOT config_path anymore
+    window = window_class(**window_kwargs)
     
-    # Set application icon if paths provided (will init logger with defaults if not already)
+    # Set application icon if paths provided
     if icon_paths:
         set_application_icon(app, window, icon_paths)
     

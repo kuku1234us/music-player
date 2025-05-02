@@ -2,10 +2,11 @@
 Main dashboard window for the Music Player application.
 """
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFontDatabase, QFont
+from PyQt6.QtCore import Qt, QSize, pyqtSlot
+from PyQt6.QtGui import QFontDatabase, QFont, QCloseEvent
 import os
 from pathlib import Path
+import sys
 
 # Import BaseWindow from framework
 from qt_base_app.window.base_window import BaseWindow
@@ -19,6 +20,7 @@ from music_player.ui.pages import (
     PlaylistsPage,
     PreferencesPage,
     BrowserPage,
+    YoutubePage,
 )
 
 # Import player components
@@ -33,7 +35,7 @@ class MusicPlayerDashboard(BaseWindow):
     Main dashboard window for the Music Player application.
     Inherits from BaseWindow and customizes the layout to include a player at the bottom.
     """
-    def __init__(self, config_path=None):
+    def __init__(self, **kwargs):
         """
         Initialize the music player dashboard.
         
@@ -46,12 +48,12 @@ class MusicPlayerDashboard(BaseWindow):
         # Store page instances to prevent garbage collection
         self.pages = {}
         
-        # Initialize base window (loads self.config from YAML & loads into SettingsManager)
-        super().__init__(config_path)
+        # Initialize base window (config is loaded by create_application)
+        super().__init__(**kwargs)
         
         # --- Initialize Logger AFTER base init (which loads YAML config) ---
         self.logger = Logger.instance()
-        self.logger.info("MusicPlayerDashboard initializing...")
+        self.logger.info(self.__class__.__name__, "MusicPlayerDashboard initializing...")
         # -----------------------------------------------------------------
         
         # Set up the application structure after base initialization
@@ -137,6 +139,7 @@ class MusicPlayerDashboard(BaseWindow):
         playlists_page = PlaylistsPage(parent=self) # Removed ai_config
         preferences_page = PreferencesPage()
         browser_page = BrowserPage()
+        youtube_page = YoutubePage()
         
         # Store pages to prevent garbage collection
         self.pages['dashboard'] = dashboard_page
@@ -144,6 +147,7 @@ class MusicPlayerDashboard(BaseWindow):
         self.pages['playlists'] = playlists_page
         self.pages['preferences'] = preferences_page
         self.pages['browser'] = browser_page
+        self.pages['youtube_downloader'] = youtube_page
         
         # Add pages to the window
         self.add_page('dashboard', dashboard_page)
@@ -151,6 +155,7 @@ class MusicPlayerDashboard(BaseWindow):
         self.add_page('playlists', playlists_page)
         self.add_page('preferences', preferences_page)
         self.add_page('browser', browser_page)
+        self.add_page('youtube_downloader', youtube_page)
         
         # Connect signals from sidebar to our handler
         self.sidebar.item_clicked.connect(self.on_sidebar_item_clicked)
@@ -216,7 +221,8 @@ class MusicPlayerDashboard(BaseWindow):
             'player': 'Player',
             'playlists': 'Playlists',
             'preferences': 'Preferences',
-            'browser': 'File Browser'
+            'browser': 'File Browser',
+            'youtube_downloader': 'Youtube Downloader',
         }
         
         if item_id in page_titles:
@@ -274,3 +280,56 @@ class MusicPlayerDashboard(BaseWindow):
                 'artwork_path': artwork_path
             }
             self.pages['dashboard'].update_now_playing(metadata)
+
+    def closeEvent(self, event: QCloseEvent):
+        """Handle the main window closing event."""
+        log_prefix = self.__class__.__name__ # Use class name for caller context
+        
+        self.logger.info(log_prefix, "Main window close event triggered.")
+
+        # Gracefully shut down the download manager threads
+        if hasattr(self, 'pages') and 'youtube_downloader' in self.pages:
+             youtube_page = self.pages['youtube_downloader']
+             if hasattr(youtube_page, 'download_manager'):
+                 self.logger.info(log_prefix, "Shutting down Download Manager...")
+                 youtube_page.download_manager.shutdown()
+                 self.logger.info(log_prefix, "Download Manager shutdown complete.")
+             else:
+                 # Use logger for warning
+                 self.logger.warn(log_prefix, "Download Manager not found on YoutubePage.")
+        else:
+            # Use logger for warning
+            self.logger.warn(log_prefix, "YoutubePage not found.")
+
+        # Accept the close event to allow the window to close
+        event.accept()
+        # Optionally call the base class closeEvent if needed
+        # super().closeEvent(event)
+
+    @pyqtSlot(str, str)
+    def handle_protocol_url(self, url: str, format_type: str):
+        """Handles incoming URLs from the custom protocol handler."""
+        self.logger.info(self.__class__.__name__, f"Protocol URL received: {url} (Type: {format_type})")
+        
+        # Find the YoutubePage instance
+        youtube_page: YoutubePage | None = self.pages.get('youtube_downloader')
+        
+        if youtube_page and isinstance(youtube_page, YoutubePage): # Check type too
+            if hasattr(youtube_page, 'auto_add_download') and callable(youtube_page.auto_add_download):
+                try:
+                    # Delegate to the YoutubePage
+                    youtube_page.auto_add_download(url, format_type)
+                    
+                    # Switch UI to show the download page
+                    self.show_page('youtube_downloader')
+                    self.sidebar.set_selected_item('youtube_downloader')
+                    self.logger.info(self.__class__.__name__, "Switched to Youtube Downloader page.")
+                except Exception as e:
+                     # Log the error using the logger
+                     self.logger.error(self.__class__.__name__, f"Error calling auto_add_download: {e}")
+            else:
+                # Log the error using the logger
+                self.logger.error(self.__class__.__name__, "YoutubePage instance found, but missing 'auto_add_download' method.")
+        else:
+            # Log the error using the logger
+            self.logger.error(self.__class__.__name__, "Could not find YoutubePage instance in self.pages.")
