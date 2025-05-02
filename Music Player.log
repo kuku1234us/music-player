@@ -1,10 +1,8 @@
-[2025-05-03 06:46:16-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-05-03 06:46:16-INFO ][app.py]Logger configure method called.
-[2025-05-03 06:46:16-DEBUG][app.py]Test DEBUG message after configuration attempt.
-[2025-05-03 06:46:16-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-05-03 06:46:16-DEBUG][BaseWindow]Restored window geometry.
-[2025-05-03 06:46:16-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-05-03 06:46:17-INFO ][YoutubePage]UI setup complete.
-[2025-05-03 06:46:17-INFO ][YoutubePage]Initialized.
-[2025-05-03 06:46:17-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-05-03 06:46:18-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-05-03 07:17:42-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-05-03 07:17:42-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-05-03 07:17:42-DEBUG][BaseWindow]Restored window geometry.
+[2025-05-03 07:17:42-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-05-03 07:17:43-INFO ][YoutubePage]UI setup complete.
+[2025-05-03 07:17:43-INFO ][YoutubePage]Initialized.
+[2025-05-03 07:17:43-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-05-03 07:17:43-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...

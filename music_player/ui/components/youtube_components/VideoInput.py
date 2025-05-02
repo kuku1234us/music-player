@@ -30,15 +30,25 @@ class ToggleButton(QPushButton):
         self.setting_key = setting_key
         self._settings = SettingsManager.instance() # Cache instance
 
-        initial_checked = self._settings.get(self.setting_key, None, SettingType.BOOL)
-        if initial_checked is None:
-            print(f"Warning: Setting key '{self.setting_key}' not found during init. Check set_defaults.")
-            initial_checked = False
+        initial_checked = False # Default to unchecked
+        # --- Only load from settings if a valid key is provided --- 
+        if self.setting_key: 
+            loaded_state = self._settings.get(self.setting_key, None, SettingType.BOOL)
+            if loaded_state is not None:
+                initial_checked = loaded_state
+            else:
+                # Key provided, but not found in settings - log this maybe?
+                # For now, just defaults to False as initialized above.
+                # print(f"Debug: Setting key '{self.setting_key}' not found. Using default False.")
+                pass # Keep initial_checked as False
+        # ---------------------------------------------------------
 
         self.setChecked(initial_checked)
 
         if not self._exclusive:
-            self.toggled.connect(self._save_state)
+            # Connect save state only if NOT exclusive AND key exists
+            if self.setting_key:
+                 self.toggled.connect(self._save_state)
         
         self.setMinimumWidth(50)
         self.setStyleSheet(self._get_toggle_button_style())
