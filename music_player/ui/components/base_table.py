@@ -380,21 +380,19 @@ class BaseTableView(QTableView):
             self._save_table_state() # Save widths and current sort state
 
     def _on_sort_indicator_changed(self, logicalIndex: int, order: Qt.SortOrder):
-        """Slot connected to header's sortIndicatorChanged signal."""
-        # print(f"[{self.table_name}] Sort indicator changed: Col={logicalIndex}, Order={order}")
+        """Slot connected to header's sortIndicatorChanged signal. Updates internal state and saves."""
+        # Update internal state first
         self._sort_column = logicalIndex
         self._sort_order = order
-        # --- ADD Persistence --- 
-        # Save the new sort state immediately
+        
+        # Save the entire table state (widths and sort order) to persistence
         if self.table_name:
-            key_base = self._get_table_state_setting_key()
-            print(f"[{self.table_name}] Saving sort state: Col={self._sort_column}, Order={self._sort_order.name}")
-            self.settings.set(f"{key_base}/sort_column", self._sort_column, SettingType.INT)
-            self.settings.set(f"{key_base}/sort_order", self._sort_order.value, SettingType.INT) # Store enum value as int
-            self.settings.sync() # Persist change immediately
-        # ----------------------
-        # No need to call _save_table_state() here, as that saves widths too.
-        # We only need to save the sort order when it changes.
+            print(f"[{self.table_name}] Sort changed to: Col={self._sort_column}, Order={self._sort_order.name}. Saving state.")
+            self._save_table_state() # Call the method that saves the full state dict
+            # Ensure sync is called *after* saving the state
+            # While sync() might be called elsewhere, adding it here guarantees
+            # the sort change is written immediately.
+            self.settings.sync()
 
     def _update_sort_indicator(self):
          """Sets the visual sort indicator on the header."""

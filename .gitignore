@@ -48,4 +48,11 @@ Thumbs.db
 *.mp3
 *.wav
 *.ogg
+*.flac
+Music Player.log
+
+# Project specific
+*.mp3
+*.wav
+*.ogg
 *.flac 
