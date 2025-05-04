@@ -194,11 +194,3 @@ class DashboardPage(QWidget):
         super().showEvent(event)
         self.load_recently_played()
 
-    # --- Keep method for potential future use by MainPlayer/Dashboard --- 
-    def update_now_playing(self, metadata):
-        """ Placeholder to potentially update UI based on current track."""
-        # Example: Update a specific label or component if needed in the future
-        # title = metadata.get('title', 'Unknown Track')
-        # artist = metadata.get('artist', 'Unknown Artist')
-        # print(f"[DashboardPage] Now Playing Updated: {title} - {artist}")
-        pass 

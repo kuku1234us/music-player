@@ -4,17 +4,45 @@ import vlc
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QPushButton, QVBoxLayout, QFileDialog, QFrame
 )
-from PyQt6.QtCore import Qt
+# Import QEvent and QMouseEvent, QKeyEvent for event handling
+from PyQt6.QtCore import Qt, QEvent
+from PyQt6.QtGui import QMouseEvent, QKeyEvent, QColor, QPalette
+
+# Define the test video path
+TEST_VIDEO_PATH = "d:\\test.mp4" # Make sure this file exists
+
+class TestWidget(QWidget):
+    """A QWidget subclass with event handlers for testing."""
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+        self.setAutoFillBackground(True)
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor('darkcyan')) # Visible background
+        self.setPalette(palette)
+        # Need focus policy to receive key events
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        print("[TestWidget] Initialized.")
+
+    def mousePressEvent(self, event: QMouseEvent):
+        print(f"[TestWidget] mousePressEvent detected! Button: {event.button()}")
+        super().mousePressEvent(event) # Call base class
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent):
+        print(f"[TestWidget] mouseDoubleClickEvent detected! Button: {event.button()}")
+        super().mouseDoubleClickEvent(event) # Call base class
+
+    def keyPressEvent(self, event: QKeyEvent):
+        print(f"[TestWidget] keyPressEvent detected! Key: {event.key()}")
+        super().keyPressEvent(event) # Call base class
 
 class SimpleVLCTest(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Minimal VLC + Qt Test")
+        self.setWindowTitle("VLC Input Test")
         self.setGeometry(100, 100, 640, 480)
 
         # --- VLC Setup ---
-        # No extra arguments initially to keep it simple
-        self.instance = vlc.Instance() 
+        self.instance = vlc.Instance()
         self.media_player = self.instance.media_player_new()
         # -----------------
 
@@ -23,57 +51,79 @@ class SimpleVLCTest(QMainWindow):
         self.setCentralWidget(self.central_widget)
         self.layout = QVBoxLayout(self.central_widget)
 
-        # Video Frame (just a QWidget)
-        self.video_frame = QFrame(self)
-        self.video_frame.setFrameShape(QFrame.Shape.Box)
-        self.video_frame.setFrameShadow(QFrame.Shadow.Sunken)
-        self.video_frame.setStyleSheet("background-color: black;")
-        self.layout.addWidget(self.video_frame, 1) # Make it expand
+        # Video Frame replaced with TestWidget
+        self.test_widget = TestWidget(self) # Use our custom widget
+        self.layout.addWidget(self.test_widget, 1) # Make it expand
 
         # Buttons
-        self.select_button = QPushButton("Select Video and Play")
+        self.play_test_button = QPushButton(f"Play Test Video ({os.path.basename(TEST_VIDEO_PATH)})")
         self.stop_button = QPushButton("Stop")
-        self.layout.addWidget(self.select_button)
+        self.layout.addWidget(self.play_test_button)
         self.layout.addWidget(self.stop_button)
         # -----------------
 
         # --- Connections ---
-        self.select_button.clicked.connect(self._select_and_play)
+        self.play_test_button.clicked.connect(self._play_test_video)
         self.stop_button.clicked.connect(self._stop_video)
         # -------------------
 
-        # Store video frame handle (important!)
-        # We get the handle once the widget is created, 
-        # it should remain valid unless the widget is destroyed.
-        self.video_frame_handle = int(self.video_frame.winId())
-        print(f"[VLCTest] Video Frame Handle (HWND): {self.video_frame_handle}")
+        # Store widget handle (important!)
+        # Get the handle AFTER the widget is created and potentially shown
+        self.test_widget_handle = 0 # Initialize
+        # We'll get the handle reliably in showEvent or just before playing
 
-    def _select_and_play(self):
-        """Open a file dialog and play the selected video."""
-        filepath, _ = QFileDialog.getOpenFileName(self, "Select Video File")
-        if not filepath:
-            print("[VLCTest] No file selected.")
+    def showEvent(self, event):
+        """Get handle once widget is shown."""
+        super().showEvent(event)
+        # Getting handle here is generally more reliable
+        if not self.test_widget_handle:
+             self.test_widget_handle = int(self.test_widget.winId())
+             print(f"[VLCTest] TestWidget Handle (HWND) obtained: {self.test_widget_handle}")
+
+    def _play_test_video(self):
+        """Play the predefined test video."""
+        if not os.path.exists(TEST_VIDEO_PATH):
+            print(f"[VLCTest] Error: Test video file not found at '{TEST_VIDEO_PATH}'")
             return
 
-        print(f"[VLCTest] Selected file: {filepath}")
+        # Ensure handle is valid
+        if not self.test_widget_handle:
+             self.test_widget_handle = int(self.test_widget.winId())
+             if not self.test_widget_handle:
+                  print("[VLCTest] Error: Could not get valid HWND for TestWidget.")
+                  return
+             print(f"[VLCTest] TestWidget Handle (HWND) obtained: {self.test_widget_handle}")
+
+
+        print(f"[VLCTest] Playing test file: {TEST_VIDEO_PATH}")
 
         # Create new media
-        media = self.instance.media_new(filepath)
+        media = self.instance.media_new(TEST_VIDEO_PATH)
         if not media:
             print("[VLCTest] Failed to create media object.")
             return
 
-        # Stop previous playback if any (important for testing switching)
+        # Stop previous playback if any
         if self.media_player.is_playing():
-            print("[VLCTest] Stopping previous media before playing new one...")
+            print("[VLCTest] Stopping previous media...")
             self.media_player.stop()
-            # Optional: A small delay might sometimes help, but let's test without first
-            # time.sleep(0.1) 
 
-        # Set media and window handle
+        # Set media
         self.media_player.set_media(media)
-        print(f"[VLCTest] Setting HWND: {self.video_frame_handle}")
-        self.media_player.set_hwnd(self.video_frame_handle)
+
+        # Set HWND
+        print(f"[VLCTest] Setting HWND: {self.test_widget_handle}")
+        self.media_player.set_hwnd(self.test_widget_handle)
+
+        # !!! Disable VLC Input Handling !!!
+        try:
+            self.media_player.video_set_mouse_input(False)
+            print("[VLCTest] Called video_set_mouse_input(False)")
+            self.media_player.video_set_key_input(False)
+            print("[VLCTest] Called video_set_key_input(False)")
+        except Exception as e:
+            print(f"[VLCTest] Error disabling VLC input: {e}")
+
 
         # Play
         print("[VLCTest] Starting playback...")
@@ -82,6 +132,9 @@ class SimpleVLCTest(QMainWindow):
             print("[VLCTest] Error starting playback.")
         else:
             print("[VLCTest] Play command issued.")
+            # Give focus to the widget after starting playback
+            self.test_widget.setFocus()
+
 
     def _stop_video(self):
         """Stop the VLC player."""

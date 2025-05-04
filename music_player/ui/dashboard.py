@@ -161,8 +161,6 @@ class MusicPlayerDashboard(BaseWindow):
         self.sidebar.item_clicked.connect(self.on_sidebar_item_clicked)
         
         # Connect player signals to pages
-        if hasattr(self.player, 'track_changed'):
-            self.player.track_changed.connect(self._on_track_changed)
         if hasattr(self.player, 'playback_state_changed'):
             self.player.playback_state_changed.connect(self._on_playback_state_changed)
         if hasattr(self.player, 'media_changed'):
@@ -199,11 +197,6 @@ class MusicPlayerDashboard(BaseWindow):
         if hasattr(dashboard_page, 'play_playlist_requested'):
             dashboard_page.play_playlist_requested.connect(self._handle_play_playlist_from_dashboard)
         
-        # --- Connect video detection signal to navigation --- 
-        if hasattr(self.player, 'video_media_detected'): # Use new signal name
-            self.player.video_media_detected.connect(self._navigate_if_video)
-        # --------------------------------------------------
-
         # Show the dashboard page initially
         self.show_page('dashboard')
         
@@ -266,7 +259,7 @@ class MusicPlayerDashboard(BaseWindow):
             print("[Dashboard] Error: Could not find PlaylistsPage or _enter_play_mode method.")
     
     @pyqtSlot()
-    def _navigate_if_video(self):
+    def _navigate_to_player_page(self):
         """Navigates to the PlayerPage when video media is detected."""
         # No need to check is_video anymore, the signal only fires for video.
         
@@ -284,24 +277,23 @@ class MusicPlayerDashboard(BaseWindow):
 
         # Navigate only if not already on the player page
         if current_page_id != 'player':
-            self.logger.info(self.__class__.__name__, "Video media detected, navigating to PlayerPage.")
             self.show_page('player')
             self.sidebar.set_selected_item('player')
-        else:
-            self.logger.info(self.__class__.__name__, "Video media detected, but already on PlayerPage.")
 
     @pyqtSlot(str)
     def _handle_single_file_request(self, filepath: str):
         """
         Handles request to play a single file, ensuring PlayerPage is visible first.
+        Now, this is connected to BrowserPage double-click on a file.
         """
         self.logger.info(self.__class__.__name__, f"Handling single file request: {filepath}, switching to PlayerPage.")
 
-        # --- HIDE VIDEO WIDGET before media type is determined ---
+        # --- HIDE VIDEO WIDGET (if needed) ---
         video_widget_was_hidden = False
         if self.player and hasattr(self.player, '_video_widget') and self.player._video_widget:
-                self.player._video_widget.setVisible(False)
-                video_widget_was_hidden = True # Keep track if we hid it
+            self.logger.info(self.__class__.__name__, "Hiding video widget before switching page and playing.")
+            self.player._video_widget.setVisible(False)
+            video_widget_was_hidden = True # Keep track if we hid it
         # -------------------------------------
 
         # 2. Tell the player to play the file (with delay)
@@ -318,36 +310,22 @@ class MusicPlayerDashboard(BaseWindow):
                  self.logger.warning(self.__class__.__name__, "Player error, restoring video widget visibility.")
                  self.player._video_widget.setVisible(True)
 
-    def _on_track_changed(self, metadata):
-        """Handle track change events"""
-        # Update window title with song info
-        title = metadata.get('title', 'Unknown Track')
-        artist = metadata.get('artist', 'Unknown Artist')
-        self.setWindowTitle(f"{title} - {artist} | Music Player")
-        
-        # Update pages with track info
-        if hasattr(self.pages.get('dashboard'), 'update_now_playing'):
-            self.pages['dashboard'].update_now_playing(metadata)
-            
     def _on_playback_state_changed(self, state):
         """Handle playback state change events"""
         # Update UI elements based on state
         pass
         
-    def _on_media_changed(self, title, artist, album, artwork_path):
+    def _on_media_changed(self, metadata: dict, is_video: bool):
         """Handle media change events from the player"""
+        # Extract info from metadata
+        title = metadata.get('title', 'Unknown Track')
+        artist = metadata.get('artist', 'Unknown Artist')
+        
         # Update window title
         self.setWindowTitle(f"{title} - {artist} | Music Player")
-        
-        # Update dashboard
-        if hasattr(self.pages.get('dashboard'), 'update_now_playing'):
-            metadata = {
-                'title': title,
-                'artist': artist,
-                'album': album,
-                'artwork_path': artwork_path
-            }
-            self.pages['dashboard'].update_now_playing(metadata)
+
+        if is_video:
+            self._navigate_to_player_page()
 
     def closeEvent(self, event: QCloseEvent):
         """Handle the main window closing event."""

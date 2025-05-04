@@ -3,9 +3,11 @@ Album art display component for showing track/album artwork.
 """
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QSizePolicy
 from PyQt6.QtCore import Qt, QSize, QPointF, QRectF, pyqtSignal
-from PyQt6.QtGui import QPixmap, QPainter, QPainterPath, QBrush, QColor, QPen, QMouseEvent
+from PyQt6.QtGui import QPixmap, QPainter, QPainterPath, QBrush, QColor, QPen, QMouseEvent, QKeyEvent
 from PyQt6.QtSvg import QSvgRenderer
 from io import BytesIO
+from typing import Optional
+from music_player.ui.vlc_player.hotkey_handler import HotkeyHandler
 
 
 class AlbumArtDisplay(QWidget):
@@ -13,6 +15,7 @@ class AlbumArtDisplay(QWidget):
     Widget for displaying album artwork with rounded corners and
     placeholder for when no image is available.
     Emits a 'clicked' signal when the widget is clicked.
+    Forwards key events to a HotkeyHandler if set.
     """
     
     clicked = pyqtSignal()  # Signal emitted when the widget is clicked
@@ -24,6 +27,12 @@ class AlbumArtDisplay(QWidget):
         super().__init__(parent)
         self.setObjectName("albumArtDisplay")
         self._corner_radius = corner_radius # Store the requested radius (None means use default logic)
+        
+        # Add handler reference
+        self.hotkey_handler: Optional[HotkeyHandler] = None
+        
+        # Set focus policy
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus) # Allow focus on click
         
         # Default size (but this can be overridden by parent)
         self.setMinimumSize(200, 200)
@@ -224,3 +233,18 @@ class AlbumArtDisplay(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
         super().mousePressEvent(event) 
+        
+    def set_hotkey_handler(self, handler: Optional[HotkeyHandler]):
+        """Sets the hotkey handler instance to use."""
+        self.hotkey_handler = handler
+        
+    def keyPressEvent(self, event: QKeyEvent):
+        """Handle key press events by forwarding to the hotkey handler if available."""
+        if self.hotkey_handler:
+            handled = self.hotkey_handler.handle_key_press(event)
+            if handled:
+                event.accept() # Consume the event if handled
+                return
+                
+        # If not handled or no handler, call base implementation
+        super().keyPressEvent(event) 

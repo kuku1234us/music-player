@@ -1,8 +1,8 @@
 # ./music_player/ui/components/player_components/player_overlay.py
 import sys
 from PyQt6.QtWidgets import QWidget
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QPainter, QColor, QBrush, QPen
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint
+from PyQt6.QtGui import QPainter, QColor, QBrush, QPen, QMouseEvent
 
 from qt_base_app.theme.theme_manager import ThemeManager
 from music_player.ui.components.round_button import RoundButton
@@ -15,7 +15,6 @@ class PlayerOverlay(QWidget):
     """
     openFileClicked = pyqtSignal()
     oplayerClicked = pyqtSignal()
-    stopClicked = pyqtSignal()
 
     def __init__(
         self,
@@ -66,26 +65,15 @@ class PlayerOverlay(QWidget):
         self.oplayer_button.setToolTip("Upload to OPlayer")
         self.oplayer_button.clicked.connect(self.oplayerClicked.emit)
 
-        self.stop_button = RoundButton(
-            parent=self,
-            icon_name="fa5s.stop-circle",
-            text="■",
-            diameter=self.button_diameter,
-            icon_size=self.button_icon_size,
-            bg_opacity=button_bg_opacity
-        )
-        self.stop_button.setToolTip("Stop Playback")
-        self.stop_button.clicked.connect(self.stopClicked.emit)
+        self.buttons = [self.file_button, self.oplayer_button]
 
         margin = 5
-        self.file_button.move(margin, margin)
-        self.oplayer_button.move(margin + self.button_diameter + self.button_spacing, margin)
-        self.stop_button.move(
-            margin + 2 * (self.button_diameter + self.button_spacing), 
-            margin
-        )
+        current_x = margin
+        for i, button in enumerate(self.buttons):
+            button.move(current_x, margin)
+            current_x += self.button_diameter + self.button_spacing
 
-        overlay_width = margin + 3 * self.button_diameter + 2 * self.button_spacing + margin
+        overlay_width = margin + 2 * self.button_diameter + 1 * self.button_spacing + margin
         overlay_height = margin + self.button_diameter + margin
         self.setFixedSize(overlay_width, overlay_height)
 
@@ -95,12 +83,6 @@ class PlayerOverlay(QWidget):
         # Set initial visibility based on mode
         self.setVisible(not self._video_mode_active)
 
-    # --- Remove enterEvent and leaveEvent --- 
-    # def enterEvent(self, event): ...
-    # def leaveEvent(self, event): ...
-    # --------------------------------------
-
-    # +++ Add explicit show/hide methods +++
     def show_overlay(self):
         """Explicitly makes the overlay visible."""
         self.setVisible(True)
@@ -108,7 +90,6 @@ class PlayerOverlay(QWidget):
     def hide_overlay(self):
         """Explicitly makes the overlay hidden."""
         self.setVisible(False)
-    # +++++++++++++++++++++++++++++++++++++
 
     def paintEvent(self, event):
         """Override paintEvent to do nothing (transparent background)."""

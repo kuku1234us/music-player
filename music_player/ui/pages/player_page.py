@@ -36,6 +36,15 @@ from music_player.ui.components.player_components.player_overlay import PlayerOv
 from music_player.ui.components.upload_status_overlay import UploadStatusOverlay
 from music_player.services.oplayer_service import OPlayerService
 
+# --- ADD TYPING IMPORTS ---
+from typing import TYPE_CHECKING
+# -------------------------
+
+# --- ADD GUARDED IMPORT ---
+# Import MainPlayer only for type checking to avoid circular import
+if TYPE_CHECKING:
+    from music_player.ui.vlc_player import MainPlayer
+# --------------------------
 
 class PlayerPage(QWidget):
     """
@@ -97,10 +106,9 @@ class PlayerPage(QWidget):
         # Create the video widget instance
         self.video_widget = VideoWidget(self)
         self.video_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        # --- Remove Event Filter from Video Widget --- 
-        # self.video_widget.installEventFilter(self)
-        # self.video_widget.setMouseTracking(True) # No longer needed here
-        # ---------------------------------------
+        # --- Remove Event Filter --- 
+        # self.video_widget.installEventFilter(self) # Filter events for video_widget
+        # --------------------------
 
         # Create the QStackedWidget to hold album art and video
         self.media_display_stack = QStackedWidget(self)
@@ -127,8 +135,6 @@ class PlayerPage(QWidget):
         # Connect signals from the overlay to page methods
         self.player_overlay.openFileClicked.connect(self._on_open_file_clicked)
         self.player_overlay.oplayerClicked.connect(self._on_oplayer_upload_clicked)
-        # --- Connect Stop Signal --- 
-        self.player_overlay.stopClicked.connect(self._on_stop_clicked) # New connection
         # ---------------------------
         
         # Create upload status overlay
@@ -257,10 +263,10 @@ class PlayerPage(QWidget):
         # ---------------------------------------------
 
         # --- RESTORED: Original logic for passing handle to persistent player ---
-        if self.persistent_player and hasattr(self, 'video_widget'):
-            # --- Pass video widget handle to player (original intent) ---
-            print("[PlayerPage] Passing video widget handle to MainPlayer in showEvent.")
-            self.persistent_player.set_video_widget(self.video_widget)
+        # if self.persistent_player and hasattr(self, 'video_widget'):
+        #     # --- Pass video widget handle to player (original intent) ---
+        #     print("[PlayerPage] Passing video widget handle to MainPlayer in showEvent.")
+        #     self.persistent_player.set_video_widget(self.video_widget)
         elif not self.persistent_player:
              print("[PlayerPage] Error: Could not find persistent player in showEvent.")
         else: # Player exists but no video_widget?
@@ -298,9 +304,16 @@ class PlayerPage(QWidget):
 
         # --- Connect player signals --- 
         if self.persistent_player:
-            # Connect media type determination to stack switcher
-            if hasattr(self.persistent_player, 'video_media_detected'):
-                self.persistent_player.video_media_detected.connect(self._on_media_type_determined)
+            # --- REMOVE OLD CONNECTION ---
+            # if hasattr(self.persistent_player, 'video_media_detected'):
+            #     self.persistent_player.video_media_detected.connect(self._on_media_type_determined)
+            # ---------------------------
+
+            # --- CORRECTED CONNECTION --- 
+            # Connect media_changed (which now includes is_video) to the updated slot
+            if hasattr(self.persistent_player, 'media_changed'): # <-- Corrected signal name
+                self.persistent_player.media_changed.connect(self._on_media_loaded) 
+            # ------------------------
             
             # --- ADD HWND SETUP HERE --- 
             # Set the video widget handle in the player *immediately* when connected
@@ -308,6 +321,22 @@ class PlayerPage(QWidget):
                 print("[PlayerPage] Setting video widget in persistent player during connection.")
                 self.persistent_player.set_video_widget(self.video_widget)
             # ---------------------------
+
+            # --- Pass HotkeyHandler to VideoWidget --- 
+            if self.persistent_player and hasattr(self.persistent_player, 'hotkey_handler') \
+               and self.video_widget and hasattr(self.video_widget, 'set_hotkey_handler'):
+                print("[PlayerPage] Passing HotkeyHandler to VideoWidget.")
+                handler = self.persistent_player.hotkey_handler
+                self.video_widget.set_hotkey_handler(handler)
+            # -----------------------------------------
+            
+            # --- Pass HotkeyHandler to AlbumArtDisplay --- 
+            if self.persistent_player and hasattr(self.persistent_player, 'hotkey_handler') \
+               and self.album_art and hasattr(self.album_art, 'set_hotkey_handler'):
+                print("[PlayerPage] Passing HotkeyHandler to AlbumArtDisplay.")
+                handler = self.persistent_player.hotkey_handler
+                self.album_art.set_hotkey_handler(handler)
+            # -------------------------------------------
 
             # Update UI immediately with current player state/media if available
             # Get current media info
@@ -391,9 +420,9 @@ class PlayerPage(QWidget):
         self.upload_status.move(status_x, status_y)
         self.upload_status.raise_()  # Ensure it's on top 
 
-    def _on_media_type_determined(self, is_video: bool):
-        """Handle media type determined signal from MainPlayer."""
-        print(f"[PlayerPage] Media type determined: is_video={is_video}")
+    def _on_media_loaded(self, metadata: dict, is_video: bool):
+        """Handle media loaded signal (incl. type) from MainPlayer."""
+        print(f"[PlayerPage] Media loaded: is_video={is_video}")
         self.player_overlay.set_video_mode(is_video) # Inform overlay
 
         if is_video:
@@ -419,9 +448,11 @@ class PlayerPage(QWidget):
             self.player_overlay.show_overlay() 
             # Ensure album art is updated if needed (metadata might have changed)
             if self.persistent_player:
-                current_metadata = self.persistent_player.get_current_track_metadata()
-                if current_metadata:
-                    self._update_track_info(current_metadata) 
+                # Use the metadata received directly from the signal
+                self._update_track_info(metadata) 
+                # current_metadata = self.persistent_player.get_current_track_metadata()
+                # if current_metadata:
+                #     self._update_track_info(current_metadata) 
 
     # +++ Add Timer Callback Method +++
     def _check_mouse_over_video(self):
@@ -457,12 +488,4 @@ class PlayerPage(QWidget):
                 self.player_overlay.hide_overlay()
     # +++++++++++++++++++++++++++++++++
 
-    # --- Add Stop Handler --- 
-    def _on_stop_clicked(self):
-        """Handle stop button click from the overlay."""
-        if self.persistent_player:
-            print("[PlayerPage] Stop button clicked, calling persistent_player.stop()")
-            self.persistent_player.stop()
-        else:
-            print("[PlayerPage] Stop button clicked, but no persistent_player found.")
-    # ----------------------
+    # --- Add Event Filter Method +++

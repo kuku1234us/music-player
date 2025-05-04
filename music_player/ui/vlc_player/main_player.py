@@ -32,11 +32,11 @@ class MainPlayer(QWidget):
     """
     
     # Signals
-    track_changed = pyqtSignal(dict)  # Emits track metadata
+    # track_changed = pyqtSignal(dict)  # Emits track metadata <- REMOVED
     playback_state_changed = pyqtSignal(str)  # "playing", "paused", "ended", "error"
-    media_changed = pyqtSignal(str, str, str, str)  # title, artist, album, artwork_path
+    # media_changed = pyqtSignal(str, str, str, str)  # title, artist, album, artwork_path <- OLD SIGNATURE
+    media_changed = pyqtSignal(dict, bool) # Emits metadata dict and is_video flag <- NEW SIGNATURE
     playback_mode_changed = pyqtSignal(str) # Emits 'single' or 'playlist'
-    video_media_detected = pyqtSignal(bool) # <-- NEW SIGNAL: Emits True if video, False otherwise
     
     def __init__(self, parent=None, persistent_mode=False):
         super().__init__(parent)
@@ -305,11 +305,11 @@ class MainPlayer(QWidget):
                 print("[MainPlayer] Backend state changed to 'playing', syncing app state.")
                 self._set_app_state(STATE_PLAYING)
 
-            # --- NEW: Try setting HWND when playback starts for video ---
-            if self._is_current_media_video and self._video_widget:
-                print("[MainPlayer] State is PLAYING and media is video, setting HWND.")
-                self._set_vlc_window_handle(self._video_widget)
-            # -----------------------------------------------------------
+            # # --- NEW: Try setting HWND when playback starts for video ---
+            # if self._is_current_media_video and self._video_widget:
+            #     print("[MainPlayer] State is PLAYING and media is video, setting HWND.")
+            #     self._set_vlc_window_handle(self._video_widget)
+            # # -----------------------------------------------------------
 
         elif state == "paused":
             # If the backend spontaneously reports 'paused', ensure our state matches.
@@ -594,20 +594,17 @@ class MainPlayer(QWidget):
             # --------------------------------
             return False
 
-    def on_media_metadata_loaded(self, media):
+    def on_media_metadata_loaded(self, media: dict, is_video: bool):
         """
-        Handle media metadata loaded event - receives metadata dict from backend.
-        Updates metadata, UI elements, and determines/emits media type.
+        Handle media loaded event - receives metadata dict AND is_video flag from backend.
+        Updates metadata, UI elements, and stores media type.
         """
-        is_video = False # Default to audio
         if not media:
             print("[MainPlayer] on_media_metadata_loaded received empty media.")
             # Try advancing if in playlist mode
             if self._playback_mode == 'playlist':
                 print("[MainPlayer] Attempting next track due to empty media.")
                 self.play_next_track(force_advance=True)
-            # Emit False (audio) for empty/failed media
-            self.video_media_detected.emit(False)
             return
 
         self.last_metadata = media # Store metadata regardless of UI update
@@ -617,48 +614,23 @@ class MainPlayer(QWidget):
         album = media.get('album', 'Unknown Album')
         artwork_path = media.get('artwork_path')
         
-        # --- Media Type Detection ---
-        try:
-            # Ensure the media player and media object are available
-            if self.backend.media_player:
-                # Note: Calling video_get_track_count() might require the media
-                # to be parsed. The `media_loaded` signal *should* imply parsing
-                # is sufficient, but this can be platform/VLC version dependent.
-                # Add checks/error handling if issues arise.
-                track_count = self.backend.media_player.video_get_track_count()
-                if track_count is None: # Check if function failed
-                    print("[MainPlayer] Warning: video_get_track_count() returned None. Assuming audio.")
-                else:
-                    is_video = track_count > 0
-                    print(f"[MainPlayer] Media type detection: video_get_track_count() = {track_count}. Is Video: {is_video}")
-
-                    # --- Set HWND ONLY if it's video --- 
-                    if is_video:
-                        print("[MainPlayer] Media is video, setting window handle.")
-                        self._set_vlc_window_handle(self._video_widget) # <-- MOVED HERE
-                    # -------------------------------------
-
-            else:
-                 print("[MainPlayer] Warning: Backend media player not available for media type detection.")
-        except Exception as e:
-            print(f"[MainPlayer] Error during video track count detection: {e}. Assuming audio.")
-            is_video = False # Assume audio on error
-            
-        # --- Emit the signal with the result --- 
-        self.video_media_detected.emit(is_video) # <-- Emit True or False
-        # ------------------------------------------
-        
-        # --- Store media type internally --- 
+        # --- Store media type internally using received value --- 
         self._is_current_media_video = is_video
-        # -----------------------------------
+        print(f"[MainPlayer] Media loaded. is_video = {self._is_current_media_video}")
+        # --------------------------------------------------------
         
+        # --- Set HWND If Video --- 
+        # if self._is_current_media_video:
+        #     print("[MainPlayer] Media is video, setting window handle.")
+        #     self._set_vlc_window_handle(self._video_widget)
+        # -------------------------
+
         # Update UI with track information
         self.player_widget.update_track_info(title, artist, album, artwork_path)
-        self.media_changed.emit(title, artist, album, artwork_path)
         self.setFocus()
         
-        # Emit track changed signal with complete metadata
-        self.track_changed.emit(media)
+        # Emit the consolidated media_changed signal
+        self.media_changed.emit(media, is_video)
         
     def get_current_track_metadata(self):
         """ Returns metadata of the currently playing track. """
