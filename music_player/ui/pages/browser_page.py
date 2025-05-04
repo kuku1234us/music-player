@@ -217,7 +217,7 @@ class BrowserPage(QWidget):
             parent=self,
             icon_name="fa5s.folder-open",
             text="📂",
-            size=48,
+            diameter=48,
             icon_size=24,
             bg_opacity=0.5
         )
@@ -226,7 +226,7 @@ class BrowserPage(QWidget):
         self.oplayer_button = RoundButton(
             parent=self,
             text="OP",
-            size=48,
+            diameter=48,
             bg_opacity=0.5
         )
         self.oplayer_button.setToolTip("Upload Selected Files to OPlayer")
@@ -234,7 +234,7 @@ class BrowserPage(QWidget):
         self.refresh_button = RoundButton(
             parent=self,
             icon_name="fa5s.sync-alt",
-            size=48,
+            diameter=48,
             icon_size=20,
             bg_opacity=0.5
         )

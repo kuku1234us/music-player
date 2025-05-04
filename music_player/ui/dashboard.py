@@ -296,10 +296,10 @@ class MusicPlayerDashboard(BaseWindow):
                  self.logger.info(log_prefix, "Download Manager shutdown complete.")
              else:
                  # Use logger for warning
-                 self.logger.warn(log_prefix, "Download Manager not found on YoutubePage.")
+                 self.logger.warning(log_prefix, "Download Manager not found on YoutubePage.")
         else:
             # Use logger for warning
-            self.logger.warn(log_prefix, "YoutubePage not found.")
+            self.logger.warning(log_prefix, "YoutubePage not found.")
 
         # Accept the close event to allow the window to close
         event.accept()

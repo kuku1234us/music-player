@@ -2,6 +2,7 @@
 Main player module that integrates the UI components with the VLC backend.
 """
 import os
+import sys # <-- Add sys import for platform check
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QFileDialog
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 import vlc
@@ -9,6 +10,8 @@ from typing import Optional
 
 from .player_widget import PlayerWidget
 from .hotkey_handler import HotkeyHandler
+# Import VideoWidget for type hinting
+from music_player.ui.components.player_components.video_widget import VideoWidget
 from music_player.models.vlc_backend import VLCBackend
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 # Delay import to prevent circular dependency
@@ -33,6 +36,7 @@ class MainPlayer(QWidget):
     playback_state_changed = pyqtSignal(str)  # "playing", "paused", "ended", "error"
     media_changed = pyqtSignal(str, str, str, str)  # title, artist, album, artwork_path
     playback_mode_changed = pyqtSignal(str) # Emits 'single' or 'playlist'
+    media_type_determined = pyqtSignal(bool) # True if video, False if audio <-- NEW SIGNAL
     
     def __init__(self, parent=None, persistent_mode=False):
         super().__init__(parent)
@@ -56,6 +60,9 @@ class MainPlayer(QWidget):
         self.block_position_updates = False  # Flag to temporarily block position updates
         self.last_metadata = None  # Store the last received metadata
         self._current_repeat_mode = REPEAT_ALL # Default repeat mode stored internally
+        self._is_current_media_video = False # <-- NEW: Flag to track media type
+        # Use VideoWidget for type hint as it's more specific, though QWidget is also valid
+        self._video_widget: Optional[VideoWidget] = None # <-- NEW: Reference to video output widget
         
         # Playback Mode State
         self._playback_mode = 'single'  # 'single' or 'playlist'
@@ -297,6 +304,13 @@ class MainPlayer(QWidget):
             if self.app_state != STATE_PLAYING:
                 print("[MainPlayer] Backend state changed to 'playing', syncing app state.")
                 self._set_app_state(STATE_PLAYING)
+
+            # --- NEW: Try setting HWND when playback starts for video ---
+            if self._is_current_media_video and self._video_widget:
+                print("[MainPlayer] State is PLAYING and media is video, setting HWND.")
+                self._set_vlc_window_handle(self._video_widget)
+            # -----------------------------------------------------------
+
         elif state == "paused":
             # If the backend spontaneously reports 'paused', ensure our state matches.
             if self.app_state != STATE_PAUSED:
@@ -533,6 +547,14 @@ class MainPlayer(QWidget):
     
     def load_media(self):
         """Open a file dialog to select and load a SINGLE media file. Sets mode to 'single'."""
+        # --- Hide Video Widget Logic (Moved Earlier - Correct Version) --- 
+        video_was_hidden = False
+        if self._video_widget and self._video_widget.isVisible():
+            print("[MainPlayer] Hiding video widget before opening file dialog.")
+            self._video_widget.setVisible(False)
+            video_was_hidden = True
+        # --------------------------------------------------------------
+
         last_dir = self.settings.get('player/last_directory', os.path.expanduser("~"), SettingType.STRING)
         
         file_path, _ = QFileDialog.getOpenFileName(
@@ -543,29 +565,47 @@ class MainPlayer(QWidget):
         if file_path:
             self.settings.set('player/last_directory', os.path.dirname(file_path), SettingType.STRING)
             
-            # Update playback mode without stopping current playback
             self.set_playback_mode('single')
             self._current_playlist = None
             
-            # Add to recently played BEFORE loading (as loading might fail)
             self.recently_played_model.add_item(item_type='file', name=os.path.basename(file_path), path=file_path)
             
-            self._load_and_play_path(file_path)
+            # Hiding is done before dialog, no need here
+            
+            try:
+                self._load_and_play_path(file_path)
+            finally:
+                # Restore logic (depends on media type)
+                if video_was_hidden and self._video_widget:
+                     if self._is_current_media_video:
+                         print("[MainPlayer] New media is video, restoring video widget visibility.")
+                         self._video_widget.setVisible(True)
+                     else:
+                         print("[MainPlayer] New media is audio, keeping video widget hidden.")
+
             self.setFocus()
             return True
-        return False
-        
+        else:
+            # Restore if dialog was cancelled
+            if video_was_hidden and self._video_widget:
+                 print("[MainPlayer] File dialog cancelled, restoring video widget visibility.")
+                 self._video_widget.setVisible(True)
+            return False
+
     def on_media_metadata_loaded(self, media):
         """
         Handle media metadata loaded event - receives metadata dict from backend.
-        Only updates metadata and UI elements, does not affect playback state.
+        Updates metadata, UI elements, and determines/emits media type.
         """
+        is_video = False # Default to audio
         if not media:
-            # This might happen if loading failed internally in backend
-            # If in playlist mode, try advancing?
+            print("[MainPlayer] on_media_metadata_loaded received empty media.")
+            # Try advancing if in playlist mode
             if self._playback_mode == 'playlist':
-                print("[MainPlayer] on_media_metadata_loaded received empty media, attempting next track.")
+                print("[MainPlayer] Attempting next track due to empty media.")
                 self.play_next_track(force_advance=True)
+            # Emit False (audio) for empty/failed media
+            self.media_type_determined.emit(is_video)
             return
 
         self.last_metadata = media # Store metadata regardless of UI update
@@ -574,6 +614,44 @@ class MainPlayer(QWidget):
         artist = media.get('artist', 'Unknown Artist')
         album = media.get('album', 'Unknown Album')
         artwork_path = media.get('artwork_path')
+        
+        # --- Media Type Detection ---
+        try:
+            # Ensure the media player and media object are available
+            if self.backend.media_player:
+                # Note: Calling video_get_track_count() might require the media
+                # to be parsed. The `media_loaded` signal *should* imply parsing
+                # is sufficient, but this can be platform/VLC version dependent.
+                # Add checks/error handling if issues arise.
+                track_count = self.backend.media_player.video_get_track_count()
+                if track_count is None: # Check if function failed
+                    print("[MainPlayer] Warning: video_get_track_count() returned None. Assuming audio.")
+                else:
+                    is_video = track_count > 0
+                    print(f"[MainPlayer] Media type detection: video_get_track_count() = {track_count}. Is Video: {is_video}")
+
+                # --- If video, ensure the video output is set ---
+                # This should ideally happen *after* the PlayerPage calls set_video_widget,
+                # but we can call it again here just in case the widget became available
+                # or the handle needs resetting after media load.
+                # REMOVING the second call - Rely on the call from showEvent
+                # if is_video and self._video_widget:
+                #     print("[MainPlayer] Re-applying video output window after media load.")
+                #     self._set_vlc_window_handle(self._video_widget) # Use helper
+
+            else:
+                 print("[MainPlayer] Warning: Backend media player not available for media type detection.")
+        except Exception as e:
+            print(f"[MainPlayer] Error during video track count detection: {e}. Assuming audio.")
+            is_video = False # Assume audio on error
+            
+        # --- Emit the signal ---
+        self.media_type_determined.emit(is_video)
+        # ------------------------
+
+        # --- Store media type internally ---
+        self._is_current_media_video = is_video
+        # -----------------------------------
         
         # Update UI with track information
         self.player_widget.update_track_info(title, artist, album, artwork_path)
@@ -763,8 +841,8 @@ class MainPlayer(QWidget):
             if self._playback_mode == 'playlist':
                 # If loading fails in playlist mode, try to advance
                 self.play_next_track(force_advance=True)
-            return
-             
+            return # Exit early on error
+            
         # Use the extracted actual_path from now on
         self.current_media_path = actual_path
         print(f"[MainPlayer] Backend loading: {actual_path}")
@@ -773,10 +851,14 @@ class MainPlayer(QWidget):
         self._set_app_state(STATE_PLAYING)
         
         # Load the media (this will trigger on_media_changed but won't start playback)
-        self.backend.load_media(actual_path)
-        
-        # Explicitly start playback after media is loaded
-        self.backend.play()
+        load_successful = self.backend.load_media(actual_path)
+
+        if load_successful:
+            # Explicitly start playback after media is loaded
+            self.backend.play()
+        else:
+             print("[MainPlayer] Backend load_media failed, playback not started.")
+             self._set_app_state(STATE_PAUSED) # Revert to paused if load failed
 
     def play_next_track(self, force_advance=False):
         """
@@ -922,3 +1004,47 @@ class MainPlayer(QWidget):
             event.accept()
         else:
             super().wheelEvent(event) # Pass event up if not handled
+
+    def set_video_widget(self, widget: VideoWidget): # <-- NEW METHOD (Use VideoWidget type)
+        """
+        Sets the VideoWidget to be used for video output.
+
+        Args:
+            widget (VideoWidget): The widget where video should be rendered.
+        """
+        print(f"[MainPlayer] Setting video output widget: {widget}")
+        self._video_widget = widget
+        self._set_vlc_window_handle(widget) # Use helper to set the handle
+
+    def _set_vlc_window_handle(self, widget: Optional[VideoWidget]):
+        """Internal helper to set the VLC window handle via the backend."""
+        if not widget:
+            print("[MainPlayer] Clearing VLC window handle via backend.")
+            # Call backend method with None to detach
+            if self.backend:
+                self.backend.set_video_output(None)
+            return
+
+        # Call the backend's method to set the handle
+        if self.backend and hasattr(self.backend, 'set_video_output'):
+            try:
+                win_id_int = int(widget.winId())
+                print(f"[MainPlayer] Setting VLC window handle via backend: {win_id_int}")
+                # Call the backend's setter method
+                self.backend.set_video_output(win_id_int)
+            except Exception as e:
+                print(f"[MainPlayer] Error getting winId or calling backend.set_video_output: {e}")
+        else:
+            print("[MainPlayer] Warning: Backend not available or missing set_video_output method.")
+
+    # --- Add Stop Method --- 
+    def stop(self):
+        """Stop playback immediately."""
+        print("[MainPlayer] stop() method called. Calling backend.stop()")
+        # Set internal state first?
+        # self._set_app_state(STATE_STOPPED) # If we add a stopped state
+        # Or just let backend state signal handle it?
+        # For now, just delegate and rely on backend signal if state needs update.
+        self.backend._loading_media=True
+        self.backend.media_player.stop()
+    # -----------------------

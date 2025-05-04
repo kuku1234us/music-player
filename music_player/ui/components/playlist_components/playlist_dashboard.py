@@ -57,7 +57,7 @@ class PlaylistDashboardWidget(QWidget):
         self.add_button = RoundButton(
             parent=self,
             text="+",
-            size=48,  # Same size as player page's open file button
+            diameter=48,  # Same size as player page's open file button
             bg_opacity=0.5
         )
         self.add_button.clicked.connect(self.create_new_playlist_requested)
@@ -65,8 +65,8 @@ class PlaylistDashboardWidget(QWidget):
         # Position the button at bottom center
         self.add_button.setParent(self)
         self.add_button.move(
-            int((self.width() - self.add_button.size) / 2),
-            self.height() - self.add_button.size - 24  # 24px from bottom
+            int((self.width() - self.add_button.diameter) / 2),
+            self.height() - self.add_button.diameter - 24  # 24px from bottom
         )
 
     def resizeEvent(self, event):
@@ -74,8 +74,8 @@ class PlaylistDashboardWidget(QWidget):
         super().resizeEvent(event)
         # Update button position
         self.add_button.move(
-            int((self.width() - self.add_button.size) / 2),
-            self.height() - self.add_button.size - 24  # 24px from bottom
+            int((self.width() - self.add_button.diameter) / 2),
+            self.height() - self.add_button.diameter - 24  # 24px from bottom
         )
 
     # --- Public Methods --- 

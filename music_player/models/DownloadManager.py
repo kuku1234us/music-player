@@ -563,14 +563,14 @@ class DownloadManager(QObject):
             else:
                 # Only log as warning if this wasn't expected (i.e., not a cancellation)
                 if not was_cancelling:
-                    self.logger.warn(caller="DownloadManager", msg=f"Worker finished for {url}, but it wasn't in the active dictionary.")
+                    self.logger.warning(caller="DownloadManager", msg=f"Worker finished for {url}, but it wasn't in the active dictionary.")
 
             if url in self._threads:
                 del self._threads[url] # Remove thread reference
             else:
                 # Only log as warning if this wasn't expected (i.e., not a cancellation)
                 if not was_cancelling:
-                    self.logger.warn(caller="DownloadManager", msg=f"Thread for finished worker {url} not found in dictionary.")
+                    self.logger.warning(caller="DownloadManager", msg=f"Thread for finished worker {url} not found in dictionary.")
                  
             # If this was a cancelled download, update status and move to errors
             if was_cancelling:
@@ -585,7 +585,7 @@ class DownloadManager(QObject):
                     self.logger.debug(caller="DownloadManager", msg=f"Marked {url} as Cancelled and moved to errors list.")
                     need_queue_update = True # Need UI update
                 else:
-                     self.logger.warn(caller="DownloadManager", msg=f"Metadata for cancelled URL {url} was missing.")
+                     self.logger.warning(caller="DownloadManager", msg=f"Metadata for cancelled URL {url} was missing.")
                 
         finally:
             self._mutex.unlock()
@@ -643,7 +643,7 @@ class DownloadManager(QObject):
                     # Ask the thread's event loop to exit
                     thread.quit() 
                 else:
-                    self.logger.warn(caller="DownloadManager", msg=f"Inconsistency during shutdown for URL: {url}. Worker or thread not found.")
+                    self.logger.warning(caller="DownloadManager", msg=f"Inconsistency during shutdown for URL: {url}. Worker or thread not found.")
         finally:
             self._mutex.unlock()
 
@@ -653,7 +653,7 @@ class DownloadManager(QObject):
         for thread in threads_to_wait_for:
             if thread.isRunning(): # Check if it hasn't already finished
                 if not thread.wait(5000): # Wait up to 5 seconds per thread
-                    self.logger.warn(caller="DownloadManager", msg=f"Thread {thread.objectName() if thread.objectName() else thread} did not finish gracefully within timeout during shutdown.")
+                    self.logger.warning(caller="DownloadManager", msg=f"Thread {thread.objectName() if thread.objectName() else thread} did not finish gracefully within timeout during shutdown.")
                     # Force termination if wait fails
                     # thread.terminate() 
                     # thread.wait() # Wait after terminate
@@ -664,4 +664,4 @@ class DownloadManager(QObject):
         if all_finished:
              self.logger.info(caller="DownloadManager", msg="All active download threads finished gracefully.")
         else:
-             self.logger.warn(caller="DownloadManager", msg="Some download threads did not finish gracefully during shutdown.") 
+             self.logger.warning(caller="DownloadManager", msg="Some download threads did not finish gracefully during shutdown.") 

@@ -24,21 +24,22 @@ class VLCBackend(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        # Initialize VLC instance
-        self.instance = vlc.Instance('--no-video')
+        # Initialize VLC instance - Force OpenGL output and disable HW decoding
+        vlc_args = [
+            "--no-video-title-show",
+            "--vout=glwin32",         # Keep forcing OpenGL as a fallback
+            "--avcodec-hw=none"      # Disable hardware decoding
+        ]
+        print(f"[VLCBackend] Initializing VLC instance with args: {vlc_args}")
+        self.instance = vlc.Instance(vlc_args)
         self.media_player = self.instance.media_player_new()
-        self.media_list = self.instance.media_list_new()
-        self.list_player = self.instance.media_list_player_new()
-        
-        # Connect list player to media player
-        self.list_player.set_media_player(self.media_player)
-        self.list_player.set_media_list(self.media_list)
         
         # State tracking
         self.current_media = None
         self.is_playing = False
         self.current_position = 0
         self.current_duration = 0
+        self._loading_media = False
         
         # Set up update timer for position tracking
         self.update_timer = QTimer(self)
@@ -48,6 +49,10 @@ class VLCBackend(QObject):
         # Event handling
         self._setup_events()
         
+        # --- Add HWND storage --- 
+        self._hwnd = None
+        # ----------------------
+        
     def _setup_events(self):
         """Set up VLC event handling"""
         # We use polling with QTimer instead of VLC events for better compatibility
@@ -56,37 +61,64 @@ class VLCBackend(QObject):
         self.update_timer.start()
         
     def load_media(self, media_path):
-        """
-        Load a media file from the specified path.
-        
-        Args:
-            media_path (str): Path to the media file
-        """
-        if not os.path.exists(media_path):
-            self.error_occurred.emit(f"File not found: {media_path}")
-            return False
+        """Load a media file, ensuring cleanup of previous state."""
+        self._loading_media = True
+        try:
+            if not os.path.exists(media_path):
+                self.error_occurred.emit(f"File not found: {media_path}")
+                return False
+
+            # 2. Stop the player
+            print("[VLCBackend] Stopping player for media change.")
+            self.media_player.stop()
+            # Sleep for 1 second to allow VLC to fully cleanup
+            # import time
+            # time.sleep(4)
+
+            # --- Robust Reset (Using media_player) --- 
+            # 1. Detach HWND first
+            if self._hwnd:
+                print("[VLCBackend] Detaching HWND before stopping.")
+                self.media_player.set_hwnd(0)
+
+            # 3. Release previous media object
+            if self.current_media:
+                print("[VLCBackend] Releasing previous media object.")
+                self.current_media.release()
+                self.current_media = None
+            # ---------------------------------------
+
+            print(f"[VLCBackend] Creating new media for: {media_path}")
+            new_media = self.instance.media_new(media_path)
+            if not new_media:
+                self.error_occurred.emit(f"Failed to create media object for: {media_path}")
+                # Attempt to re-attach HWND even on failure?
+                if self._hwnd:
+                    self.media_player.set_hwnd(self._hwnd)
+                return False
             
-        # Create a new media object
-        self.current_media = self.instance.media_new(media_path)
-        
-        # Create a new media list instead of trying to clear the existing one
-        self.list_player.stop()
-        self.media_list = self.instance.media_list_new()
-        self.media_list.add_media(self.current_media)
-        self.list_player.set_media_list(self.media_list)
-        
-        # Register for parse complete event
-        event_manager = self.current_media.event_manager()
-        event_manager.event_attach(vlc.EventType.MediaParsedChanged, self._on_media_parsed)
-        
-        # Parse the media to extract metadata
-        self.current_media.parse_with_options(vlc.MediaParseFlag.local, -1)
-        
-        # Play the media
-        self.list_player.play_item(self.current_media)
-        self.pause()  # Start in paused state
-        
-        return True
+            self.current_media = new_media
+
+            # 5. Set media directly on media_player
+            print("[VLCBackend] Setting media on media_player.")
+            self.media_player.set_media(self.current_media)
+
+            # 6. Re-attach HWND immediately
+            if self._hwnd:
+                print(f"[VLCBackend] Re-attaching HWND: {self._hwnd}")
+                self.media_player.set_hwnd(self._hwnd)
+
+            # 7. Register for parsing
+            event_manager = self.current_media.event_manager()
+            event_manager.event_attach(vlc.EventType.MediaParsedChanged, self._on_media_parsed)
+
+            # 8. Parse media
+            print("[VLCBackend] Starting media parse.")
+            self.current_media.parse_with_options(vlc.MediaParseFlag.local, -1)
+
+            return True
+        finally:
+            self._loading_media = False
         
     def _on_media_parsed(self, event):
         """
@@ -229,6 +261,9 @@ class VLCBackend(QObject):
         
     def _update_position(self):
         """Update the current position and emit related signals"""
+        if self._loading_media:
+            return
+        
         if not self.current_media:
             return
         
@@ -272,28 +307,35 @@ class VLCBackend(QObject):
         """Start or resume playback"""
         if not self.current_media:
             return False
-            
-        self.list_player.play()
+
+        print("[VLCBackend] Play command received.")
+        play_result = self.media_player.play()
+        if play_result == -1:
+             print("[VLCBackend] Error starting playback.")
+             self.is_playing = False
+             self.state_changed.emit("error")
+             return False
+             
         self.is_playing = True
         self.state_changed.emit("playing")
         return True
         
     def pause(self):
         """Pause playback"""
-        if not self.current_media:
+        if not self.current_media or not self.media_player.is_playing():
             return False
             
-        self.list_player.pause()
+        self.media_player.set_pause(1)
         self.is_playing = False
         self.state_changed.emit("paused")
         return True
         
     def stop(self):
         """Stop playback"""
-        if not self.current_media:
-            return False
-            
-        self.list_player.stop()
+        print("[VLCBackend] Stop command received via stop method.")
+        stop_result = self.media_player.stop()
+        print(f"[VLCBackend] media_player.stop() returned: {stop_result}")
+
         self.is_playing = False
         self.state_changed.emit("stopped")
         return True
@@ -313,9 +355,9 @@ class VLCBackend(QObject):
         if current_state == vlc.State.Ended:
             # When seeking after end of media, we need to reset
             # the player state to ensure seeking works correctly
-            self.list_player.stop()
-            self.list_player.play()
-            self.list_player.pause()
+            self.media_player.stop()
+            self.media_player.play()
+            self.media_player.pause()
         
         # Now perform the seek
         self.media_player.set_time(position_ms)
@@ -379,13 +421,15 @@ class VLCBackend(QObject):
     def cleanup(self):
         """Clean up resources"""
         self.update_timer.stop()
+        print("[VLCBackend Cleanup] Stopping media player.")
         self.stop()
-        
+
         # Release resources
+        print("[VLCBackend Cleanup] Releasing media player.")
         self.media_player.release()
-        self.list_player.release()
-        self.media_list.release()
+        print("[VLCBackend Cleanup] Releasing VLC instance.")
         self.instance.release()
+        print("[VLCBackend Cleanup] Cleanup finished.")
         
     def __del__(self):
         """Destructor to ensure cleanup"""
@@ -416,4 +460,17 @@ class VLCBackend(QObject):
         except Exception as e:
             print(f"Error getting media path: {e}")
             
-        return None 
+        return None
+
+    # --- Add method to set video output --- 
+    def set_video_output(self, hwnd):
+        """Set the window handle for video output."""
+        self._hwnd = hwnd
+        if self._hwnd:
+            self.media_player.set_hwnd(self._hwnd)
+            print(f"[VLCBackend] HWND set to: {self._hwnd}")
+        else:
+            # If hwnd is None, detach output (might not be strictly needed but good practice)
+            self.media_player.set_hwnd(0)
+            print("[VLCBackend] HWND detached.")
+    # ------------------------------------- 

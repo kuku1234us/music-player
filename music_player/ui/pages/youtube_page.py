@@ -91,7 +91,7 @@ class YoutubePage(QWidget):
         url = self.video_input.get_url()
         if not url:
             # Use logger
-            self.logger.warn(self.__class__.__name__, "Add download clicked, but no URL entered.")
+            self.logger.warning(self.__class__.__name__, "Add download clicked, but no URL entered.")
             return
             
         format_options = self.video_input.get_format_options()
@@ -124,13 +124,13 @@ class YoutubePage(QWidget):
             self.video_input.set_url(url)
         else:
              # Use logger for warning
-             self.logger.warn(self.__class__.__name__, "VideoInput does not have set_url method. Cannot update UI field.")
+             self.logger.warning(self.__class__.__name__, "VideoInput does not have set_url method. Cannot update UI field.")
              # Fallback: Try setting the text directly if possible (might need access to url_input)
              if hasattr(self.video_input, 'url_input'):
                   self.video_input.url_input.setText(url)
              else:
                   # Use logger for warning
-                  self.logger.warn(self.__class__.__name__, "Cannot access VideoInput's QLineEdit to set URL.")
+                  self.logger.warning(self.__class__.__name__, "Cannot access VideoInput's QLineEdit to set URL.")
         
         # 2. Determine download options
         options = {}
@@ -151,17 +151,18 @@ class YoutubePage(QWidget):
         elif format_type == "video":
             # Use logger
             self.logger.info(self.__class__.__name__, "Using default VIDEO options for protocol download (720p MP4)." )
+            # Use local options dictionary for consistency
             options = {
-                # Prefer 720p MP4, fallback gracefully
-                'format': 'bestvideo[height<=?720][ext=mp4]+bestaudio[ext=m4a]/best[height<=?720][ext=mp4]/best[ext=mp4]/best', 
-                'merge_output_format': 'mp4', # Ensure MP4 merging
-                'use_cookies': True,         # Use Firefox cookies by default
-                # Set subtitle options explicitly to False/None
+                'format': 'bestvideo[height<=?720][ext=mp4][vcodec!*=av01]+bestaudio[ext=m4a]/best[height<=?720][ext=mp4][vcodec!*=av01]/best[ext=mp4][vcodec!*=av01]/best[vcodec!*=av01]',
+                # 'outtmpl': os.path.join(output_dir_str, '%(title)s [%(id)s].%(ext)s'), # outtmpl is handled by DownloadManager
+                'postprocessors': [],
+                'merge_output_format': 'mp4', # Ensure MP4 merging for video+audio
+                'use_cookies': True, # Also use cookies for video
+                # Explicitly disable subtitles
                 'writesubtitles': False,
                 'writeautomaticsub': False,
                 'subtitleslangs': None,
                 'subtitlesformat': None,
-                # Other relevant options (like resolution) are implicitly handled by format string
             }
         else:
             # Use logger
@@ -182,6 +183,7 @@ class YoutubePage(QWidget):
         # 4. Call DownloadManager
         # Use logger
         self.logger.info(self.__class__.__name__, f"Adding download via auto_add_download: URL={url}, Dir={output_dir_str}, Options={options}")
+        # Pass the local options dictionary
         self.download_manager.add_download(url, options, output_dir_str)
         
         # Do NOT clear URL input here, as the user didn't type it
@@ -193,37 +195,3 @@ class YoutubePage(QWidget):
         # Use logger
         self.logger.info(self.__class__.__name__, "Shown.")
 
-    # --- Slots --- 
-
-    # REMOVE the following slots as DownloadQueue handles these updates directly
-    # @pyqtSlot(str, str, QPixmap)
-    # def _on_download_started(self, url, title, thumbnail):
-    #     print(f"[YoutubePage] Download started signal: {url}")
-    #     # Pass update to the queue component
-    #     self.download_queue.add_or_update_item(url, title, thumbnail)
-
-    # @pyqtSlot(str, float, str)
-    # def _on_download_progress(self, url, progress, status):
-    #     print(f"[YoutubePage] Download progress signal: {url} - {progress}%")
-    #     # Pass update to the queue component
-    #     self.download_queue.update_item_progress(url, progress, status)
-
-    # @pyqtSlot(str, str, str)
-    # def _on_download_complete(self, url, output_dir, filename):
-    #     print(f"[YoutubePage] Download complete signal: {url}")
-    #     # Pass update to the queue component
-    #     self.download_queue.update_item_status(url, "Complete", f"{filename}")
-
-    # @pyqtSlot(str, str)
-    # def _on_download_error(self, url, error_message):
-    #     print(f"[YoutubePage] Download error signal: {url} - {error_message}")
-    #     # Pass update to the queue component
-    #     self.download_queue.update_item_status(url, "Error", error_message)
-
-    # @pyqtSlot()
-    # def _on_queue_updated(self):
-    #     print(f"[YoutubePage] Queue updated signal received.")
-    #     # Tell the queue component to refresh its display
-    #     # self.download_queue.refresh_display() # Assuming a method like this exists
-
-    # ... showEvent remains the same ...

@@ -167,7 +167,7 @@ class Logger:
             return
         self._logger.info(msg, *args, extra={'caller': caller}, **kwargs)
 
-    def warn(self, caller: str, msg: str, *args, **kwargs):
+    def warning(self, caller: str, msg: str, *args, **kwargs):
         """Logs a WARNING message (as WARN), prepended with the caller name."""
         if not self._initialized or self._logger is None:
             print(f"[Logger Not Configured] WARN from {caller}: {msg}", file=sys.stderr)

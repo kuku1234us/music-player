@@ -153,33 +153,30 @@ This combination of media type detection in the backend, signal-based communicat
 - [x] **6.1 Create `VideoWidget`:**
     - [x] Create `music_player/ui/components/player_components/video_widget.py` containing a basic `VideoWidget` class inheriting from `QWidget`.
     - [x] Set a default background color (e.g., black) for the widget.
-- [ ] **6.2 Modify `MainPlayer` (Core Video Logic):**
-    - [ ] Add `_video_widget: Optional[VideoWidget] = None` instance variable (stores reference to the display surface).
-    - [ ] Implement `set_video_widget(self, widget: VideoWidget)` method:
-        - [ ] Store the `widget` reference in `self._video_widget`.
-        - [ ] Include platform-specific VLC calls (`set_hwnd`/`set_xwindow`/`set_nsobject`) using `self.media_player` and the passed `widget.winId()`.
-    - [ ] Define the new signal `media_type_determined = pyqtSignal(bool)`.
-    - [ ] Implement media type detection logic within `MainPlayer` (e.g., using VLC functions like `video_get_track_count()` after media parsing).
-    - [ ] Integrate media type detection into key media loading methods (`_load_and_play_path`, `load_playlist`, `play_track_from_playlist`, `play_single_file`).
-    - [ ] Ensure the `media_type_determined` signal is emitted *after* detection within the relevant loading methods, passing `True` for video, `False` for audio.
-- [ ] **6.3 Modify `PlayerPage.setup_ui` (Layout):**
-    - [ ] Import the new `VideoWidget` from its file.
-    - [ ] Instantiate `self.video_widget = VideoWidget()`.
-    - [ ] Instantiate `self.media_display_stack = QStackedWidget()`.
-    - [ ] Add `self.album_art_widget` to the stack (index 0).
-    - [ ] Add `self.video_widget` to the stack (index 1).
-    - [ ] Replace the direct layout insertion of `self.album_art_widget` with `self.media_display_stack`.
-    - [ ] Ensure the initial stack index is set to 0 (show album art by default).
-- [ ] **6.4 Modify `PlayerPage.__init__` (Signal Connection):**
-    - [ ] Connect the `MainPlayer.media_type_determined` signal to a new slot `_on_media_type_determined` in `PlayerPage`.
-- [ ] **6.5 Implement `PlayerPage._on_media_type_determined` Slot (Display Switching):**
-    - [ ] Implement the `_on_media_type_determined(self, is_video: bool)` slot.
-    - [ ] Inside the slot, set `self.media_display_stack.setCurrentIndex(1)` if `is_video` is True.
-    - [ ] Set `self.media_display_stack.setCurrentIndex(0)` if `is_video` is False.
-    - [ ] Ensure album art loading logic is still triggered appropriately when `is_video` is False.
-- [ ] **6.6 Implement `PlayerPage` Window Handle Passing:**
-    - [ ] Override `showEvent(self, event)` in `PlayerPage` (or find another suitable method called after the UI is fully realized).
-    - [ ] Inside `showEvent` (after `super().showEvent(event)`), call `self.player.set_video_widget(self.video_widget)`, passing the instance of the created `VideoWidget`.
+- [x] **6.2 Modify `MainPlayer` (Core Video Logic):**
+    - [x] Add `_video_widget` attribute.
+    - [x] Add `set_video_widget(widget)` method (including platform-specific VLC calls).
+    - [x] Add `media_type_determined = pyqtSignal(bool)` signal.
+    - [x] Implement media type detection (audio vs video) during media loading.
+    - [x] Emit `media_type_determined` signal after detection.
+- [x] **6.3 Modify `PlayerPage.setup_ui` (Layout):**
+    - [x] Import the new `VideoWidget` from its file.
+    - [x] Instantiate `self.video_widget = VideoWidget()`.
+    - [x] Instantiate `self.media_display_stack = QStackedWidget()`.
+    - [x] Add `self.album_art_widget` to the stack (index 0).
+    - [x] Add `self.video_widget` to the stack (index 1).
+    - [x] Replace the direct layout insertion of `self.album_art_widget` with `self.media_display_stack`.
+    - [x] Ensure the initial stack index is set to 0 (show album art by default).
+- [x] **6.4 Modify `PlayerPage.__init__` (Signal Connection):**
+    - [x] Connect the `MainPlayer.media_type_determined` signal to a new slot `_on_media_type_determined` in `PlayerPage`.
+- [x] **6.5 Implement `PlayerPage._on_media_type_determined` Slot (Display Switching):**
+    - [x] Implement the `_on_media_type_determined(self, is_video: bool)` slot.
+    - [x] Inside the slot, set `self.media_display_stack.setCurrentIndex(1)` if `is_video` is True.
+    - [x] Set `self.media_display_stack.setCurrentIndex(0)` if `is_video` is False.
+    - [x] Ensure album art loading logic is still triggered appropriately when `is_video` is False.
+- [x] **6.6 Implement `PlayerPage` Window Handle Passing:**
+    - [x] Override `showEvent(self, event)` in `PlayerPage` (or find another suitable method called after the UI is fully realized).
+    - [x] Inside `showEvent` (after `super().showEvent(event)`), call `self.player.set_video_widget(self.video_widget)`, passing the instance of the created `VideoWidget`.
 - [ ] **6.7 Testing:**
     - [ ] Test with various audio files (MP3, FLAC) - should show album art correctly.
     - [ ] Test with various video files (MP4, MKV, AVI) - should show video playback.

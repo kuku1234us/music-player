@@ -122,7 +122,7 @@ class CLIDownloadWorker(QObject):
             
             # Safety check before entering loop
             if local_process is None or self.cancelled:
-                self.logger.warn(caller="CLIDownloadWorker", msg="Process terminated or cancelled before output processing started")
+                self.logger.warning(caller="CLIDownloadWorker", msg="Process terminated or cancelled before output processing started")
                 # Ensure finished signal is emitted even if we exit early
                 # The finally block will handle this.
                 return
@@ -213,7 +213,7 @@ class CLIDownloadWorker(QObject):
                         local_process.wait(timeout=5)
                         self.logger.debug(caller="CLIDownloadWorker", msg="Main process terminated gracefully.")
                     except subprocess.TimeoutExpired:
-                        self.logger.warn(caller="CLIDownloadWorker", msg="Main process kill after timeout...")
+                        self.logger.warning(caller="CLIDownloadWorker", msg="Main process kill after timeout...")
                         try:
                             local_process.kill()
                             local_process.wait(timeout=2) # Wait after kill
@@ -230,7 +230,7 @@ class CLIDownloadWorker(QObject):
                             if pipe and not pipe.closed:
                                 pipe.close()
                         except Exception as e_pipe:
-                            self.logger.warn(caller="CLIDownloadWorker", msg=f"Ignoring error closing pipe: {e_pipe}")
+                            self.logger.warning(caller="CLIDownloadWorker", msg=f"Ignoring error closing pipe: {e_pipe}")
                             pass # Ignore errors closing pipes
 
                     # 3. Reap children (ffmpeg etc.) using psutil
@@ -249,18 +249,18 @@ class CLIDownloadWorker(QObject):
                                     except psutil.NoSuchProcess:
                                         pass # Child already gone
                                     except Exception as e_child:
-                                        self.logger.warn(caller="CLIDownloadWorker", msg=f"Ignoring error killing child {child.pid}: {e_child}")
+                                        self.logger.warning(caller="CLIDownloadWorker", msg=f"Ignoring error killing child {child.pid}: {e_child}")
                             else:
                                 self.logger.debug(caller="CLIDownloadWorker", msg="No child processes found.")
                         except psutil.NoSuchProcess:
-                            self.logger.warn(caller="CLIDownloadWorker", msg=f"Main process {pid_to_check} not found for child reaping.")
+                            self.logger.warning(caller="CLIDownloadWorker", msg=f"Main process {pid_to_check} not found for child reaping.")
                         except Exception as e_psutil:
                             self.logger.error(caller="CLIDownloadWorker", msg=f"Error during psutil child reaping: {e_psutil}")
                     else: 
-                         self.logger.warn(caller="CLIDownloadWorker", msg="Invalid PID, skipping child process kill.")
+                         self.logger.warning(caller="CLIDownloadWorker", msg="Invalid PID, skipping child process kill.")
 
                 else: # if not local_process
-                    self.logger.warn(caller="CLIDownloadWorker", msg="No active process found for shutdown sequence.")
+                    self.logger.warning(caller="CLIDownloadWorker", msg="No active process found for shutdown sequence.")
                 # --- End Shutdown Sequence ---
                 
                 # 4. Give the kernel a moment
@@ -293,9 +293,9 @@ class CLIDownloadWorker(QObject):
                         return_code = local_process.wait(timeout=10) # Wait longer if finishing normally
                         self.logger.info(caller="CLIDownloadWorker", msg=f"Process finished naturally with code: {return_code}")
                     else:
-                         self.logger.warn(caller="CLIDownloadWorker", msg="Process was None before final wait.")
+                         self.logger.warning(caller="CLIDownloadWorker", msg="Process was None before final wait.")
                 except subprocess.TimeoutExpired:
-                    self.logger.warn(caller="CLIDownloadWorker", msg="Process wait timeout expired after expected completion.")
+                    self.logger.warning(caller="CLIDownloadWorker", msg="Process wait timeout expired after expected completion.")
                     return_code = -1 # Treat timeout as error
                     # Attempt to kill if timed out waiting
                     if local_process: 
@@ -323,7 +323,7 @@ class CLIDownloadWorker(QObject):
                 # ---> PROCESS ERROR (If exited with non-zero code) <--- 
                 if return_code is not None and return_code != 0:
                     error_msg = f"yt-dlp process exited with code {return_code}"
-                    self.logger.warn(caller="CLIDownloadWorker", msg=f"{error_msg} (Cancelled: {self.cancelled}) URL: {self.url}") 
+                    self.logger.warning(caller="CLIDownloadWorker", msg=f"{error_msg} (Cancelled: {self.cancelled}) URL: {self.url}") 
                 
                     # Try to get specific error from stderr captured above
                     if stderr_output:
@@ -357,14 +357,14 @@ class CLIDownloadWorker(QObject):
                         self.logger.info(caller="CLIDownloadWorker", msg=f"Assuming last tracked media destination is final file: {self.downloaded_filename}")
                     else:
                         # If only subtitles were tracked or none at all
-                        self.logger.warn(caller="CLIDownloadWorker", msg="No media filename captured directly via tracking.")
+                        self.logger.warning(caller="CLIDownloadWorker", msg="No media filename captured directly via tracking.")
                         # Note: Disk scan fallback was removed as unreliable. We rely on Merger or last media file.
                         # If we reach here, self.downloaded_filename remains None.
 
                 if self.downloaded_filename:
                      final_filepath = os.path.join(self.output_dir, self.downloaded_filename)
                      if not os.path.exists(final_filepath):
-                          self.logger.warn(caller="CLIDownloadWorker", msg=f"Warning: Final file '{self.downloaded_filename}' not found at expected location: {final_filepath}")
+                          self.logger.warning(caller="CLIDownloadWorker", msg=f"Warning: Final file '{self.downloaded_filename}' not found at expected location: {final_filepath}")
                      self.complete_signal.emit(self.url, self.output_dir, self.downloaded_filename)
                      # Update timestamp
                      if os.path.isfile(final_filepath):
@@ -386,7 +386,7 @@ class CLIDownloadWorker(QObject):
             if not self.cancelled:
                 self.error_signal.emit(self.url, f"Unhandled Error in worker: {error_message}")
             else:
-                self.logger.warn(caller="CLIDownloadWorker", msg=f"Error during cancellation/shutdown: {error_message}")
+                self.logger.warning(caller="CLIDownloadWorker", msg=f"Error during cancellation/shutdown: {error_message}")
         finally:
             # --- EMIT FINISHED SIGNAL --- 
             self.logger.info(caller="CLIDownloadWorker", msg=f"Worker finished execution for {self.url}. Emitting finished signal.")
@@ -593,7 +593,7 @@ class CLIDownloadWorker(QObject):
                             removed_part = True
                             break # Exit retry loop if successful
                     except PermissionError:
-                        self.logger.warn(caller="CLIDownloadWorker", msg=f"File in use (delay={delay}), waiting: {os.path.basename(part_file_path)}")
+                        self.logger.warning(caller="CLIDownloadWorker", msg=f"File in use (delay={delay}), waiting: {os.path.basename(part_file_path)}")
                         time.sleep(delay)
                     except FileNotFoundError:
                         removed_part = True # File gone is success for cleanup
@@ -603,7 +603,7 @@ class CLIDownloadWorker(QObject):
                         removed_part = True # Assume we can't remove it, stop retrying
                         break 
                 if not removed_part:
-                     self.logger.warn(caller="CLIDownloadWorker", msg=f"Failed to remove {os.path.basename(part_file_path)} after retries.")
+                     self.logger.warning(caller="CLIDownloadWorker", msg=f"Failed to remove {os.path.basename(part_file_path)} after retries.")
 
                 # Try to remove the base temporary file with exponential backoff
                 removed_base = False
@@ -622,7 +622,7 @@ class CLIDownloadWorker(QObject):
                             removed_base = True
                             break # Exit retry loop if successful
                     except PermissionError:
-                        self.logger.warn(caller="CLIDownloadWorker", msg=f"File in use (delay={delay}), waiting: {filename}")
+                        self.logger.warning(caller="CLIDownloadWorker", msg=f"File in use (delay={delay}), waiting: {filename}")
                         time.sleep(delay)
                     except FileNotFoundError:
                         removed_base = True
@@ -632,7 +632,7 @@ class CLIDownloadWorker(QObject):
                         removed_base = True
                         break
                 if not removed_base:
-                    self.logger.warn(caller="CLIDownloadWorker", msg=f"Failed to remove {filename} after retries.")
+                    self.logger.warning(caller="CLIDownloadWorker", msg=f"Failed to remove {filename} after retries.")
                     
             except Exception as e:
                 self.logger.error(caller="CLIDownloadWorker", msg=f"Error during cleanup preparation for {filename}: {str(e)}")
@@ -663,7 +663,7 @@ class CLIDownloadWorker(QObject):
                                 cleaned_count += 1
                             except Exception as e:
                                 # Log non-permission errors more visibly?
-                                self.logger.warn(caller="CLIDownloadWorker", msg=f"Error removing glob match {os.path.basename(file_path)}: {str(e)}")
+                                self.logger.warning(caller="CLIDownloadWorker", msg=f"Error removing glob match {os.path.basename(file_path)}: {str(e)}")
             else:
                 self.logger.debug(caller="CLIDownloadWorker", msg="No valid prefixes for targeted glob cleanup")
         except Exception as e:
