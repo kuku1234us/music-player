@@ -356,8 +356,7 @@ class BrowserPage(QWidget):
             self.file_table.show() # Show the table directly
 
     def _on_file_double_clicked(self, filepath):
-        if filepath and os.path.isfile(filepath):
-            self.play_single_file_requested.emit(filepath)
+        self.play_single_file_requested.emit(filepath)
 
     def _on_directory_double_clicked(self, dirpath):
         if dirpath and os.path.isdir(dirpath):

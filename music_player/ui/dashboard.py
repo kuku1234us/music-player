@@ -2,7 +2,7 @@
 Main dashboard window for the Music Player application.
 """
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
-from PyQt6.QtCore import Qt, QSize, pyqtSlot
+from PyQt6.QtCore import Qt, QSize, pyqtSlot, QTimer
 from PyQt6.QtGui import QFontDatabase, QFont, QCloseEvent
 import os
 from pathlib import Path
@@ -189,7 +189,8 @@ class MusicPlayerDashboard(BaseWindow):
             playlists_page.play_mode_widget.selection_pool_widget.play_single_file_requested.connect(self.player.play_single_file)
             
         if hasattr(browser_page, 'play_single_file_requested') and hasattr(self.player, 'play_single_file'):
-            browser_page.play_single_file_requested.connect(self.player.play_single_file)
+            # Connect BrowserPage signal to the NEW dashboard handler
+            browser_page.play_single_file_requested.connect(self._handle_single_file_request)
         
         # Connect signals from DashboardPage for recently played items
         if hasattr(dashboard_page, 'play_single_file_requested'):
@@ -198,6 +199,11 @@ class MusicPlayerDashboard(BaseWindow):
         if hasattr(dashboard_page, 'play_playlist_requested'):
             dashboard_page.play_playlist_requested.connect(self._handle_play_playlist_from_dashboard)
         
+        # --- Connect video detection signal to navigation --- 
+        if hasattr(self.player, 'video_media_detected'): # Use new signal name
+            self.player.video_media_detected.connect(self._navigate_if_video)
+        # --------------------------------------------------
+
         # Show the dashboard page initially
         self.show_page('dashboard')
         
@@ -232,10 +238,19 @@ class MusicPlayerDashboard(BaseWindow):
     def _handle_play_single_from_dashboard(self, filepath: str):
         """Handles request from dashboard to play a single file and navigate."""
         if self.player and hasattr(self.player, 'play_single_file'):
-            self.player.play_single_file(filepath)
+            # 1. Navigate to the player page FIRST
             self.show_page('player')
             self.sidebar.set_selected_item('player')
-            
+
+            # 2. Initiate playback AFTER the page is shown
+            #    This ensures PlayerPage.showEvent runs and sets the video widget handle
+            # Use QTimer.singleShot to slightly delay playback initiation,
+            # allowing the UI to fully switch and the widget handle to become valid.
+            QTimer.singleShot(50, lambda: self.player.play_single_file(filepath))
+
+            # Original immediate call (commented out):
+            # self.player.play_single_file(filepath)
+
     def _handle_play_playlist_from_dashboard(self, playlist: Playlist):
         """Handles request from dashboard to play a playlist and navigate."""
         # Get the playlists page instance
@@ -250,6 +265,59 @@ class MusicPlayerDashboard(BaseWindow):
         else:
             print("[Dashboard] Error: Could not find PlaylistsPage or _enter_play_mode method.")
     
+    @pyqtSlot()
+    def _navigate_if_video(self):
+        """Navigates to the PlayerPage when video media is detected."""
+        # No need to check is_video anymore, the signal only fires for video.
+        
+        if self.player and hasattr(self.player, '_video_widget') and self.player._video_widget:
+                self.player._video_widget.setVisible(True)
+                video_widget_was_hidden = False
+
+        # Determine the current page ID
+        current_widget = self.content_stack.currentWidget()
+        current_page_id = None
+        for page_id, page_widget in self.pages.items():
+            if page_widget == current_widget:
+                current_page_id = page_id
+                break
+
+        # Navigate only if not already on the player page
+        if current_page_id != 'player':
+            self.logger.info(self.__class__.__name__, "Video media detected, navigating to PlayerPage.")
+            self.show_page('player')
+            self.sidebar.set_selected_item('player')
+        else:
+            self.logger.info(self.__class__.__name__, "Video media detected, but already on PlayerPage.")
+
+    @pyqtSlot(str)
+    def _handle_single_file_request(self, filepath: str):
+        """
+        Handles request to play a single file, ensuring PlayerPage is visible first.
+        """
+        self.logger.info(self.__class__.__name__, f"Handling single file request: {filepath}, switching to PlayerPage.")
+
+        # --- HIDE VIDEO WIDGET before media type is determined ---
+        video_widget_was_hidden = False
+        if self.player and hasattr(self.player, '_video_widget') and self.player._video_widget:
+                self.player._video_widget.setVisible(False)
+                video_widget_was_hidden = True # Keep track if we hid it
+        # -------------------------------------
+
+        # 2. Tell the player to play the file (with delay)
+        if self.player and hasattr(self.player, 'play_single_file'):
+            # Use QTimer.singleShot to give UI time to update before player starts
+            # This helps ensure the video widget handle is valid when needed.
+            # The player's loading logic will handle making the video widget visible again
+            # if the loaded media is actually video.
+            QTimer.singleShot(50, lambda fp=filepath: self.player.play_single_file(fp))
+        else:
+            self.logger.error(self.__class__.__name__, "Player instance not found or missing 'play_single_file' method.")
+            # If player failed, restore visibility if we hid it
+            if video_widget_was_hidden and self.player and hasattr(self.player, '_video_widget') and self.player._video_widget:
+                 self.logger.warning(self.__class__.__name__, "Player error, restoring video widget visibility.")
+                 self.player._video_widget.setVisible(True)
+
     def _on_track_changed(self, metadata):
         """Handle track change events"""
         # Update window title with song info

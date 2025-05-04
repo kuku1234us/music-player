@@ -71,7 +71,7 @@ class PlayerPage(QWidget):
         self.mouse_tracking_timer.setInterval(100) # Check every 100ms
         self.mouse_tracking_timer.timeout.connect(self._check_mouse_over_video)
         # ------------------------------
-
+        
         self.setup_ui()
     
     def _connect_oplayer_signals(self):
@@ -130,7 +130,7 @@ class PlayerPage(QWidget):
         # --- Connect Stop Signal --- 
         self.player_overlay.stopClicked.connect(self._on_stop_clicked) # New connection
         # ---------------------------
-
+        
         # Create upload status overlay
         self.upload_status = UploadStatusOverlay(self)
         
@@ -149,7 +149,7 @@ class PlayerPage(QWidget):
         if self.persistent_player:
             # Original call
             self.persistent_player.load_media()
-
+    
     def _on_oplayer_upload_clicked(self):
         """Handle OPlayer upload button click"""
         if not self.persistent_player:
@@ -231,13 +231,13 @@ class PlayerPage(QWidget):
     def showEvent(self, event):
         """
         Override show event to connect to the persistent player.
-
+        
         Args:
             event: The show event
         """
         # print("[PlayerPage STANDALONE TEST] showEvent triggered.")
         super().showEvent(event)
-
+        
         # --- RESTORED: Persistent player logic ---
         # Set a larger minimum size for the album art when shown
         window_size = self.size()
@@ -245,7 +245,7 @@ class PlayerPage(QWidget):
         # self.album_art.setMinimumSize(min_dimension, min_dimension)
         # Set minimum size on the stack instead if desired
         # self.media_display_stack.setMinimumSize(min_dimension, min_dimension)
-
+        
         # Find the persistent player if we haven't already
         if not self.persistent_player:
             # Navigate up to find the dashboard
@@ -266,7 +266,7 @@ class PlayerPage(QWidget):
         else: # Player exists but no video_widget?
              print("[PlayerPage] Warning: Persistent player found in showEvent, but no video_widget attribute.")
         # ------------------------------------------------------------------------
-
+    
     def keyPressEvent(self, event):
         """
         Handle key events at the page level.
@@ -292,65 +292,51 @@ class PlayerPage(QWidget):
         #     # self._test_vlc_instance = None
         super().hideEvent(event)
 
-    def set_persistent_player(self, player):
-        """
-        Set the persistent player instance directly.
-        This is called from MusicPlayerDashboard during initialization.
-        
-        Args:
-            player: The MainPlayer instance
-        """
+    def set_persistent_player(self, player: 'MainPlayer'):
+        """ Sets the persistent player instance and connects signals. """
         self.persistent_player = player
-        
-        # Disconnect any existing connections first to avoid duplicates
-        try:
-            self.persistent_player.track_changed.disconnect(self._update_track_info)
-            self.persistent_player.player_widget.rate_changed.disconnect(self._on_rate_changed)
-            # Also disconnect the new signal if reconnecting
-            self.persistent_player.media_type_determined.disconnect(self._on_media_type_determined)
-        except:
-            pass  # No connection existed
+
+        # --- Connect player signals --- 
+        if self.persistent_player:
+            # Connect media type determination to stack switcher
+            if hasattr(self.persistent_player, 'video_media_detected'):
+                self.persistent_player.video_media_detected.connect(self._on_media_type_determined)
             
-        # Connect to track changed signal
-        self.persistent_player.track_changed.connect(self._update_track_info)
-        
-        # Connect to rate changed signal
-        self.persistent_player.player_widget.rate_changed.connect(self._on_rate_changed)
-        
-        # --- NEW: Connect to media type determined signal --- 
-        self.persistent_player.media_type_determined.connect(self._on_media_type_determined)
-        # -----------------------------------------------------
-        
-        # Set a minimum size for the album art
-        self.album_art.setMinimumSize(400, 400)
-        
-        # Immediately fetch and display current track info if available
-        current_metadata = self.persistent_player.get_current_track_metadata()
-        if current_metadata:
-            self._update_track_info(current_metadata)
-        
-        # Direct access to artwork path as fallback
-        if hasattr(self.persistent_player, 'get_current_artwork_path'):
-            artwork_path = self.persistent_player.get_current_artwork_path()
-            if artwork_path:
-                self.album_art.set_image(artwork_path)
-                self.album_art.setVisible(True)
-                self.album_art.update()
-                
-        # Force an update
-        self.update()
-        QTimer.singleShot(100, self.update)  # Schedule another update after event processing
+            # --- ADD HWND SETUP HERE --- 
+            # Set the video widget handle in the player *immediately* when connected
+            if hasattr(self.persistent_player, 'set_video_widget') and self.video_widget:
+                print("[PlayerPage] Setting video widget in persistent player during connection.")
+                self.persistent_player.set_video_widget(self.video_widget)
+            # ---------------------------
+
+            # Update UI immediately with current player state/media if available
+            # Get current media info
+            current_metadata = self.persistent_player.get_current_track_metadata()
+            if current_metadata:
+                self._update_track_info(current_metadata)
+            
+            # Direct access to artwork path as fallback
+            if hasattr(self.persistent_player, 'get_current_artwork_path'):
+                artwork_path = self.persistent_player.get_current_artwork_path()
+                if artwork_path:
+                    self.album_art.set_image(artwork_path)
+                    self.album_art.setVisible(True)
+                    self.album_art.update()
+            
+            # Force an update
+            self.update()
+            QTimer.singleShot(100, self.update)  # Schedule another update after event processing
 
     def resizeEvent(self, event):
         """Handle resize event to position stack and overlays."""
         super().resizeEvent(event)
-
+        
         page_rect = self.rect()
 
         # --- Position Media Stack ---
         # Make the stack fill the entire page
         self.media_display_stack.setGeometry(page_rect)
-
+        
         # --- Position Player Overlay ---
         overlay_margin = 20
         overlay_size = self.player_overlay.sizeHint() # Get preferred size

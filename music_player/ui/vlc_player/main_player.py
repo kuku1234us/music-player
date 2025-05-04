@@ -36,7 +36,7 @@ class MainPlayer(QWidget):
     playback_state_changed = pyqtSignal(str)  # "playing", "paused", "ended", "error"
     media_changed = pyqtSignal(str, str, str, str)  # title, artist, album, artwork_path
     playback_mode_changed = pyqtSignal(str) # Emits 'single' or 'playlist'
-    media_type_determined = pyqtSignal(bool) # True if video, False if audio <-- NEW SIGNAL
+    video_media_detected = pyqtSignal(bool) # <-- NEW SIGNAL: Emits True if video, False otherwise
     
     def __init__(self, parent=None, persistent_mode=False):
         super().__init__(parent)
@@ -547,13 +547,11 @@ class MainPlayer(QWidget):
     
     def load_media(self):
         """Open a file dialog to select and load a SINGLE media file. Sets mode to 'single'."""
-        # --- Hide Video Widget Logic (Moved Earlier - Correct Version) --- 
-        video_was_hidden = False
-        if self._video_widget and self._video_widget.isVisible():
-            print("[MainPlayer] Hiding video widget before opening file dialog.")
-            self._video_widget.setVisible(False)
-            video_was_hidden = True
-        # --------------------------------------------------------------
+
+        # --- HIDE VIDEO WIDGET before opening file dialog ---
+        self._video_widget.setVisible(False)
+        video_was_hidden = True
+        # -----------------------
 
         last_dir = self.settings.get('player/last_directory', os.path.expanduser("~"), SettingType.STRING)
         
@@ -575,21 +573,25 @@ class MainPlayer(QWidget):
             try:
                 self._load_and_play_path(file_path)
             finally:
-                # Restore logic (depends on media type)
-                if video_was_hidden and self._video_widget:
+                # --- KEEP THIS RESTORE LOGIC ---
+                # This is needed because the media type isn't known until AFTER loading.
+                if self._video_widget: # <-- We need to remove the 'video_was_hidden' check here
                      if self._is_current_media_video:
                          print("[MainPlayer] New media is video, restoring video widget visibility.")
                          self._video_widget.setVisible(True)
                      else:
                          print("[MainPlayer] New media is audio, keeping video widget hidden.")
+                # -------------------------------
 
             self.setFocus()
             return True
         else:
+            # --- KEEP THIS RESTORE LOGIC TOO ---
             # Restore if dialog was cancelled
-            if video_was_hidden and self._video_widget:
+            if self._video_widget: # <-- And remove 'video_was_hidden' here
                  print("[MainPlayer] File dialog cancelled, restoring video widget visibility.")
                  self._video_widget.setVisible(True)
+            # --------------------------------
             return False
 
     def on_media_metadata_loaded(self, media):
@@ -605,7 +607,7 @@ class MainPlayer(QWidget):
                 print("[MainPlayer] Attempting next track due to empty media.")
                 self.play_next_track(force_advance=True)
             # Emit False (audio) for empty/failed media
-            self.media_type_determined.emit(is_video)
+            self.video_media_detected.emit(False)
             return
 
         self.last_metadata = media # Store metadata regardless of UI update
@@ -630,14 +632,11 @@ class MainPlayer(QWidget):
                     is_video = track_count > 0
                     print(f"[MainPlayer] Media type detection: video_get_track_count() = {track_count}. Is Video: {is_video}")
 
-                # --- If video, ensure the video output is set ---
-                # This should ideally happen *after* the PlayerPage calls set_video_widget,
-                # but we can call it again here just in case the widget became available
-                # or the handle needs resetting after media load.
-                # REMOVING the second call - Rely on the call from showEvent
-                # if is_video and self._video_widget:
-                #     print("[MainPlayer] Re-applying video output window after media load.")
-                #     self._set_vlc_window_handle(self._video_widget) # Use helper
+                    # --- Set HWND ONLY if it's video --- 
+                    if is_video:
+                        print("[MainPlayer] Media is video, setting window handle.")
+                        self._set_vlc_window_handle(self._video_widget) # <-- MOVED HERE
+                    # -------------------------------------
 
             else:
                  print("[MainPlayer] Warning: Backend media player not available for media type detection.")
@@ -645,11 +644,11 @@ class MainPlayer(QWidget):
             print(f"[MainPlayer] Error during video track count detection: {e}. Assuming audio.")
             is_video = False # Assume audio on error
             
-        # --- Emit the signal ---
-        self.media_type_determined.emit(is_video)
-        # ------------------------
-
-        # --- Store media type internally ---
+        # --- Emit the signal with the result --- 
+        self.video_media_detected.emit(is_video) # <-- Emit True or False
+        # ------------------------------------------
+        
+        # --- Store media type internally --- 
         self._is_current_media_video = is_video
         # -----------------------------------
         
@@ -857,8 +856,8 @@ class MainPlayer(QWidget):
             # Explicitly start playback after media is loaded
             self.backend.play()
         else:
-             print("[MainPlayer] Backend load_media failed, playback not started.")
-             self._set_app_state(STATE_PAUSED) # Revert to paused if load failed
+            print("[MainPlayer] Backend load_media failed, playback not started.")
+            self._set_app_state(STATE_PAUSED) # Revert to paused if load failed
 
     def play_next_track(self, force_advance=False):
         """
