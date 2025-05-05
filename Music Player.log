@@ -1,40 +1,40 @@
-[2025-05-06 01:01:41-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-05-06 01:01:41-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-05-06 01:01:41-DEBUG][BaseWindow]Restored window geometry.
-[2025-05-06 01:01:41-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-05-06 01:01:42-INFO ][YoutubePage]UI setup complete.
-[2025-05-06 01:01:42-INFO ][YoutubePage]Initialized.
-[2025-05-06 01:01:42-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-05-06 01:01:43-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-05-06 01:01:44-INFO ][YoutubePage]Shown.
-[2025-05-06 01:01:47-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/shorts/MXPDYWytipU, Dir=Z:\AAAAA01, Options={'extractor_args': {'youtube': {}}, 'cookies_from_browser': 'firefox', 'format': 'bestvideo+bestaudio/best/best'}
-[2025-05-06 01:01:47-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/shorts/MXPDYWytipU
-[2025-05-06 01:01:47-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
-[2025-05-06 01:01:47-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
-[2025-05-06 01:01:47-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format bestvideo+bestaudio/best/best --output 'Z:\AAAAA01\%(title)s.%(ext)s' --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress https://www.youtube.com/shorts/MXPDYWytipU
-[2025-05-06 01:01:49-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
-[2025-05-06 01:01:49-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 99 cookies from firefox
-[2025-05-06 01:01:49-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/shorts/MXPDYWytipU
-[2025-05-06 01:01:49-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading webpage
-[2025-05-06 01:01:51-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading tv client config
-[2025-05-06 01:01:51-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading player aa3fc80b-main
-[2025-05-06 01:01:52-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading tv player API JSON
-[2025-05-06 01:01:53-INFO ][CLIDownloadWorker][yt-dlp output] [info] MXPDYWytipU: Downloading 1 format(s): 400+251
-[2025-05-06 01:01:55-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f400.mp4
-[2025-05-06 01:01:55-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f400.mp4
-[2025-05-06 01:01:55-DEBUG][CLIDownloadWorker]Added temporary filename candidate: One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f400.mp4
-[2025-05-06 01:01:55-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-05-06 01:02:06-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f251.webm
-[2025-05-06 01:02:06-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f251.webm
-[2025-05-06 01:02:06-DEBUG][CLIDownloadWorker]Added temporary filename candidate: One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f251.webm
-[2025-05-06 01:02:06-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-05-06 01:02:06-INFO ][CLIDownloadWorker][yt-dlp output] [Merger] Merging formats into "Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.webm"
-[2025-05-06 01:02:06-INFO ][CLIDownloadWorker]Detected final merged file: One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.webm
-[2025-05-06 01:02:09-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f251.webm (pass -k to keep)
-[2025-05-06 01:02:09-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f400.mp4 (pass -k to keep)
-[2025-05-06 01:02:10-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
-[2025-05-06 01:02:10-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
-[2025-05-06 01:02:10-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/shorts/MXPDYWytipU. Emitting finished signal.
-[2025-05-06 01:02:10-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/shorts/MXPDYWytipU
-[2025-05-06 01:02:10-DEBUG][DownloadManager]Removed worker https://www.youtube.com/shorts/MXPDYWytipU from active. Count: 0
-[2025-05-06 01:02:10-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/shorts/MXPDYWytipU
+[2025-05-06 02:50:29-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-05-06 02:50:29-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-05-06 02:50:29-DEBUG][BaseWindow]Restored window geometry.
+[2025-05-06 02:50:29-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-05-06 02:50:30-INFO ][YoutubePage]UI setup complete.
+[2025-05-06 02:50:30-INFO ][YoutubePage]Initialized.
+[2025-05-06 02:50:30-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-05-06 02:50:31-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-05-06 02:50:32-INFO ][YoutubePage]Shown.
+[2025-05-06 02:50:53-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=MXPDYWytipU, Dir=Z:\AAAAA01, Options={'extractor_args': {'youtube': {}}, 'cookies_from_browser': 'firefox', 'format': 'bestvideo[height=720][vcodec^=avc]+bestaudio/bestvideo[width=720][vcodec^=avc]+bestaudio/bestvideo[height<=720][vcodec^=avc]+bestaudio/best[height=720][vcodec^=avc]/best[width=720][vcodec^=avc]/best[height<=720][vcodec^=avc]/best'}
+[2025-05-06 02:50:53-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=MXPDYWytipU
+[2025-05-06 02:50:53-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-05-06 02:50:53-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-05-06 02:50:53-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format 'bestvideo[height=720][vcodec^=avc]+bestaudio/bestvideo[width=720][vcodec^=avc]+bestaudio/bestvideo[height<=720][vcodec^=avc]+bestaudio/best[height=720][vcodec^=avc]/best[width=720][vcodec^=avc]/best[height<=720][vcodec^=avc]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=MXPDYWytipU'
+[2025-05-06 02:50:54-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-05-06 02:50:54-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 99 cookies from firefox
+[2025-05-06 02:50:54-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=MXPDYWytipU
+[2025-05-06 02:50:54-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading webpage
+[2025-05-06 02:50:56-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading tv client config
+[2025-05-06 02:50:56-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading player 14cfd4c0-main
+[2025-05-06 02:50:57-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading tv player API JSON
+[2025-05-06 02:50:58-INFO ][CLIDownloadWorker][yt-dlp output] [info] MXPDYWytipU: Downloading 1 format(s): 136+251
+[2025-05-06 02:51:00-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f136.mp4
+[2025-05-06 02:51:00-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f136.mp4
+[2025-05-06 02:51:00-DEBUG][CLIDownloadWorker]Added temporary filename candidate: One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f136.mp4
+[2025-05-06 02:51:00-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-05-06 02:51:04-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f251.webm
+[2025-05-06 02:51:04-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f251.webm
+[2025-05-06 02:51:04-DEBUG][CLIDownloadWorker]Added temporary filename candidate: One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f251.webm
+[2025-05-06 02:51:04-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-05-06 02:51:04-INFO ][CLIDownloadWorker][yt-dlp output] [Merger] Merging formats into "Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.mkv"
+[2025-05-06 02:51:04-INFO ][CLIDownloadWorker]Detected final merged file: One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.mkv
+[2025-05-06 02:51:06-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f251.webm (pass -k to keep)
+[2025-05-06 02:51:06-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f136.mp4 (pass -k to keep)
+[2025-05-06 02:51:06-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-05-06 02:51:06-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-05-06 02:51:06-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=MXPDYWytipU. Emitting finished signal.
+[2025-05-06 02:51:06-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=MXPDYWytipU
+[2025-05-06 02:51:06-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=MXPDYWytipU from active. Count: 0
+[2025-05-06 02:51:06-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=MXPDYWytipU

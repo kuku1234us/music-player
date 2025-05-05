@@ -49,6 +49,11 @@ class YoutubeModel:
                 if 'v' in query_params:
                     return query_params['v'][0]
             
+            # YouTube Shorts format youtube.com/shorts/VIDEO_ID
+            elif parsed_url.path.startswith('/shorts/'):
+                # Extract video ID from the path
+                return parsed_url.path[8:]
+            
             # Short youtube.com/v/VIDEO_ID
             elif parsed_url.path.startswith('/v/'):
                 return parsed_url.path[3:]
@@ -62,7 +67,7 @@ class YoutubeModel:
             return parsed_url.path[1:]
         
         # Try regex pattern as fallback
-        pattern = r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})'
+        pattern = r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})'
         match = re.search(pattern, url)
         if match:
             return match.group(1)
