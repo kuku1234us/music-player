@@ -100,6 +100,9 @@ class BrowserPage(QWidget):
 
         self._current_directory = None
         
+        # Flag to track if we're in the middle of programmatic navigation
+        self._navigation_in_progress = False
+        
         # OPlayer Service and Upload State
         self.oplayer_service = OPlayerService(self)
         self._files_to_upload = []
@@ -269,13 +272,43 @@ class BrowserPage(QWidget):
         )
         
         if directory:
-            self._current_directory = Path(directory)
-            self.settings.set('browser/last_browse_dir', directory, SettingType.PATH)
-            self.settings.sync()
-            self._populate_table(self._current_directory)
+            # Use the shared navigation method instead of duplicating code
+            self._navigate_to_directory(Path(directory), save_to_settings=True)
         else:
              # User cancelled - keep existing view or message
              self._update_empty_message() # Ensure message reflects state
+             
+    def _navigate_to_directory(self, directory_path, save_to_settings=False):
+        """
+        Core method for navigating to a directory.
+        This centralized method is used by both manual browsing and programmatic navigation.
+        
+        Args:
+            directory_path (Path): Path object pointing to the directory to navigate to
+            save_to_settings (bool): Whether to save this directory as the last browsed location
+            
+        Returns:
+            bool: True if navigation was successful, False otherwise
+        """
+        # Validate the directory exists
+        if not directory_path or not directory_path.is_dir():
+            print(f"[BrowserPage] Cannot navigate: Invalid directory path: {directory_path}")
+            return False
+            
+        # Save to settings if requested (typically from manual browsing)
+        if save_to_settings:
+            self.settings.set('browser/last_browse_dir', str(directory_path), SettingType.PATH)
+            self.settings.sync()
+            
+        # Update current directory and populate the table
+        if self._current_directory != directory_path:
+            print(f"[BrowserPage] Changing to directory: {directory_path}")
+            self._current_directory = directory_path
+            self._populate_table(self._current_directory)
+            return True
+        else:
+            print(f"[BrowserPage] Already in directory: {directory_path}")
+            return True
 
     def _refresh_view(self):
         """Refreshes the table view for the current directory."""
@@ -360,8 +393,8 @@ class BrowserPage(QWidget):
 
     def _on_directory_double_clicked(self, dirpath):
         if dirpath and os.path.isdir(dirpath):
-            self._current_directory = Path(dirpath)
-            self._populate_table(self._current_directory)
+            # Use the centralized navigation method
+            self._navigate_to_directory(Path(dirpath))
 
     def _on_items_deleted_from_disk(self, deleted_count, error_messages):
         if deleted_count > 0:
@@ -535,6 +568,11 @@ class BrowserPage(QWidget):
         self.oplayer_service.update_connection_settings(host=ftp_host, port=ftp_port)
         # --------------------------------------
         
+        # Check if we're in the middle of navigation - skip loading last directory if so
+        if self._navigation_in_progress:
+            print(f"[BrowserPage] Skipping auto-load of last directory (navigation in progress)")
+            return
+            
         # Get the last browsed directory from settings
         last_dir_str = self.settings.get('browser/last_browse_dir', None, SettingType.PATH)
         
@@ -543,8 +581,8 @@ class BrowserPage(QWidget):
             # Check if it exists, is a directory, AND is different from the current view
             if last_dir_path.is_dir() and last_dir_path != self._current_directory:
                 print(f"[BrowserPage] Automatically loading last directory: {last_dir_path}")
-                self._current_directory = last_dir_path
-                self._populate_table(self._current_directory)
+                # Use the centralized navigation method
+                self._navigate_to_directory(last_dir_path)
             elif not last_dir_path.is_dir() and self._current_directory is None:
                  # If saved path is invalid and nothing is loaded, ensure empty message
                  self._update_empty_message()
@@ -617,3 +655,62 @@ class BrowserPage(QWidget):
                 font-size: 9pt; 
             }}
         """) 
+
+    def set_navigation_in_progress(self, in_progress=True):
+        """
+        Set a flag indicating if we're in the middle of programmatic navigation.
+        This prevents showEvent from loading the last directory when we're about to navigate somewhere else.
+        
+        Args:
+            in_progress (bool): True if navigation is in progress, False otherwise
+        """
+        self._navigation_in_progress = in_progress
+        print(f"[BrowserPage] Navigation in progress set to: {in_progress}")
+
+    def navigate_to_file(self, directory_path, filename=None):
+        """
+        Navigate to the specified directory and optionally select a file.
+        This method is the public API for external components to navigate within the browser.
+        
+        Args:
+            directory_path (str): Path to the directory to navigate to
+            filename (str, optional): Name of the file to select after navigation
+            
+        Returns:
+            bool: True if navigation was successful
+        """
+        if not directory_path:
+            print(f"[BrowserPage] Cannot navigate to empty path")
+            return False
+            
+        # Convert to Path object if it's not already
+        if not isinstance(directory_path, Path):
+            directory_path = Path(directory_path)
+            
+        # If a filename is specified, let the file_table handle the navigation
+        # which will check if refresh is needed
+        if filename and hasattr(self, 'file_table') and hasattr(self.file_table, 'navigate_to_file'):
+            result = self.file_table.navigate_to_file(str(directory_path), filename)
+            
+            # After navigation, save the new directory to settings and reset the navigation flag
+            if result and self._navigation_in_progress:
+                # Save the current directory as the last browsed directory
+                self.settings.set('browser/last_browse_dir', str(directory_path), SettingType.PATH)
+                print(f"[BrowserPage] Updated last_browse_dir setting to: {directory_path}")
+                # Reset the navigation flag
+                self._navigation_in_progress = False
+                
+            return result
+        
+        # No filename specified - use the shared directory navigation method
+        result = self._navigate_to_directory(directory_path)
+        
+        # After navigation, save the new directory to settings and reset the navigation flag
+        if result and self._navigation_in_progress:
+            # Save the current directory as the last browsed directory
+            self.settings.set('browser/last_browse_dir', str(directory_path), SettingType.PATH)
+            print(f"[BrowserPage] Updated last_browse_dir setting to: {directory_path}")
+            # Reset the navigation flag
+            self._navigation_in_progress = False
+            
+        return result 

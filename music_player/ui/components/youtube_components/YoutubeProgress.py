@@ -125,10 +125,12 @@ class YoutubeProgress(QWidget):
     Signals:
         cancel_requested: When the user clicks the cancel button
         dismiss_requested: When the user dismisses an error
+        navigate_to_file_requested: When the user clicks on a completed download thumbnail
     """
     
     cancel_requested = pyqtSignal(str)
     dismiss_requested = pyqtSignal(str)
+    navigate_to_file_requested = pyqtSignal(str, str)  # Emits (output_path, filename)
     
     def __init__(self, url, title=None, parent=None):
         """Initialize the YouTube progress component."""
@@ -490,15 +492,22 @@ class YoutubeProgress(QWidget):
         self.downloaded_filename = filename
     
     def mouseReleaseEvent(self, event):
-        """Handle mouse release event to open explorer to downloaded file."""
+        """Handle mouse release event to navigate to the downloaded file."""
         # Only handle left button clicks
         if event.button() == Qt.MouseButton.LeftButton:
             # Check if click is within thumbnail bounds
             if self.thumbnail.underMouse():
-                self.open_file_location()
+                if self.status == "Complete" and self.output_path:
+                    # Instead of opening file explorer, emit signal to navigate to browser page
+                    print(f"Requesting navigation to file - path: {self.output_path}, filename: {self.downloaded_filename}")
+                    self.navigate_to_file_requested.emit(self.output_path, self.downloaded_filename or "")
+                elif self.status != "Complete":
+                    print(f"Cannot navigate to file - download not complete. Status: {self.status}")
+                elif not self.output_path:
+                    print(f"Cannot navigate to file - no output path set for: {self.url}")
         super().mouseReleaseEvent(event)
     
-    def open_file_location(self):
+    def _open_file_location(self):
         """Open Windows Explorer to the downloaded file if completed."""
         if self.status == "Complete" and self.output_path:
             try:

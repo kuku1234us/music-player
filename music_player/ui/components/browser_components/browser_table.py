@@ -6,7 +6,7 @@ from typing import List, Optional, Any
 
 from PyQt6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QApplication, QWidget
 from PyQt6.QtGui import QPainter, QIcon
-from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QObject, QSize, QSortFilterProxyModel
+from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QObject, QSize, QSortFilterProxyModel, QTimer
 
 import qtawesome as qta
 
@@ -249,4 +249,173 @@ class BrowserTableView(BaseTableView):
         self.itemsDeletedFromDisk.emit(deleted_count, error_messages)
 
         # Note: We do NOT call super()._on_delete_items() here...
+
+    def navigate_to_file(self, directory_path, filename):
+        """
+        Navigate to the directory and select a specific file.
+        
+        Args:
+            directory_path (str): The directory path to navigate to
+            filename (str): The filename to select after navigation
+        
+        Returns:
+            bool: True if navigation and selection was successful
+        """
+        from pathlib import Path
+        
+        # Check inputs
+        if not directory_path or not os.path.isdir(directory_path):
+            print(f"[BrowserTableView] Invalid directory path: {directory_path}")
+            return False
+        
+        # Convert to Path object for consistent comparison
+        directory_path = Path(directory_path)
+        
+        # Get parent BrowserPage if possible
+        parent = self.parent()
+        already_in_correct_directory = False
+        refresh_needed = False
+        
+        # Check if we're already in the destination directory
+        if parent and hasattr(parent, "_current_directory"):
+            current_dir = parent._current_directory
+            if current_dir and current_dir == directory_path:
+                already_in_correct_directory = True
+                print(f"[BrowserTableView] Already in the correct directory: {directory_path}")
+                
+                # If we have a filename, first check if it's already loaded in the table
+                if filename:
+                    # If we can select the file without a refresh, do it
+                    if self._is_file_in_table(filename) and self._select_file_by_name(filename):
+                        print(f"[BrowserTableView] File {filename} already in table, selected without refresh")
+                        return True
+                    else:
+                        # File not found in current table, need a refresh of the current directory
+                        print(f"[BrowserTableView] File {filename} not found in current table, refreshing directory")
+                        refresh_needed = True
+                else:
+                    # No filename to select, and we're already in the right directory
+                    return True
+        
+        # Handle refresh or navigation depending on our current state
+        if already_in_correct_directory and refresh_needed:
+            # We're in the right directory but need to refresh
+            if parent and hasattr(parent, "_refresh_view"):
+                print(f"[BrowserTableView] Refreshing the current directory view")
+                parent._refresh_view()
+            elif parent and hasattr(parent, "_populate_table"):
+                print(f"[BrowserTableView] Repopulating the current directory view")
+                parent._populate_table(parent._current_directory)
+            else:
+                print(f"[BrowserTableView] Cannot refresh the current directory - missing method")
+                return False
+        elif not already_in_correct_directory:
+            # We need to change to a different directory
+            if parent and hasattr(parent, "_navigate_to_directory"):
+                print(f"[BrowserTableView] Using parent's navigation method to change to: {directory_path}")
+                result = parent._navigate_to_directory(directory_path)
+                if not result:
+                    return False  # Failed to navigate
+            elif parent and hasattr(parent, "_current_directory") and hasattr(parent, "_populate_table"):
+                # Fallback if parent doesn't have the centralized method yet (backward compatibility)
+                print(f"[BrowserTableView] Fallback: Updating parent BrowserPage current directory to: {directory_path}")
+                parent._current_directory = directory_path
+                parent._populate_table(parent._current_directory)
+            else:
+                print(f"[BrowserTableView] Parent doesn't have required navigation methods, can't navigate to: {directory_path}")
+                return False
+        
+        # If no filename specified, we're done after navigating to the directory
+        if not filename:
+            print(f"[BrowserTableView] Successfully navigated to directory, no file to select")
+            return True
+            
+        # Wait a moment for the model to update before attempting selection
+        QTimer.singleShot(100, lambda: self._select_file_by_name(filename))
+        
+        return True
+
+    def _is_file_in_table(self, filename):
+        """Helper method to check if a file is already loaded in the table view."""
+        if not filename:
+            return False
+        
+        try:
+            # Get the model and use proxy model if it exists
+            proxy_model = self.model()
+            if not proxy_model:
+                return False
+            
+            # Check all rows for the filename
+            for row in range(proxy_model.rowCount()):
+                # Get the data either directly or through proxy
+                index = proxy_model.index(row, 0)  # First column should be filename
+                data = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
+                
+                # Also try to get the full item data
+                item_data = proxy_model.data(index, Qt.ItemDataRole.UserRole)
+                
+                # Check if this is our file (either by display name or full path)
+                if (data == filename or 
+                    (isinstance(item_data, dict) and 
+                     item_data.get('filename') == filename)):
+                    
+                    return True
+            
+            return False
+        except Exception as e:
+            print(f"[BrowserTableView] Error checking if file is in table: {str(e)}")
+            return False
+
+    def _select_file_by_name(self, filename):
+        """Helper method to select a file in the table by name."""
+        if not filename:
+            return False
+            
+        try:
+            # Get the model and use proxy model if it exists
+            proxy_model = self.model()
+            if not proxy_model:
+                print(f"[BrowserTableView] No model available, cannot select file")
+                return False
+                
+            # First check if the file is already selected
+            selected_indices = self.selectedIndexes()
+            if selected_indices:
+                # Get the filename from the first column of the selection
+                for index in selected_indices:
+                    if index.column() == 0:  # First column contains filename
+                        selected_file = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
+                        if selected_file == filename:
+                            # File is already selected, just ensure it's visible
+                            print(f"[BrowserTableView] File {filename} is already selected")
+                            self.scrollTo(index)
+                            return True
+            
+            # Find the row containing our file
+            for row in range(proxy_model.rowCount()):
+                # Get the data either directly or through proxy
+                index = proxy_model.index(row, 0)  # First column should be filename
+                data = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
+                
+                # Also try to get the full item data
+                item_data = proxy_model.data(index, Qt.ItemDataRole.UserRole)
+                
+                # Check if this is our file (either by display name or full path)
+                if (data == filename or 
+                    (isinstance(item_data, dict) and 
+                     item_data.get('filename') == filename)):
+                    
+                    # Select this row
+                    print(f"[BrowserTableView] Found and selecting file: {filename} at row {row}")
+                    self.selectRow(row)
+                    # Scroll to the item
+                    self.scrollTo(index)
+                    return True
+            
+            print(f"[BrowserTableView] File not found in browser: {filename}")
+            return False
+        except Exception as e:
+            print(f"[BrowserTableView] Error selecting file in browser: {str(e)}")
+            return False
 

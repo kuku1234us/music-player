@@ -2,7 +2,7 @@
 Main dashboard window for the Music Player application.
 """
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
-from PyQt6.QtCore import Qt, QSize, pyqtSlot, QTimer
+from PyQt6.QtCore import Qt, QSize, pyqtSlot, QTimer, QSettings, QEvent, pyqtSignal, QObject
 from PyQt6.QtGui import QFontDatabase, QFont, QCloseEvent
 import os
 from pathlib import Path
@@ -197,6 +197,11 @@ class MusicPlayerDashboard(BaseWindow):
         if hasattr(dashboard_page, 'play_playlist_requested'):
             dashboard_page.play_playlist_requested.connect(self._handle_play_playlist_from_dashboard)
         
+        # Connect YoutubePage's navigate_to_file signal to our handler method
+        if hasattr(youtube_page, 'navigate_to_file'):
+            youtube_page.navigate_to_file.connect(self._handle_navigate_to_downloaded_file)
+            self.logger.info(self.__class__.__name__, "Connected YoutubePage's navigate_to_file signal")
+        
         # Show the dashboard page initially
         self.show_page('dashboard')
         
@@ -363,3 +368,38 @@ class MusicPlayerDashboard(BaseWindow):
         else:
             # Log the error using the logger
             self.logger.error(self.__class__.__name__, "Could not find YoutubePage instance in self.pages.")
+
+    @pyqtSlot(str, str)
+    def _handle_navigate_to_downloaded_file(self, output_path, filename):
+        """
+        Handle request to navigate to a downloaded file in the browser page.
+        
+        Args:
+            output_path (str): The directory path where the file is located
+            filename (str): The name of the file to select
+        """
+        self.logger.info(self.__class__.__name__, f"Navigating to downloaded file: {output_path}/{filename}")
+        
+        # Get the browser page instance
+        browser_page = self.pages.get('browser')
+        if not browser_page:
+            self.logger.error(self.__class__.__name__, "Browser page not found")
+            return
+        
+        # Set flag to indicate navigation is in progress
+        # This will prevent showEvent from loading the last directory
+        if hasattr(browser_page, "set_navigation_in_progress"):
+            browser_page.set_navigation_in_progress(True)
+        
+        # Navigate to the browser page first
+        self.show_page('browser')
+        self.sidebar.set_selected_item('browser')
+        
+        # Now delegate the navigation and file selection to the BrowserPage
+        if hasattr(browser_page, "navigate_to_file"):
+            # The BrowserPage will handle file navigation and selection internally
+            success = browser_page.navigate_to_file(output_path, filename)
+            if not success:
+                self.logger.warning(self.__class__.__name__, f"BrowserPage navigation failed for: {output_path}/{filename}")
+        else:
+            self.logger.error(self.__class__.__name__, "BrowserPage doesn't have navigate_to_file method")

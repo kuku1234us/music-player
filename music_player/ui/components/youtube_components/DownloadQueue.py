@@ -20,7 +20,13 @@ from music_player.models.settings_defs import YT_MAX_CONCURRENT_KEY, DEFAULT_YT_
 class DownloadQueue(QScrollArea):
     """
     A component that displays a queue of YouTube downloads with thumbnails and progress.
+    
+    Signals:
+        navigate_to_file: Emitted when a user clicks on a completed download thumbnail
+                          Passes (output_path, filename) for navigation to Browser page
     """
+    
+    navigate_to_file = pyqtSignal(str, str)  # Emits (output_path, filename)
     
     def __init__(self, download_manager):
         """Initialize the download queue."""
@@ -109,6 +115,14 @@ class DownloadQueue(QScrollArea):
         """Create a function that captures the URL parameter correctly for dismiss action."""
         return lambda: self.on_dismiss_clicked(url)
     
+    def _on_navigate_to_file_requested(self, output_path, filename):
+        """
+        Handle navigation request from a YoutubeProgress component.
+        Forwards the request to any attached slot via the navigate_to_file signal.
+        """
+        print(f"[DownloadQueue] Navigation request received for: {output_path}/{filename}")
+        self.navigate_to_file.emit(output_path, filename)
+    
     def update_queue(self):
         """Update the display of the download queue."""
         # Clear existing progress components that are no longer in the queue
@@ -153,6 +167,11 @@ class DownloadQueue(QScrollArea):
                 # Connect the dismiss signal with explicit URL capture
                 progress_component.dismiss_requested.connect(
                     self._create_dismiss_handler(url)
+                )
+                
+                # Connect the new navigation signal
+                progress_component.navigate_to_file_requested.connect(
+                    self._on_navigate_to_file_requested
                 )
                 
                 # Add to layout and dictionary

@@ -5,7 +5,7 @@ Page for downloading YouTube videos and audio.
 """
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QFileDialog
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QPixmap # Import QPixmap for signals
 import os # For default path
 from pathlib import Path # For default path
@@ -30,7 +30,14 @@ from music_player.ui.components.youtube_components.DownloadQueue import Download
 class YoutubePage(QWidget):
     """
     Page widget for the YouTube Downloader feature.
+    
+    Signals:
+        navigate_to_file: Emitted when a user clicks on a completed download thumbnail
+                          Passes (output_path, filename) for navigation to Browser page
     """
+    # Add new signal
+    navigate_to_file = pyqtSignal(str, str)  # Emits (output_path, filename)
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("youtubePage")
@@ -85,6 +92,10 @@ class YoutubePage(QWidget):
         # self.download_manager.download_complete.connect(self._on_download_complete)
         # self.download_manager.download_error.connect(self._on_download_error)
         # self.download_manager.queue_updated.connect(self._on_queue_updated)
+        
+        # Connect the navigate_to_file signal from DownloadQueue to our own signal
+        self.download_queue.navigate_to_file.connect(self.navigate_to_file)
+        self.logger.info(self.__class__.__name__, "Connected download_queue.navigate_to_file signal")
 
     @pyqtSlot()
     def _on_add_download_clicked(self):
