@@ -1,112 +1,19 @@
-[2025-05-06 05:26:45-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-05-06 05:26:45-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-05-06 05:26:45-DEBUG][BaseWindow]Restored window geometry.
-[2025-05-06 05:26:45-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-05-06 05:26:46-INFO ][YoutubePage]UI setup complete.
-[2025-05-06 05:26:46-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-05-06 05:26:46-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-05-06 05:26:46-INFO ][YoutubePage]Initialized.
-[2025-05-06 05:26:46-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-05-06 05:26:46-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-05-06 05:26:46-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-05-06 05:26:47-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-05-06 05:26:58-INFO ][YoutubePage]Shown.
-[2025-05-06 05:27:11-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/shorts/MXPDYWytipU (Type: video)
-[2025-05-06 05:27:11-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/shorts/MXPDYWytipU, Type=video
-[2025-05-06 05:27:11-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
-[2025-05-06 05:27:11-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/shorts/MXPDYWytipU, Dir=Z:\AAAAA01
-[2025-05-06 05:27:11-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=MXPDYWytipU
-[2025-05-06 05:27:11-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
-[2025-05-06 05:27:11-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
-[2025-05-06 05:27:11-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
-[2025-05-06 05:27:11-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
-[2025-05-06 05:27:11-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=MXPDYWytipU'
-[2025-05-06 05:27:12-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
-[2025-05-06 05:27:12-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 99 cookies from firefox
-[2025-05-06 05:27:12-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=MXPDYWytipU
-[2025-05-06 05:27:12-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading webpage
-[2025-05-06 05:27:14-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading tv client config
-[2025-05-06 05:27:15-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading player 14cfd4c0-main
-[2025-05-06 05:27:15-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] MXPDYWytipU: Downloading tv player API JSON
-[2025-05-06 05:27:17-INFO ][CLIDownloadWorker][yt-dlp output] [info] MXPDYWytipU: Downloading 1 format(s): 136+140
-[2025-05-06 05:27:19-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f136.mp4
-[2025-05-06 05:27:19-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f136.mp4
-[2025-05-06 05:27:19-DEBUG][CLIDownloadWorker]Added temporary filename candidate: One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f136.mp4
-[2025-05-06 05:27:19-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-05-06 05:27:22-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f140.m4a
-[2025-05-06 05:27:22-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f140.m4a
-[2025-05-06 05:27:22-DEBUG][CLIDownloadWorker]Added temporary filename candidate: One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f140.m4a
-[2025-05-06 05:27:22-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-05-06 05:27:22-INFO ][CLIDownloadWorker][yt-dlp output] [Merger] Merging formats into "Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.mp4"
-[2025-05-06 05:27:22-INFO ][CLIDownloadWorker]Detected final merged file: One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.mp4
-[2025-05-06 05:27:23-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f136.mp4 (pass -k to keep)
-[2025-05-06 05:27:23-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.f140.m4a (pass -k to keep)
-[2025-05-06 05:27:24-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
-[2025-05-06 05:27:24-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
-[2025-05-06 05:27:24-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=MXPDYWytipU. Emitting finished signal.
-[2025-05-06 05:27:24-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=MXPDYWytipU
-[2025-05-06 05:27:24-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=MXPDYWytipU from active. Count: 0
-[2025-05-06 05:27:24-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=MXPDYWytipU
-[2025-05-06 05:27:33-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.mp4, switching to PlayerPage.
-[2025-05-06 05:27:33-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-05-06 05:27:48-INFO ][YoutubePage]Shown.
-[2025-05-06 05:27:49-INFO ][MusicPlayerDashboard]Navigating to downloaded file: Z:\AAAAA01/One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.mp4
-[2025-05-06 05:27:54-INFO ][YoutubePage]Shown.
-[2025-05-06 05:27:55-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.mp4, switching to PlayerPage.
-[2025-05-06 05:27:55-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-05-06 05:28:15-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=FK28eJh25rA (Type: audio)
-[2025-05-06 05:28:15-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=FK28eJh25rA, Type=audio
-[2025-05-06 05:28:15-INFO ][YoutubePage]Using audio_default preset for protocol download.
-[2025-05-06 05:28:15-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=FK28eJh25rA, Dir=Z:\AAAAA01
-[2025-05-06 05:28:15-INFO ][YoutubePage]Shown.
-[2025-05-06 05:28:15-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=FK28eJh25rA
-[2025-05-06 05:28:15-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
-[2025-05-06 05:28:15-DEBUG][CLIDownloadWorker]Detected audio-only format (bestaudio[protocol=https][ext=m4a]), skipping merge-output-format
-[2025-05-06 05:28:15-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
-[2025-05-06 05:28:15-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
-[2025-05-06 05:28:15-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format 'bestaudio[protocol=https][ext=m4a]' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=FK28eJh25rA'
-[2025-05-06 05:28:17-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
-[2025-05-06 05:28:17-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 99 cookies from firefox
-[2025-05-06 05:28:17-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=FK28eJh25rA
-[2025-05-06 05:28:17-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] FK28eJh25rA: Downloading webpage
-[2025-05-06 05:28:19-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] FK28eJh25rA: Downloading tv client config
-[2025-05-06 05:28:19-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] FK28eJh25rA: Downloading player 14cfd4c0-main
-[2025-05-06 05:28:20-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] FK28eJh25rA: Downloading tv player API JSON
-[2025-05-06 05:28:21-INFO ][CLIDownloadWorker][yt-dlp output] [info] FK28eJh25rA: Downloading 1 format(s): 140
-[2025-05-06 05:28:24-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\HyperLoRA： The best model to create AI portraits Right Now! (Better than Pulid and Ip-Adapter).m4a
-[2025-05-06 05:28:24-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\HyperLoRA： The best model to create AI portraits Right Now! (Better than Pulid and Ip-Adapter).m4a
-[2025-05-06 05:28:24-DEBUG][CLIDownloadWorker]Added temporary filename candidate: HyperLoRA： The best model to create AI portraits Right Now! (Better than Pulid and Ip-Adapter).m4a
-[2025-05-06 05:28:24-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-05-06 05:28:27-INFO ][CLIDownloadWorker][yt-dlp output] [FixupM4a] Correcting container of "Z:\AAAAA01\HyperLoRA： The best model to create AI portraits Right Now! (Better than Pulid and Ip-Adapter).m4a"
-[2025-05-06 05:28:29-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
-[2025-05-06 05:28:29-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
-[2025-05-06 05:28:29-INFO ][CLIDownloadWorker]Assuming last tracked media destination is final file: HyperLoRA： The best model to create AI portraits Right Now! (Better than Pulid and Ip-Adapter).m4a
-[2025-05-06 05:28:29-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=FK28eJh25rA. Emitting finished signal.
-[2025-05-06 05:28:29-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=FK28eJh25rA
-[2025-05-06 05:28:29-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=FK28eJh25rA from active. Count: 0
-[2025-05-06 05:28:29-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=FK28eJh25rA
-[2025-05-06 05:28:45-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\HyperLoRA： The best model to create AI portraits Right Now! (Better than Pulid and Ip-Adapter).m4a, switching to PlayerPage.
-[2025-05-06 05:28:45-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-05-06 05:28:50-INFO ][YoutubePage]Shown.
-[2025-05-06 05:28:51-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\One Piece Characters Brought to Real Life Using AI🏴‍☠️✨#livingcartoon #onepiece #reallife.mp4, switching to PlayerPage.
-[2025-05-06 05:28:51-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-05-06 05:29:34-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-05-06 05:29:40-INFO ][YoutubePage]Shown.
-[2025-05-06 05:29:56-DEBUG][BaseTableModel][BaseTableModel] remove_rows_by_objects called with 1 objects.
-[2025-05-06 05:29:56-DEBUG][BaseTableModel][BaseTableModel] Attempting to remove rows at indices: [25]
-[2025-05-06 05:29:56-DEBUG][BaseTableModel][BaseTableModel] Emitting beginRemoveRows for index 25
-[2025-05-06 05:29:56-DEBUG][BaseTableModel][BaseTableModel] Popped object from index 25. List size now 126
-[2025-05-06 05:29:56-DEBUG][BaseTableModel][BaseTableModel] Finished remove_rows_by_objects. Actually removed 1 items.
-[2025-05-06 05:30:13-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\Midjourney Update： Omni Reference for Consistent Characters and Elements is Here! Step-by-Step Guide.mkv, switching to PlayerPage.
-[2025-05-06 05:30:13-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-05-06 05:30:21-DEBUG][BaseTableModel][BaseTableModel] remove_rows_by_objects called with 1 objects.
-[2025-05-06 05:30:21-DEBUG][BaseTableModel][BaseTableModel] Attempting to remove rows at indices: [76]
-[2025-05-06 05:30:21-DEBUG][BaseTableModel][BaseTableModel] Emitting beginRemoveRows for index 76
-[2025-05-06 05:30:21-DEBUG][BaseTableModel][BaseTableModel] Popped object from index 76. List size now 125
-[2025-05-06 05:30:21-DEBUG][BaseTableModel][BaseTableModel] Finished remove_rows_by_objects. Actually removed 1 items.
-[2025-05-06 05:31:35-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-05-06 05:34:04-INFO ][MusicPlayerDashboard]Main window close event triggered.
-[2025-05-06 05:34:04-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
-[2025-05-06 05:34:04-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
-[2025-05-06 05:34:04-INFO ][DownloadManager]No active downloads to shut down.
-[2025-05-06 05:34:04-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.
+[2025-05-06 07:20:25-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-05-06 07:20:25-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-05-06 07:20:25-DEBUG][BaseWindow]Restored window geometry.
+[2025-05-06 07:20:25-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-05-06 07:20:26-INFO ][YoutubePage]UI setup complete.
+[2025-05-06 07:20:26-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-05-06 07:20:26-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-05-06 07:20:26-INFO ][YoutubePage]Initialized.
+[2025-05-06 07:20:26-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-05-06 07:20:26-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-05-06 07:20:26-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-05-06 07:20:27-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-05-06 07:20:30-INFO ][MusicPlayerDashboard]Handling single file request: W:\Downloads\The.Last.of.Us.S02E03.The.Path.1080p.AMZN.WEB-DL.DDP5.1.Atmos.H.264-FLUX.mkv\The.Last.of.Us.S02E03.The.Path.1080p.AMZN.WEB-DL.DDP5.1.Atmos.H.264-FLUX.mkv, switching to PlayerPage.
+[2025-05-06 07:20:30-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
+[2025-05-06 07:21:50-INFO ][MusicPlayerDashboard]Main window close event triggered.
+[2025-05-06 07:21:50-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
+[2025-05-06 07:21:50-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
+[2025-05-06 07:21:50-INFO ][DownloadManager]No active downloads to shut down.
+[2025-05-06 07:21:50-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.

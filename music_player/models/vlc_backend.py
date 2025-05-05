@@ -143,6 +143,15 @@ class VLCBackend(QObject):
                 if track_count is not None and track_count > 0:
                     is_video = True
                 print(f"[VLCBackend] Media type detection: video_get_track_count() = {track_count}. Is Video: {is_video}")
+                
+                # --- Check for subtitle tracks if it's a video ---
+                if is_video:
+                    spu_count = self.media_player.video_get_spu_count()
+                    print(f"[VLCBackend] Subtitle tracks detected: {spu_count}")
+                    if spu_count > 0:
+                        # Auto-enable the first subtitle track (index 1, as 0 is often "Disable")
+                        # We'll let MainPlayer handle when to actually call enable_subtitles
+                        print("[VLCBackend] Subtitles available for auto-enabling")
             else:
                 print("[VLCBackend] Warning: Backend media player not available for media type detection.")
         except Exception as e:
@@ -496,3 +505,135 @@ class VLCBackend(QObject):
             # except Exception as e:
             #     print(f"[VLCBackend] Warning: Failed to set mouse input to True on detach - {e}")
     # ------------------------------------- 
+
+    # --- Add methods for subtitle handling ---
+    def has_subtitle_tracks(self):
+        """Check if the current media has any subtitle tracks."""
+        if not self.media_player:
+            return False
+        try:
+            track_count = self.media_player.video_get_spu_count()
+            return track_count > 0
+        except Exception as e:
+            print(f"[VLCBackend] Error checking subtitle tracks: {e}")
+            return False
+    
+    def enable_subtitles(self, track_id=0):
+        """
+        Enable subtitles at the specified track ID.
+        If track_id is 0, it selects the default subtitle track.
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self.media_player:
+            return False
+        
+        try:
+            # Check if we have any subtitle tracks
+            track_count = self.media_player.video_get_spu_count()
+            if track_count <= 0:
+                print("[VLCBackend] No subtitle tracks available")
+                return False
+                
+            # Get current track (to avoid setting the same track again)
+            current_track = self.media_player.video_get_spu()
+            
+            # If track_id is already active, no need to change
+            if current_track == track_id:
+                print(f"[VLCBackend] Subtitle track {track_id} already active")
+                return True
+                
+            # Set the specified subtitle track
+            result = self.media_player.video_set_spu(track_id)
+            if result == 0:  # VLC returns 0 on success
+                print(f"[VLCBackend] Enabled subtitle track {track_id}")
+                return True
+            else:
+                print(f"[VLCBackend] Failed to enable subtitle track {track_id}")
+                return False
+                
+        except Exception as e:
+            print(f"[VLCBackend] Error enabling subtitles: {e}")
+            return False
+    
+    def disable_subtitles(self):
+        """
+        Disable subtitles.
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self.media_player:
+            return False
+            
+        try:
+            # -1 disables subtitles in VLC
+            result = self.media_player.video_set_spu(-1)
+            if result == 0:  # VLC returns 0 on success
+                print("[VLCBackend] Disabled subtitles")
+                return True
+            else:
+                print("[VLCBackend] Failed to disable subtitles")
+                return False
+        except Exception as e:
+            print(f"[VLCBackend] Error disabling subtitles: {e}")
+            return False
+    
+    def get_subtitle_tracks(self):
+        """
+        Get a list of available subtitle tracks.
+        
+        Returns:
+            list: List of dicts with id and name of each subtitle track
+        """
+        tracks = []
+        if not self.media_player:
+            return tracks
+            
+        try:
+            # Get subtitle description (returns a list of dicts)
+            spu_description = self.media_player.video_get_spu_description()
+            if spu_description:
+                for track in spu_description:
+                    track_id = track[0]  # Track ID
+                    track_name = track[1]  # Track name/description (might be bytes)
+                    
+                    # Try to decode track name if it's bytes
+                    name_for_display = track_name
+                    if isinstance(track_name, bytes):
+                        try:
+                            name_for_display = track_name.decode('utf-8')
+                        except UnicodeDecodeError:
+                            try:
+                                name_for_display = track_name.decode('latin-1')
+                            except Exception:
+                                # Keep the bytes object if decoding fails
+                                name_for_display = f"Track {track_id}"
+                                print(f"[VLCBackend] Warning: Could not decode subtitle track name: {track_name}")
+                    
+                    # Try to get additional metadata if available
+                    track_info = {
+                        'id': track_id,
+                        'name': track_name,  # Keep the original for compatibility
+                        'display_name': name_for_display  # Add decoded version for display
+                    }
+                    
+                    # If the player or media has a way to get language code directly, add it
+                    # (This will depend on the VLC Python bindings version and capabilities)
+                    try:
+                        # Some versions of VLC might expose this information
+                        if hasattr(self.media_player, 'video_get_spu_language') and callable(self.media_player.video_get_spu_language):
+                            language = self.media_player.video_get_spu_language(track_id)
+                            if language:
+                                track_info['language'] = language
+                    except Exception as e:
+                        print(f"[VLCBackend] Could not get subtitle language directly: {e}")
+                    
+                    # Add the track info to our list
+                    tracks.append(track_info)
+            return tracks
+        except Exception as e:
+            print(f"[VLCBackend] Error getting subtitle tracks: {e}")
+            return tracks
+    # -----------------------------------

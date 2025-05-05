@@ -14,6 +14,7 @@ from .album_art_display import AlbumArtDisplay
 from .volume_control import VolumeControl
 from .speed_overlay import SpeedOverlay
 from .repeat_button import RepeatButton
+from .subtitle_controls import SubtitleControls
 
 
 class PlayerWidget(QWidget):
@@ -30,6 +31,9 @@ class PlayerWidget(QWidget):
     volume_changed = pyqtSignal(int)
     rate_changed = pyqtSignal(float)
     repeat_state_changed = pyqtSignal(str)  # Signal for repeat mode changes
+    toggle_subtitles = pyqtSignal()  # Signal for toggling subtitles
+    next_subtitle = pyqtSignal()     # Signal for cycling to next subtitle track
+    subtitle_selected = pyqtSignal(int)  # Signal for selecting a specific subtitle track
     
     def __init__(self, parent=None, persistent=False):
         super().__init__(parent)
@@ -43,6 +47,7 @@ class PlayerWidget(QWidget):
         self.volume_control = VolumeControl(self)
         self.speed_overlay = SpeedOverlay(self)
         self.repeat_button = RepeatButton(self, size=29)  # Increased size to compensate for 20% growth inside the component
+        self.subtitle_controls = SubtitleControls(self) # New: subtitle controls
         
         # Track info components
         self.track_title = QLabel("No Track")
@@ -98,10 +103,23 @@ class PlayerWidget(QWidget):
         self.album_art.setMinimumSize(40, 40)
         self.album_art.image_label.setMinimumSize(40, 40)
         
-        # Left section: Album art
+        # Left section: Album art and subtitle controls
         left_section = QHBoxLayout()
-        left_section.addWidget(self.album_art)
-        left_section.addStretch(1)  # Push art to the left
+        
+        # Create a container widget for album art and subtitle controls
+        media_container = QWidget()
+        media_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        media_layout = QHBoxLayout(media_container)
+        media_layout.setContentsMargins(0, 0, 0, 0)
+        media_layout.setSpacing(17)  # Increase spacing between album art and subtitle controls (was 12)
+        
+        # Add album art and subtitle controls to container
+        media_layout.addWidget(self.album_art)
+        media_layout.addWidget(self.subtitle_controls)
+        
+        # Add the media container to the left section
+        left_section.addWidget(media_container)
+        left_section.addStretch(1)  # Push container to the left
         
         # Center section: Playback controls in a centered container
         center_section = QHBoxLayout()
@@ -224,6 +242,11 @@ class PlayerWidget(QWidget):
         
         self.timeline.position_changed.connect(self.position_changed)
         
+        # Connect subtitle control signals
+        self.subtitle_controls.toggle_subtitles.connect(self.toggle_subtitles)
+        self.subtitle_controls.next_subtitle.connect(self.next_subtitle)
+        self.subtitle_controls.subtitle_selected.connect(self.subtitle_selected)
+        
     def update_track_info(self, title, artist, album, artwork_path=None):
         """Update displayed track information"""
         if artwork_path:
@@ -306,3 +329,15 @@ class PlayerWidget(QWidget):
         """
         if hasattr(self.repeat_button, 'set_state'):
             self.repeat_button.set_state(state) 
+
+    def update_subtitle_state(self, has_subtitles, is_enabled, language="", tracks=None):
+        """
+        Update the subtitle controls state.
+        
+        Args:
+            has_subtitles (bool): Whether subtitles are available
+            is_enabled (bool): Whether subtitles are enabled
+            language (str): Language code of current subtitles
+            tracks (list, optional): List of available subtitle tracks for the context menu
+        """
+        self.subtitle_controls.set_state(has_subtitles, is_enabled, language, tracks) 

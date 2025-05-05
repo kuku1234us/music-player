@@ -64,6 +64,13 @@ class MainPlayer(QWidget):
         # Use VideoWidget for type hint as it's more specific, though QWidget is also valid
         self._video_widget: Optional[VideoWidget] = None # <-- NEW: Reference to video output widget
         
+        # Subtitle state tracking
+        self._has_subtitle_tracks = False
+        self._subtitle_enabled = False
+        self._current_subtitle_track = -1
+        self._subtitle_tracks = []
+        self._current_subtitle_language = ""
+        
         # Playback Mode State
         self._playback_mode = 'single'  # 'single' or 'playlist'
         # Use string literal for type hint
@@ -118,6 +125,11 @@ class MainPlayer(QWidget):
         self.player_widget.repeat_state_changed.connect(self._on_repeat_state_changed)
         self.player_widget.next_requested.connect(self.play_next_track) # Connect Next button
         self.player_widget.prev_requested.connect(self.play_previous_track) # Connect Prev button
+        
+        # Connect subtitle control signals
+        self.player_widget.toggle_subtitles.connect(self._toggle_subtitles)
+        self.player_widget.next_subtitle.connect(self._cycle_subtitle_track)  # Legacy support
+        self.player_widget.subtitle_selected.connect(self._select_subtitle_track)  # New menu selection
         
         # Connect backend to UI/player logic
         self.backend.media_loaded.connect(self.on_media_metadata_loaded) # Connect to the renamed slot
@@ -619,11 +631,56 @@ class MainPlayer(QWidget):
         print(f"[MainPlayer] Media loaded. is_video = {self._is_current_media_video}")
         # --------------------------------------------------------
         
-        # --- Set HWND If Video --- 
-        # if self._is_current_media_video:
-        #     print("[MainPlayer] Media is video, setting window handle.")
-        #     self._set_vlc_window_handle(self._video_widget)
-        # -------------------------
+        # --- Check and enable subtitles for videos ---
+        if self._is_current_media_video:
+            # Reset subtitle state
+            self._reset_subtitle_state()
+            
+            # Check if subtitles are available
+            if self.backend.has_subtitle_tracks():
+                print("[MainPlayer] Subtitles detected in video, auto-enabling first track")
+                self._has_subtitle_tracks = True
+                
+                # Get all tracks
+                self._subtitle_tracks = self.backend.get_subtitle_tracks()
+                print(f"[MainPlayer] Available subtitle tracks: {self._subtitle_tracks}")
+                
+                # Find the first non-disabled track (usually ID 1, as 0 is often "Disabled")
+                suitable_track = None
+                for track in self._subtitle_tracks:
+                    # Skip track 0 which is usually "Disabled"
+                    if track['id'] > 0:
+                        suitable_track = track
+                        # Prefer to use display_name if available
+                        track_name = track.get('display_name', track['name'])
+                        # Check if language is available directly or extract from name
+                        self._current_subtitle_language = track.get('language') or self._extract_language_code(track_name)
+                        break
+                
+                # If we found a suitable track, enable it
+                if suitable_track is not None:
+                    print(f"[MainPlayer] Auto-enabling subtitle track {suitable_track['id']}")
+                    if self.backend.enable_subtitles(suitable_track['id']):
+                        self._subtitle_enabled = True
+                        self._current_subtitle_track = suitable_track['id']
+                else:
+                    # If only track 0 exists, try it anyway
+                    if self._subtitle_tracks and self.backend.enable_subtitles(0):
+                        self._subtitle_enabled = True
+                        self._current_subtitle_track = 0
+                        # Use the name of track 0 as well
+                        if self._subtitle_tracks[0]:
+                            track_name = self._subtitle_tracks[0].get('display_name', self._subtitle_tracks[0]['name'])
+                            self._current_subtitle_language = (self._subtitle_tracks[0].get('language') or 
+                                                              self._extract_language_code(track_name))
+                        
+                # Update subtitle controls in PlayerWidget
+                self._update_subtitle_controls()
+        else:
+            # Reset subtitle state for non-video files
+            self._reset_subtitle_state()
+            self._update_subtitle_controls()
+        # -------------------------------------------
 
         # Update UI with track information
         self.player_widget.update_track_info(title, artist, album, artwork_path)
@@ -632,6 +689,170 @@ class MainPlayer(QWidget):
         # Emit the consolidated media_changed signal
         self.media_changed.emit(media, is_video)
         
+    def _reset_subtitle_state(self):
+        """Reset internal subtitle state tracking."""
+        self._has_subtitle_tracks = False
+        self._subtitle_enabled = False
+        self._current_subtitle_track = -1
+        self._subtitle_tracks = []
+        self._current_subtitle_language = ""
+        
+    def _update_subtitle_controls(self):
+        """Update the subtitle controls in the PlayerWidget based on current state."""
+        self.player_widget.update_subtitle_state(
+            self._has_subtitle_tracks,
+            self._subtitle_enabled,
+            self._current_subtitle_language,
+            self._subtitle_tracks  # Pass the full list of subtitle tracks for the menu
+        )
+        
+    def _extract_language_code(self, track_name):
+        """
+        Extract a 2-3 letter language code from a subtitle track name.
+        
+        Args:
+            track_name (str or bytes): Full name of the subtitle track
+            
+        Returns:
+            str: Extracted language code or "SUB" if not found
+        """
+        # If track_name is bytes, decode it to a string
+        if isinstance(track_name, bytes):
+            try:
+                track_name = track_name.decode('utf-8')
+            except UnicodeDecodeError:
+                try:
+                    # Try another common encoding if utf-8 fails
+                    track_name = track_name.decode('latin-1')
+                except Exception:
+                    # If all decoding fails, return default
+                    print(f"[MainPlayer] Warning: Could not decode subtitle track name: {track_name}")
+                    return "SUB"
+        
+        # If the track name is empty, return default value
+        if not track_name:
+            return "SUB"
+            
+        # Try to extract any 2-3 letter code in square brackets or parentheses
+        import re
+        match = re.search(r'[\[\(]([a-z]{2,3})[\]\)]', track_name.lower())
+        if match:
+            return match.group(1).upper()
+            
+        # Try to find common language identifiers in the track name
+        track_lower = track_name.lower()
+        
+        # Look for language name patterns like "English" or "en"
+        language_patterns = [
+            # Match standalone 2-letter codes
+            (r'\b(en|fr|es|de|it|ru|ja|zh|ko|ar|nl|pt|sv|pl|tr|he|vi|th)\b', 0),
+            # Match standalone 3-letter codes
+            (r'\b(eng|fre|spa|ger|ita|rus|jpn|chi|kor)\b', 0),
+            # Extract from language names (capture first 2 chars)
+            (r'\b(english|french|spanish|german|italian|russian|japanese|chinese|korean|arabic|dutch|portuguese|swedish|polish|turkish|hebrew|vietnamese|thai)\b', 2)
+        ]
+        
+        for pattern, length in language_patterns:
+            match = re.search(pattern, track_lower)
+            if match:
+                code = match.group(1)
+                # If it's a full language name, take first 2 characters
+                if length > 0:
+                    code = code[:length]
+                return code.upper()
+                
+        # If track name includes "subtitles" or similar terms, extract nearby text
+        subtitle_match = re.search(r'(subtitle|caption)s?\s*[:\-]?\s*([a-z]{2,3}|[A-Za-z]+)', track_lower)
+        if subtitle_match:
+            code = subtitle_match.group(2)
+            # If it's a language name rather than code, take first 2 chars
+            if len(code) > 3:
+                code = code[:2]
+            return code.upper()
+                
+        # Default to "SUB" if no language code found
+        return "SUB"
+        
+    def _toggle_subtitles(self):
+        """Toggle subtitles on/off."""
+        if not self._is_current_media_video or not self._has_subtitle_tracks:
+            return
+            
+        if self._subtitle_enabled:
+            # Disable subtitles
+            if self.backend.disable_subtitles():
+                self._subtitle_enabled = False
+                print("[MainPlayer] Subtitles disabled")
+        else:
+            # Enable subtitles (use last track, or first available)
+            track_id = self._current_subtitle_track
+            if track_id <= 0 and self._subtitle_tracks:
+                # Find first valid track
+                for track in self._subtitle_tracks:
+                    if track['id'] > 0:
+                        track_id = track['id']
+                        # Use display_name if available
+                        track_name = track.get('display_name', track['name'])
+                        # Get language directly or extract it
+                        self._current_subtitle_language = track.get('language') or self._extract_language_code(track_name)
+                        break
+                        
+            if track_id > 0:
+                if self.backend.enable_subtitles(track_id):
+                    self._subtitle_enabled = True
+                    self._current_subtitle_track = track_id
+                    print(f"[MainPlayer] Enabled subtitle track: {track_id}")
+            
+        # Update UI
+        self._update_subtitle_controls()
+        
+    def _cycle_subtitle_track(self):
+        """Cycle to the next available subtitle track."""
+        if not self._is_current_media_video or not self._has_subtitle_tracks:
+            return
+            
+        if not self._subtitle_tracks:
+            return
+            
+        # Find the next track after the current one
+        current_track = self._current_subtitle_track
+        next_track = None
+        found_current = False
+        
+        # First pass: find a track after the current one
+        for track in self._subtitle_tracks:
+            if found_current and track['id'] > 0:  # Skip disabled tracks (usually id=0)
+                next_track = track
+                break
+            if track['id'] == current_track:
+                found_current = True
+                
+        # If we didn't find a next track, loop back to the first one
+        if next_track is None:
+            for track in self._subtitle_tracks:
+                if track['id'] > 0:  # Skip disabled tracks
+                    next_track = track
+                    break
+                    
+        # If we still don't have a track, try to enable track 0 as a fallback
+        if next_track is None and self._subtitle_tracks:
+            next_track = self._subtitle_tracks[0]
+            
+        # Enable the new track if found
+        if next_track:
+            track_id = next_track['id']
+            if self.backend.enable_subtitles(track_id):
+                self._subtitle_enabled = True
+                self._current_subtitle_track = track_id
+                # Use display_name if available
+                track_name = next_track.get('display_name', next_track['name'])
+                # Get language directly or extract it
+                self._current_subtitle_language = next_track.get('language') or self._extract_language_code(track_name)
+                print(f"[MainPlayer] Switched to subtitle track: {track_id} ({track_name})")
+                
+        # Update UI
+        self._update_subtitle_controls()
+
     def get_current_track_metadata(self):
         """ Returns metadata of the currently playing track. """
         return self.last_metadata
@@ -1019,3 +1240,86 @@ class MainPlayer(QWidget):
         self.backend._loading_media=True
         self.backend.media_player.stop()
     # -----------------------
+
+    # --- Add methods for subtitle control ---
+    def get_subtitle_tracks(self):
+        """
+        Get a list of available subtitle tracks.
+        
+        Returns:
+            list: List of dicts with id and name of each subtitle track
+        """
+        return self.backend.get_subtitle_tracks()
+        
+    def enable_subtitles(self, track_id=0):
+        """
+        Enable subtitles at the specified track ID.
+        
+        Args:
+            track_id (int): The subtitle track ID to enable (default: 0)
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        return self.backend.enable_subtitles(track_id)
+        
+    def disable_subtitles(self):
+        """
+        Disable subtitles.
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        return self.backend.disable_subtitles()
+        
+    def has_subtitle_tracks(self):
+        """
+        Check if the current media has any subtitle tracks.
+        
+        Returns:
+            bool: True if subtitle tracks are available, False otherwise
+        """
+        return self.backend.has_subtitle_tracks()
+    # ------------------------------------
+
+    def _select_subtitle_track(self, track_id):
+        """
+        Select a specific subtitle track by ID.
+        
+        Args:
+            track_id (int): ID of the subtitle track to select, or -1 to disable subtitles
+        """
+        if not self._is_current_media_video:
+            return
+            
+        if track_id < 0:
+            # Disable subtitles
+            if self.backend.disable_subtitles():
+                self._subtitle_enabled = False
+                print("[MainPlayer] Subtitles disabled via menu selection")
+                self._update_subtitle_controls()
+            return
+            
+        # Find the track with the given ID
+        selected_track = None
+        for track in self._subtitle_tracks:
+            if track['id'] == track_id:
+                selected_track = track
+                break
+                
+        if selected_track:
+            # Enable the selected track
+            if self.backend.enable_subtitles(track_id):
+                self._subtitle_enabled = True
+                self._current_subtitle_track = track_id
+                
+                # Get the track name for language code extraction
+                track_name = selected_track.get('display_name', selected_track['name'])
+                
+                # Update language code
+                self._current_subtitle_language = selected_track.get('language') or self._extract_language_code(track_name)
+                
+                print(f"[MainPlayer] Selected subtitle track: {track_id} ({track_name})")
+                
+                # Update UI
+                self._update_subtitle_controls()
