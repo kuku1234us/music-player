@@ -19,6 +19,7 @@ from qt_base_app.models.logger import Logger
 
 # --- Import Models and Components ---
 from music_player.models import DownloadManager
+from music_player.models.Yt_DlpModel import YtDlpModel  # Import YtDlpModel for presets
 from music_player.ui.components.youtube_components.VideoInput import VideoInput 
 from music_player.ui.components.youtube_components.DownloadQueue import DownloadQueue
 
@@ -115,12 +116,18 @@ class YoutubePage(QWidget):
         self.video_input.url_input.clear()
 
     def auto_add_download(self, url: str, format_type: str):
-        """Adds a download initiated via the protocol handler."""
+        """
+        Adds a download initiated via the protocol handler.
+        
+        Args:
+            url (str): URL to download from
+            format_type (str): Type of media to download ('audio', 'video', or 'best-video')
+        """
         # Use logger
         self.logger.info(self.__class__.__name__, f"Auto adding download: URL={url}, Type={format_type}")
         
         # 1. Update the VideoInput field visually
-        if hasattr(self.video_input, 'set_url'): # Assuming VideoInput has set_url method
+        if hasattr(self.video_input, 'set_url'):
             self.video_input.set_url(url)
         else:
              # Use logger for warning
@@ -132,58 +139,38 @@ class YoutubePage(QWidget):
                   # Use logger for warning
                   self.logger.warning(self.__class__.__name__, "Cannot access VideoInput's QLineEdit to set URL.")
         
-        # 2. Determine download options
-        options = {}
+        # 2. Determine download options using YtDlpModel presets
         if format_type == "audio":
-            # Use logger
-            self.logger.info(self.__class__.__name__, "Using default AUDIO options for protocol download.")
-            options = {
-                'format': 'bestaudio/best',  # Standard yt-dlp audio selection
-                'merge_output_format': 'mp4', # Container override for compatibility
-                'use_cookies': True,         # Use Firefox cookies by default
-                # Set subtitle options explicitly to False/None to avoid defaults
-                'writesubtitles': False,
-                'writeautomaticsub': False,
-                'subtitleslangs': None,
-                'subtitlesformat': None,
-                # Other relevant options (like resolution) are implicitly handled by 'bestaudio'
-            }
+            self.logger.info(self.__class__.__name__, 
+                           "Using audio_default preset for protocol download.")
+            options = YtDlpModel.get_preset_options("audio_default")
         elif format_type == "video":
-            # Use logger
-            self.logger.info(self.__class__.__name__, "Using default VIDEO options for protocol download (720p MP4)." )
-            # Use local options dictionary for consistency
-            options = {
-                'format': 'bestvideo[height<=?720][ext=mp4][vcodec!*=av01]+bestaudio[ext=m4a]/best[height<=?720][ext=mp4][vcodec!*=av01]/best[ext=mp4][vcodec!*=av01]/best[vcodec!*=av01]',
-                # 'outtmpl': os.path.join(output_dir_str, '%(title)s [%(id)s].%(ext)s'), # outtmpl is handled by DownloadManager
-                'postprocessors': [],
-                'merge_output_format': 'mp4', # Ensure MP4 merging for video+audio
-                'use_cookies': True, # Also use cookies for video
-                # Explicitly disable subtitles
-                'writesubtitles': False,
-                'writeautomaticsub': False,
-                'subtitleslangs': None,
-                'subtitlesformat': None,
-            }
+            self.logger.info(self.__class__.__name__, 
+                           "Using video_720p_default preset for protocol download.")
+            options = YtDlpModel.get_preset_options("video_720p_default")
+        elif format_type == "best-video":
+            self.logger.info(self.__class__.__name__, 
+                           "Using best_video_default preset for protocol download.")
+            options = YtDlpModel.get_preset_options("best_video_default")
         else:
-            # Use logger
-            self.logger.error(self.__class__.__name__, f"Unknown format_type '{format_type}' received. Cannot determine options.")
-            return # Don't proceed if type is unknown
+            self.logger.error(self.__class__.__name__, 
+                             f"Unknown format_type '{format_type}'. Cannot determine options.")
+            return  # Don't proceed if type is unknown
 
         # 3. Get output directory from settings
         output_dir = self.settings.get(YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR, SettingType.PATH)
-        output_dir_str = str(output_dir) # Ensure it's a string
+        output_dir_str = str(output_dir)
         
         # Validate the directory
         if not output_dir_str or not os.path.isdir(output_dir_str):
             # Use logger
-            self.logger.error(self.__class__.__name__, f"Download directory '{output_dir_str}' from settings is invalid or does not exist. Cannot auto-add download.")
-            # Optionally inform the user via a message box or status update?
-            return 
-            
+            self.logger.error(self.__class__.__name__, 
+                             f"Download directory '{output_dir_str}' is invalid or missing.")
+            return
+        
         # 4. Call DownloadManager
-        # Use logger
-        self.logger.info(self.__class__.__name__, f"Adding download via auto_add_download: URL={url}, Dir={output_dir_str}, Options={options}")
-        # Pass the local options dictionary
+        self.logger.info(self.__class__.__name__, 
+                        f"Adding download: URL={url}, Dir={output_dir_str}")
         self.download_manager.add_download(url, options, output_dir_str)
         
         # Do NOT clear URL input here, as the user didn't type it

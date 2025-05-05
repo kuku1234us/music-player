@@ -153,16 +153,19 @@ class VideoInput(QWidget):
         self.resolution_group = QButtonGroup(self)
         self.resolution_group.setExclusive(False)
         
+        self.btn_best = ToggleButton("Best", setting_key=None, exclusive=True)
         self.btn_1080p = ToggleButton("1080p", setting_key=None, exclusive=True)
         self.btn_720p = ToggleButton("720p", setting_key=None, exclusive=True)
         self.btn_480p = ToggleButton("480p", setting_key=None, exclusive=True)
         self.btn_audio = ToggleButton("Audio", setting_key=None, exclusive=True)
         
+        format_layout.addWidget(self.btn_best)
         format_layout.addWidget(self.btn_1080p)
         format_layout.addWidget(self.btn_720p)
         format_layout.addWidget(self.btn_480p)
         format_layout.addWidget(self.btn_audio)
         
+        self.resolution_group.addButton(self.btn_best)
         self.resolution_group.addButton(self.btn_1080p)
         self.resolution_group.addButton(self.btn_720p)
         self.resolution_group.addButton(self.btn_480p)
@@ -216,6 +219,7 @@ class VideoInput(QWidget):
         
         format_layout.addStretch()
         
+        self.btn_best.clicked.connect(self.on_resolution_clicked)
         self.btn_1080p.clicked.connect(self.on_resolution_clicked)
         self.btn_720p.clicked.connect(self.on_resolution_clicked)
         self.btn_480p.clicked.connect(self.on_resolution_clicked)
@@ -303,11 +307,21 @@ class VideoInput(QWidget):
         """Get the selected format options using YtDlpModel."""
         active_button_text = self._settings.get(YT_ACTIVE_RESOLUTION_KEY, None, SettingType.STRING)
         resolution = None
-        if active_button_text == "1080p": resolution = 1080
-        elif active_button_text == "720p": resolution = 720
-        elif active_button_text == "480p": resolution = 480
-        elif active_button_text == "Audio": resolution = None
-        else: resolution = None
+        prefer_best_video = False
+        
+        if active_button_text == "Best":
+            resolution = None  # No resolution constraint
+            prefer_best_video = True  # Enable best video quality mode
+        elif active_button_text == "1080p": 
+            resolution = 1080
+        elif active_button_text == "720p": 
+            resolution = 720
+        elif active_button_text == "480p": 
+            resolution = 480
+        elif active_button_text == "Audio": 
+            resolution = None
+        else: 
+            resolution = None
         
         subtitle_enabled = self.btn_subtitles.isChecked()
         cookies_enabled = self.btn_cookies.isChecked()
@@ -323,21 +337,53 @@ class VideoInput(QWidget):
                 if subtitle_lang == 'zh': subtitle_lang = ['zh-CN', 'zh-TW', 'zh-HK']
             else: subtitle_lang = self.subtitle_lang_combo.currentText().strip()
         
-        print(f"DEBUG: Generating format options with resolution={resolution}, https={use_https}, m4a={use_m4a}, subtitle_lang={subtitle_lang}, cookies={cookies_enabled}")
+        print(f"DEBUG: Generating format options with resolution={resolution}, prefer_best_video={prefer_best_video}, https={use_https}, m4a={use_m4a}, subtitle_lang={subtitle_lang}, cookies={cookies_enabled}")
         
-        options = YtDlpModel.generate_format_string(
-            resolution=resolution,
-            use_https=use_https,
-            use_m4a=use_m4a,
-            subtitle_lang=subtitle_lang,
-            use_cookies=cookies_enabled
-        )
+        if hasattr(YtDlpModel, 'generate_format_string') and callable(getattr(YtDlpModel, 'generate_format_string')):
+            # Check if the method accepts prefer_best_video parameter
+            import inspect
+            sig = inspect.signature(YtDlpModel.generate_format_string)
+            if 'prefer_best_video' in sig.parameters and 'prefer_avc' in sig.parameters:
+                # New version with prefer_best_video and prefer_avc support
+                options = YtDlpModel.generate_format_string(
+                    resolution=resolution,
+                    use_https=use_https,
+                    use_m4a=use_m4a,
+                    subtitle_lang=subtitle_lang,
+                    use_cookies=cookies_enabled,
+                    prefer_best_video=prefer_best_video,
+                    prefer_avc=(resolution is not None and not prefer_best_video)  # Use AVC only for specific resolutions
+                )
+            elif 'prefer_best_video' in sig.parameters:
+                # Version with prefer_best_video but without prefer_avc
+                options = YtDlpModel.generate_format_string(
+                    resolution=resolution,
+                    use_https=use_https,
+                    use_m4a=use_m4a,
+                    subtitle_lang=subtitle_lang,
+                    use_cookies=cookies_enabled,
+                    prefer_best_video=prefer_best_video
+                )
+            else:
+                # Original version without prefer_best_video
+                options = YtDlpModel.generate_format_string(
+                    resolution=resolution,
+                    use_https=use_https,
+                    use_m4a=use_m4a,
+                    subtitle_lang=subtitle_lang,
+                    use_cookies=cookies_enabled
+                )
+        else:
+            # If the YtDlpModel.generate_format_string method doesn't exist (unlikely)
+            print("ERROR: YtDlpModel.generate_format_string method not found")
+            options = {}
         
         print(f"DEBUG: Generated format options: {options}")
         return options
 
     def set_format_audio_only(self):
         """Set format selection to audio only"""
+        self.btn_best.setChecked(False)
         self.btn_1080p.setChecked(False)
         self.btn_720p.setChecked(False)
         self.btn_480p.setChecked(False)
@@ -348,11 +394,23 @@ class VideoInput(QWidget):
 
     def set_format_video_720p(self):
         """Set format selection to 720p video"""
+        self.btn_best.setChecked(False)
         self.btn_1080p.setChecked(False)
         self.btn_480p.setChecked(False)
         self.btn_audio.setChecked(False)
         
         self.btn_720p.setChecked(True)
+        
+        self.update_format()
+        
+    def set_format_best_video(self):
+        """Set format selection to best quality video"""
+        self.btn_1080p.setChecked(False)
+        self.btn_720p.setChecked(False)
+        self.btn_480p.setChecked(False)
+        self.btn_audio.setChecked(False)
+        
+        self.btn_best.setChecked(True)
         
         self.update_format()
 

@@ -11,16 +11,18 @@ class YtDlpModel:
     """
 
     @staticmethod
-    def generate_format_string(resolution=None, use_https=True, use_m4a=True, subtitle_lang=None, use_cookies=False):
+    def generate_format_string(resolution=None, use_https=True, use_m4a=True, subtitle_lang=None, use_cookies=False, prefer_best_video=False, prefer_avc=False):
         """
         Generate the yt-dlp format string based on the provided parameters.
         
         Args:
-            resolution (int, optional): Video resolution (1080, 720, 480, None for audio only)
+            resolution (int, optional): Target video resolution (720, 1080, None for audio only or best)
             use_https (bool): Whether to prefer HTTPS protocol
             use_m4a (bool): Whether to prefer M4A/MP4 formats
             subtitle_lang (str, optional): Language code for subtitles (e.g., 'en', 'es', etc.) or None to disable
             use_cookies (bool): Whether to use Firefox cookies to bypass YouTube bot verification
+            prefer_best_video (bool): If True, prefer best video quality regardless of resolution
+            prefer_avc (bool): If True, prefer AVC codec (H.264) for better device compatibility
             
         Returns:
             dict: Dictionary with format options for yt-dlp
@@ -34,7 +36,7 @@ class YtDlpModel:
             }
         }
         
-        print(f"DEBUG: YtDlpModel.generate_format_string called with: resolution={resolution}, use_https={use_https}, use_m4a={use_m4a}, subtitle_lang={subtitle_lang}, use_cookies={use_cookies}")
+        print(f"DEBUG: YtDlpModel.generate_format_string called with: resolution={resolution}, use_https={use_https}, use_m4a={use_m4a}, subtitle_lang={subtitle_lang}, use_cookies={use_cookies}, prefer_best_video={prefer_best_video}, prefer_avc={prefer_avc}")
         
         # Add browser cookies option if enabled
         if use_cookies:
@@ -81,33 +83,146 @@ class YtDlpModel:
             format_options['subtitlesformat'] = 'srt/vtt/ttml/best'
             
             # Embed subtitles for video downloads
-            if resolution:
+            if resolution or prefer_best_video:
                 format_options['embedsubtitles'] = True
+
+        # Determine codec filtering based on parameters
+        codec_filter = ""
+        if prefer_avc:
+            # Prefer AVC codec (H.264) for better device compatibility
+            codec_filter = "[vcodec^=avc]"
+            print(f"DEBUG: Using AVC codec filter for better compatibility")
+        elif not prefer_best_video:
+            # If not using best video and not explicitly preferring AVC, exclude AV1 for compatibility
+            codec_filter = "[vcodec!*=av01]"
+            print(f"DEBUG: Excluding AV1 codec for better compatibility")
         
-        if resolution:
-            print(f"DEBUG: Generating video format with resolution: {resolution}")
-            # Video format - exclude AV1 codec for iOS compatibility
-            format_str = f"bestvideo[height<={resolution}][vcodec!*=av01]"
-            if use_https:
-                format_str += "[protocol=https]"
+        # Prepare protocol and format constraints
+        protocol_constraint = "[protocol=https]" if use_https else ""
+        video_format_constraint = "[ext=mp4]" if use_m4a else ""
+        audio_format_constraint = "[ext=m4a]" if use_m4a else ""
+        
+        # Prepare audio part of format string
+        audio_str = "bestaudio"
+        if use_https:
+            audio_str += protocol_constraint
+        if use_m4a:
+            audio_str += audio_format_constraint
+        
+        if resolution and not prefer_best_video:
+            # Resolution-specific format with improved handling for portrait/landscape videos
+            print(f"DEBUG: Generating video format with target resolution: {resolution}p")
+            
+            # Build video format string parts with codec filter applied to each option separately
+            if resolution == 720:
+                # For 720p - try exact height=720 (landscape) or width=720 (portrait) or height<=720
+                video_parts = []
+                
+                # Option 1: Exact height match (landscape) WITH AUDIO
+                part1 = f"bestvideo[height=720]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                video_parts.append(part1)
+                
+                # Option 2: Exact width match (portrait) WITH AUDIO
+                part2 = f"bestvideo[width=720]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                video_parts.append(part2)
+                
+                # Option 3: Height <= resolution (fallback) WITH AUDIO
+                part3 = f"bestvideo[height<=720]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                video_parts.append(part3)
+                
+                # Join all video+audio options with "/"
+                format_str = "/".join(video_parts)
+                
+            elif resolution == 1080:
+                # For 1080p
+                video_parts = []
+                part1 = f"bestvideo[height=1080]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                part2 = f"bestvideo[width=1080]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                part3 = f"bestvideo[height<=1080]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                video_parts.extend([part1, part2, part3])
+                format_str = "/".join(video_parts)
+                
+            elif resolution == 1440:
+                # For 1440p
+                video_parts = []
+                part1 = f"bestvideo[height=1440]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                part2 = f"bestvideo[width=1440]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                part3 = f"bestvideo[height<=1440]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                video_parts.extend([part1, part2, part3])
+                format_str = "/".join(video_parts)
+                
+            elif resolution == 2160:
+                # For 4K
+                video_parts = []
+                part1 = f"bestvideo[height=2160]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                part2 = f"bestvideo[width=2160]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                part3 = f"bestvideo[height<=2160]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                video_parts.extend([part1, part2, part3])
+                format_str = "/".join(video_parts)
+                
+            else:
+                # For other resolutions
+                format_str = f"bestvideo[height<={resolution}]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+            
+            # Build fallback options with codec filter applied to each option separately
+            if resolution == 720:
+                fallback_parts = []
+                part1 = f"best[height=720]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                part2 = f"best[width=720]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                part3 = f"best[height<=720]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                fallback_parts.extend([part1, part2, part3])
+                fallback = "/".join(fallback_parts)
+                
+            elif resolution == 1080:
+                fallback_parts = []
+                part1 = f"best[height=1080]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                part2 = f"best[width=1080]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                part3 = f"best[height<=1080]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                fallback_parts.extend([part1, part2, part3])
+                fallback = "/".join(fallback_parts)
+                
+            elif resolution == 1440:
+                fallback_parts = []
+                part1 = f"best[height=1440]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                part2 = f"best[width=1440]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                part3 = f"best[height<=1440]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                fallback_parts.extend([part1, part2, part3])
+                fallback = "/".join(fallback_parts)
+                
+            elif resolution == 2160:
+                fallback_parts = []
+                part1 = f"best[height=2160]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                part2 = f"best[width=2160]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                part3 = f"best[height<=2160]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                fallback_parts.extend([part1, part2, part3])
+                fallback = "/".join(fallback_parts)
+                
+            else:
+                fallback = f"best[height<={resolution}]{codec_filter}{protocol_constraint}{video_format_constraint}"
+            
+            # Complete format string with proper audio merging
+            format_str = f"{format_str}/{fallback}/best"
+            format_options["format"] = format_str
+            
+            # Force MP4 output if m4a is selected
             if use_m4a:
-                format_str += "[ext=mp4]"
+                format_options["merge_output_format"] = "mp4"
+                
+            # Add subtitle embedding postprocessor if we're downloading subtitles
+            if subtitle_lang:
+                format_options["postprocessors"] = [
+                    {"key": "FFmpegEmbedSubtitle"}
+                ]
+                
+            print(f"DEBUG: Resolution-specific format string: {format_str}")
+                
+        elif prefer_best_video:
+            # Best video format - no resolution limiting
+            print(f"DEBUG: Generating best video format")
+            format_str = f"bestvideo{codec_filter}{protocol_constraint}{video_format_constraint}"
             
-            # Audio format
-            audio_str = "bestaudio"
-            if use_https:
-                audio_str += "[protocol=https]"
-            if use_m4a:
-                audio_str += "[ext=m4a]"
-            
-            # Fall back options - also exclude AV1 in fallback
-            fallback = f"best[height<={resolution}][vcodec!*=av01]"
-            if use_https:
-                fallback += "[protocol=https]"
-            if use_m4a and resolution:
-                fallback += "[ext=mp4]"
-            
-            # Complete format string
+            # Complete format string with audio and fallbacks
+            fallback = f"best{codec_filter}{protocol_constraint}{video_format_constraint}"
             format_str = f"{format_str}+{audio_str}/{fallback}/best"
             format_options["format"] = format_str
             
@@ -121,26 +236,69 @@ class YtDlpModel:
                     {"key": "FFmpegEmbedSubtitle"}
                 ]
                 
-            print(f"DEBUG: Video format string: {format_str}")
+            print(f"DEBUG: Best video format string: {format_str}")
             
         else:
             print(f"DEBUG: Generating audio-only format")
             # Audio only format
-            format_str = "bestaudio"
-            if use_https:
-                format_str += "[protocol=https]"
-            if use_m4a:
-                format_str += "[ext=m4a]"
-                format_options["merge_output_format"] = "m4a"
-            else:
+            format_str = f"bestaudio{protocol_constraint}{audio_format_constraint}"
+            if not use_m4a:
                 format_str += "/best"
-            
+                
             format_options["format"] = format_str
+            
+            # Set output format for audio
+            if use_m4a:
+                format_options["merge_output_format"] = "m4a"
                 
             print(f"DEBUG: Audio-only format string: {format_str}")
         
         print(f"DEBUG: Final format options: {format_options}")
         return format_options
+    
+    @staticmethod
+    def get_preset_options(preset_name):
+        """
+        Return predefined option sets for common download scenarios.
+        
+        Args:
+            preset_name (str): Name of the preset to retrieve 
+                              ('audio_default', 'video_720p_default', 'best_video_default')
+        
+        Returns:
+            dict: Dictionary containing format options for the specified preset
+        """
+        if preset_name == "audio_default":
+            return YtDlpModel.generate_format_string(
+                resolution=None,  # Audio only
+                use_https=True,
+                use_m4a=True,
+                subtitle_lang=None,
+                use_cookies=True
+            )
+        elif preset_name == "video_720p_default":
+            return YtDlpModel.generate_format_string(
+                resolution=720,
+                use_https=True,
+                use_m4a=True,
+                subtitle_lang=None,
+                use_cookies=True,
+                prefer_avc=True  # Specifically prefer AVC codec for better device compatibility
+            )
+        elif preset_name == "best_video_default":
+            # This preset doesn't limit resolution, getting the best quality available
+            return YtDlpModel.generate_format_string(
+                resolution=None,  # No resolution limit
+                use_https=True,
+                use_m4a=True,
+                subtitle_lang=None,
+                use_cookies=True,
+                prefer_best_video=True,  # Indicates we want best video
+                prefer_avc=False   # Don't restrict codecs for best quality
+            )
+        else:
+            print(f"Warning: Unknown preset '{preset_name}'. Returning empty options.")
+            return {}
     
     @staticmethod
     def get_video_formats(video_url):
