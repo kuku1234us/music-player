@@ -201,6 +201,11 @@ class MusicPlayerDashboard(BaseWindow):
         if hasattr(youtube_page, 'navigate_to_file'):
             youtube_page.navigate_to_file.connect(self._handle_navigate_to_downloaded_file)
             self.logger.info(self.__class__.__name__, "Connected YoutubePage's navigate_to_file signal")
+            
+        # Connect YoutubePage's play_file signal to handle playback of files
+        if hasattr(youtube_page, 'play_file'):
+            youtube_page.play_file.connect(self._handle_single_file_request)
+            self.logger.info(self.__class__.__name__, "Connected YoutubePage's play_file signal")
         
         # Show the dashboard page initially
         self.show_page('dashboard')

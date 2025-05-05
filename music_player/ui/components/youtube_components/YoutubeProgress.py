@@ -126,11 +126,13 @@ class YoutubeProgress(QWidget):
         cancel_requested: When the user clicks the cancel button
         dismiss_requested: When the user dismisses an error
         navigate_to_file_requested: When the user clicks on a completed download thumbnail
+        play_file_requested: When the user right-clicks on a completed download thumbnail
     """
     
     cancel_requested = pyqtSignal(str)
     dismiss_requested = pyqtSignal(str)
     navigate_to_file_requested = pyqtSignal(str, str)  # Emits (output_path, filename)
+    play_file_requested = pyqtSignal(str)  # Emits full filepath to play
     
     def __init__(self, url, title=None, parent=None):
         """Initialize the YouTube progress component."""
@@ -492,19 +494,27 @@ class YoutubeProgress(QWidget):
         self.downloaded_filename = filename
     
     def mouseReleaseEvent(self, event):
-        """Handle mouse release event to navigate to the downloaded file."""
-        # Only handle left button clicks
-        if event.button() == Qt.MouseButton.LeftButton:
-            # Check if click is within thumbnail bounds
-            if self.thumbnail.underMouse():
-                if self.status == "Complete" and self.output_path:
-                    # Instead of opening file explorer, emit signal to navigate to browser page
-                    print(f"Requesting navigation to file - path: {self.output_path}, filename: {self.downloaded_filename}")
-                    self.navigate_to_file_requested.emit(self.output_path, self.downloaded_filename or "")
-                elif self.status != "Complete":
-                    print(f"Cannot navigate to file - download not complete. Status: {self.status}")
-                elif not self.output_path:
-                    print(f"Cannot navigate to file - no output path set for: {self.url}")
+        """Handle mouse release event to navigate to the downloaded file or play it."""
+        # Only proceed if the download is complete and we have an output path
+        if self.status == "Complete" and self.output_path and self.thumbnail.underMouse():
+            if event.button() == Qt.MouseButton.LeftButton:
+                # Left click - navigate to the file in browser
+                print(f"Requesting navigation to file - path: {self.output_path}, filename: {self.downloaded_filename}")
+                self.navigate_to_file_requested.emit(self.output_path, self.downloaded_filename or "")
+            elif event.button() == Qt.MouseButton.RightButton:
+                # Right click - play the file
+                if self.downloaded_filename:
+                    filepath = os.path.join(self.output_path, self.downloaded_filename)
+                    if os.path.exists(filepath):
+                        print(f"Requesting to play file: {filepath}")
+                        self.play_file_requested.emit(filepath)
+                    else:
+                        print(f"Cannot play file - file does not exist: {filepath}")
+        elif self.status != "Complete" and self.thumbnail.underMouse():
+            print(f"Cannot handle click - download not complete. Status: {self.status}")
+        elif not self.output_path and self.thumbnail.underMouse():
+            print(f"Cannot handle click - no output path set for: {self.url}")
+        
         super().mouseReleaseEvent(event)
     
     def _open_file_location(self):

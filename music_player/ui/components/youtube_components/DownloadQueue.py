@@ -24,9 +24,12 @@ class DownloadQueue(QScrollArea):
     Signals:
         navigate_to_file: Emitted when a user clicks on a completed download thumbnail
                           Passes (output_path, filename) for navigation to Browser page
+        play_file: Emitted when a user right-clicks on a completed download thumbnail
+                   Passes filepath to play the file
     """
     
     navigate_to_file = pyqtSignal(str, str)  # Emits (output_path, filename)
+    play_file = pyqtSignal(str)  # Emits filepath to play the file
     
     def __init__(self, download_manager):
         """Initialize the download queue."""
@@ -123,6 +126,14 @@ class DownloadQueue(QScrollArea):
         print(f"[DownloadQueue] Navigation request received for: {output_path}/{filename}")
         self.navigate_to_file.emit(output_path, filename)
     
+    def _on_play_file_requested(self, filepath):
+        """
+        Handle play file request from a YoutubeProgress component.
+        Forwards the request to any attached slot via the play_file signal.
+        """
+        print(f"[DownloadQueue] Play file request received for: {filepath}")
+        self.play_file.emit(filepath)
+    
     def update_queue(self):
         """Update the display of the download queue."""
         # Clear existing progress components that are no longer in the queue
@@ -172,6 +183,11 @@ class DownloadQueue(QScrollArea):
                 # Connect the new navigation signal
                 progress_component.navigate_to_file_requested.connect(
                     self._on_navigate_to_file_requested
+                )
+                
+                # Connect the new play file signal
+                progress_component.play_file_requested.connect(
+                    self._on_play_file_requested
                 )
                 
                 # Add to layout and dictionary

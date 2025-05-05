@@ -34,9 +34,12 @@ class YoutubePage(QWidget):
     Signals:
         navigate_to_file: Emitted when a user clicks on a completed download thumbnail
                           Passes (output_path, filename) for navigation to Browser page
+        play_file: Emitted when a user right-clicks on a completed download thumbnail
+                   Passes filepath to play the file
     """
-    # Add new signal
+    # Add signals
     navigate_to_file = pyqtSignal(str, str)  # Emits (output_path, filename)
+    play_file = pyqtSignal(str)  # Emits filepath to play the file
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -93,9 +96,13 @@ class YoutubePage(QWidget):
         # self.download_manager.download_error.connect(self._on_download_error)
         # self.download_manager.queue_updated.connect(self._on_queue_updated)
         
-        # Connect the navigate_to_file signal from DownloadQueue to our own signal
+        # Connect the navigation signal from DownloadQueue to our own signal
         self.download_queue.navigate_to_file.connect(self.navigate_to_file)
         self.logger.info(self.__class__.__name__, "Connected download_queue.navigate_to_file signal")
+        
+        # Connect the play file signal from DownloadQueue to our own signal
+        self.download_queue.play_file.connect(self.play_file)
+        self.logger.info(self.__class__.__name__, "Connected download_queue.play_file signal")
 
     @pyqtSlot()
     def _on_add_download_clicked(self):
