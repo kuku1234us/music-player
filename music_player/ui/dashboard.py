@@ -192,7 +192,7 @@ class MusicPlayerDashboard(BaseWindow):
         
         # Connect signals from DashboardPage for recently played items
         if hasattr(dashboard_page, 'play_single_file_requested'):
-            dashboard_page.play_single_file_requested.connect(self._handle_play_single_from_dashboard)
+            dashboard_page.play_single_file_requested.connect(self._handle_single_file_request)
             
         if hasattr(dashboard_page, 'play_playlist_requested'):
             dashboard_page.play_playlist_requested.connect(self._handle_play_playlist_from_dashboard)
@@ -228,22 +228,6 @@ class MusicPlayerDashboard(BaseWindow):
             # Set the title text
             self.page_title.setText(page_titles[item_id])
     
-    def _handle_play_single_from_dashboard(self, filepath: str):
-        """Handles request from dashboard to play a single file and navigate."""
-        if self.player and hasattr(self.player, 'play_single_file'):
-            # 1. Navigate to the player page FIRST
-            self.show_page('player')
-            self.sidebar.set_selected_item('player')
-
-            # 2. Initiate playback AFTER the page is shown
-            #    This ensures PlayerPage.showEvent runs and sets the video widget handle
-            # Use QTimer.singleShot to slightly delay playback initiation,
-            # allowing the UI to fully switch and the widget handle to become valid.
-            QTimer.singleShot(50, lambda: self.player.play_single_file(filepath))
-
-            # Original immediate call (commented out):
-            # self.player.play_single_file(filepath)
-
     def _handle_play_playlist_from_dashboard(self, playlist: Playlist):
         """Handles request from dashboard to play a playlist and navigate."""
         # Get the playlists page instance

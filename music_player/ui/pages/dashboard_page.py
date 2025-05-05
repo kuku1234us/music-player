@@ -99,7 +99,7 @@ class DashboardPage(QWidget):
                 border: none; /* Ensure no border on selected item */
             }}
         """)
-        self.recently_played_list.itemDoubleClicked.connect(self._on_recent_item_double_clicked)
+        self.recently_played_list.itemDoubleClicked.connect(self._on_item_double_clicked)
         
         # Add the list widget directly to the main layout
         self.main_layout.addWidget(self.recently_played_list, 1)
@@ -146,7 +146,7 @@ class DashboardPage(QWidget):
                 
             self.recently_played_list.addItem(list_item)
             
-    def _on_recent_item_double_clicked(self, item: QListWidgetItem):
+    def _on_item_double_clicked(self, item: QListWidgetItem):
         """Handle double-click on a recently played item."""
         item_data = item.data(Qt.ItemDataRole.UserRole)
         if not isinstance(item_data, dict):
@@ -174,12 +174,8 @@ class DashboardPage(QWidget):
             if playlist_path.exists():
                 # Need to load the Playlist object first
                 # Remove unnecessary PlaylistManager instance
-                # playlist_manager = PlaylistManager()
-                # Call the static method on the Playlist class directly
                 playlist = Playlist.load_from_file(playlist_path)
                 if playlist:
-                    # Remove the global state update - MainPlayer should handle this
-                    # player_state.set_current_playlist(playlist)
                     self.play_playlist_requested.emit(playlist)
                 else:
                     print(f"[DashboardPage] Error: Failed to load playlist: {path}")

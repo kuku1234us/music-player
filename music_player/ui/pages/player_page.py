@@ -127,7 +127,7 @@ class PlayerPage(QWidget):
         # button_spacing = 10 # No longer needed for individual button spacing
         # Define position for the overlay panel
         overlay_pos = QPoint(margin, margin)
-
+        
         # --- Create PlayerOverlay --- Added
         self.player_overlay = PlayerOverlay(
             parent=self # Set direct parent
@@ -301,7 +301,7 @@ class PlayerPage(QWidget):
     def set_persistent_player(self, player: 'MainPlayer'):
         """ Sets the persistent player instance and connects signals. """
         self.persistent_player = player
-
+        
         # --- Connect player signals --- 
         if self.persistent_player:
             # --- REMOVE OLD CONNECTION ---
@@ -340,21 +340,21 @@ class PlayerPage(QWidget):
 
             # Update UI immediately with current player state/media if available
             # Get current media info
-            current_metadata = self.persistent_player.get_current_track_metadata()
-            if current_metadata:
-                self._update_track_info(current_metadata)
-            
-            # Direct access to artwork path as fallback
-            if hasattr(self.persistent_player, 'get_current_artwork_path'):
-                artwork_path = self.persistent_player.get_current_artwork_path()
-                if artwork_path:
-                    self.album_art.set_image(artwork_path)
-                    self.album_art.setVisible(True)
-                    self.album_art.update()
-            
-            # Force an update
-            self.update()
-            QTimer.singleShot(100, self.update)  # Schedule another update after event processing
+        current_metadata = self.persistent_player.get_current_track_metadata()
+        if current_metadata:
+            self._update_track_info(current_metadata)
+        
+        # Direct access to artwork path as fallback
+        if hasattr(self.persistent_player, 'get_current_artwork_path'):
+            artwork_path = self.persistent_player.get_current_artwork_path()
+            if artwork_path:
+                self.album_art.set_image(artwork_path)
+                self.album_art.setVisible(True)
+                self.album_art.update()
+                
+        # Force an update
+        self.update()
+        QTimer.singleShot(100, self.update)  # Schedule another update after event processing
 
     def resizeEvent(self, event):
         """Handle resize event to position stack and overlays."""

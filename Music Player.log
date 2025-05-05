@@ -1,10 +1,15 @@
-[2025-05-05 01:27:08-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-05-05 01:27:08-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-05-05 01:27:08-DEBUG][BaseWindow]Restored window geometry.
-[2025-05-05 01:27:08-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-05-05 01:27:09-INFO ][YoutubePage]UI setup complete.
-[2025-05-05 01:27:09-INFO ][YoutubePage]Initialized.
-[2025-05-05 01:27:09-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-05-05 01:27:10-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-05-05 01:27:19-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\全球首发！最强开源模型Qwen3破限版分享！SillyTavern Ai酒馆测评，支持Nsfw!满血版通义千问3 API调用及本地部署详解，T8 教程.mp4, switching to PlayerPage.
-[2025-05-05 01:27:19-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
+[2025-05-05 20:15:42-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-05-05 20:15:42-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-05-05 20:15:42-DEBUG][BaseWindow]Restored window geometry.
+[2025-05-05 20:15:42-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-05-05 20:15:43-INFO ][YoutubePage]UI setup complete.
+[2025-05-05 20:15:43-INFO ][YoutubePage]Initialized.
+[2025-05-05 20:15:43-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-05-05 20:15:44-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-05-05 20:17:48-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\炸裂！低配电脑的福利，6G显存就能生成AI视频！完全免费开源，附本地部署教程！！ ｜ 零度解说.webm, switching to PlayerPage.
+[2025-05-05 20:17:48-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
+[2025-05-05 20:17:59-INFO ][MusicPlayerDashboard]Main window close event triggered.
+[2025-05-05 20:17:59-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
+[2025-05-05 20:17:59-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
+[2025-05-05 20:17:59-INFO ][DownloadManager]No active downloads to shut down.
+[2025-05-05 20:17:59-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.
