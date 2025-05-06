@@ -290,7 +290,7 @@ class YtDlpModel:
             return YtDlpModel.generate_format_string(
                 resolution=None,  # No resolution limit
                 use_https=True,
-                use_m4a=True,
+                use_m4a=False,
                 subtitle_lang=None,
                 use_cookies=True,
                 prefer_best_video=True,  # Indicates we want best video

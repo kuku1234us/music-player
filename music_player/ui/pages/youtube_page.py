@@ -139,7 +139,7 @@ class YoutubePage(QWidget):
         
         Args:
             url (str): URL to download from
-            format_type (str): Type of media to download ('audio', 'video', or 'best-video')
+            format_type (str): Type of media to download ('audio', 'video', or 'best')
         """
         # Use logger
         self.logger.info(self.__class__.__name__, f"Auto adding download: URL={url}, Type={format_type}")
@@ -166,7 +166,7 @@ class YoutubePage(QWidget):
             self.logger.info(self.__class__.__name__, 
                            "Using video_720p_default preset for protocol download.")
             options = YtDlpModel.get_preset_options("video_720p_default")
-        elif format_type == "best-video":
+        elif format_type == "best" or format_type == "best-video":
             self.logger.info(self.__class__.__name__, 
                            "Using best_video_default preset for protocol download.")
             options = YtDlpModel.get_preset_options("best_video_default")

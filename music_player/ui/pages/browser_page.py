@@ -5,13 +5,18 @@ import os
 import shutil # Add shutil for directory removal
 import datetime
 from pathlib import Path
+import concurrent.futures
+from functools import partial
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QFileDialog, QLabel,
     QSizePolicy, QMessageBox, QHBoxLayout, QLineEdit, QSpinBox, QPushButton
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSlot, QTimer, pyqtSignal, QSortFilterProxyModel, QRegularExpression
+from PyQt6.QtCore import (
+    Qt, QSize, pyqtSlot, QTimer, pyqtSignal, QSortFilterProxyModel, 
+    QRegularExpression, QThreadPool, QRunnable, QObject
+)
 from PyQt6.QtGui import QIcon, QRegularExpressionValidator
 import qtawesome as qta
 
@@ -65,6 +70,84 @@ browser_col_defs = [
     ),
 ]
 
+# --- Directory Worker Signals ---
+class DirectoryWorkerSignals(QObject):
+    """Signals for the directory loading worker"""
+    started = pyqtSignal()
+    progress = pyqtSignal(int, int)  # current count, total count
+    finished = pyqtSignal(list)  # list of file data dictionaries
+    error = pyqtSignal(str)  # error message
+    
+# --- Directory Worker ---
+class DirectoryWorker(QRunnable):
+    """Worker to load directory contents in a background thread"""
+    
+    def __init__(self, directory_path: Path, batch_size=100):
+        super().__init__()
+        self.directory_path = directory_path
+        self.batch_size = batch_size
+        self.signals = DirectoryWorkerSignals()
+        self.is_cancelled = False
+        
+    def run(self):
+        """Main worker method that runs in a separate thread"""
+        self.signals.started.emit()
+        files_data = []
+        processed_count = 0
+        
+        try:
+            # First, just get directory listing without processing
+            # This is much faster than iterdir() + stat() in a loop
+            items = list(self.directory_path.iterdir())
+            total_items = len(items)
+            
+            # Process in batches
+            for i, item_path in enumerate(items):
+                if self.is_cancelled:
+                    return
+                    
+                try:
+                    # Get stats - skip if error (e.g., permissions, broken link)
+                    stats = item_path.stat()
+                    is_dir = item_path.is_dir()
+                    filename = item_path.name
+                    filesize_bytes = stats.st_size if not is_dir else -1  # Size -1 for dirs
+                    filesize_str = format_file_size(filesize_bytes) if not is_dir else "<DIR>"
+                    mod_time_stamp = stats.st_mtime
+                    mod_time_str = format_modified_time(mod_time_stamp)
+                    
+                    # Add data for sorting/display
+                    files_data.append({
+                        'path': str(item_path),
+                        'filename': filename,
+                        'size_bytes': filesize_bytes,
+                        'size_str': filesize_str,
+                        'mod_stamp': mod_time_stamp,
+                        'mod_str': mod_time_str,
+                        'is_dir': is_dir
+                    })
+                except Exception as e:
+                    print(f"[DirectoryWorker] Error accessing item {item_path}: {e}")
+                    continue  # Skip this item
+                
+                processed_count += 1
+                
+                # Emit progress periodically (not for every file to reduce signal overhead)
+                if processed_count % self.batch_size == 0 or i == total_items - 1:
+                    self.signals.progress.emit(processed_count, total_items)
+                
+        except Exception as e:
+            error_msg = f"Error listing directory {self.directory_path}: {e}"
+            print(f"[DirectoryWorker] {error_msg}")
+            self.signals.error.emit(error_msg)
+            return
+            
+        self.signals.finished.emit(files_data)
+    
+    def cancel(self):
+        """Flag the worker to stop processing"""
+        self.is_cancelled = True
+
 class BrowserPage(QWidget):
     """
     Page that allows browsing a selected directory and viewing its contents.
@@ -113,6 +196,19 @@ class BrowserPage(QWidget):
         self.temp_message_timer = QTimer(self)
         self.temp_message_timer.setSingleShot(True)
         self.temp_message_timer.setInterval(2000) # 2 seconds
+        
+        # Directory worker
+        self.thread_pool = QThreadPool.globalInstance()
+        self.current_directory_worker = None
+        self.loading_timer = QTimer(self)
+        self.loading_timer.setInterval(100)  # 100ms interval for loading animation
+        self.loading_timer.timeout.connect(self._update_loading_animation)
+        self.loading_animation_step = 0
+        self.loading_animation_chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
+        
+        # State for pending selection after async load
+        self._pending_selection_dir = None
+        self._pending_selection_filename = None
 
         self._setup_ui()
         self._connect_signals()
@@ -273,19 +369,18 @@ class BrowserPage(QWidget):
         
         if directory:
             # Use the shared navigation method instead of duplicating code
-            self._navigate_to_directory(Path(directory), save_to_settings=True)
+            self._navigate_to_directory(Path(directory))
         else:
              # User cancelled - keep existing view or message
              self._update_empty_message() # Ensure message reflects state
              
-    def _navigate_to_directory(self, directory_path, save_to_settings=False):
+    def _navigate_to_directory(self, directory_path):
         """
         Core method for navigating to a directory.
         This centralized method is used by both manual browsing and programmatic navigation.
         
         Args:
             directory_path (Path): Path object pointing to the directory to navigate to
-            save_to_settings (bool): Whether to save this directory as the last browsed location
             
         Returns:
             bool: True if navigation was successful, False otherwise
@@ -295,10 +390,9 @@ class BrowserPage(QWidget):
             print(f"[BrowserPage] Cannot navigate: Invalid directory path: {directory_path}")
             return False
             
-        # Save to settings if requested (typically from manual browsing)
-        if save_to_settings:
-            self.settings.set('browser/last_browse_dir', str(directory_path), SettingType.PATH)
-            self.settings.sync()
+        # Always save to settings
+        self.settings.set('browser/last_browse_dir', str(directory_path), SettingType.PATH)
+        self.settings.sync()
             
         # Update current directory and populate the table
         if self._current_directory != directory_path:
@@ -320,50 +414,60 @@ class BrowserPage(QWidget):
             # Optionally show a message if needed
 
     def _populate_table(self, directory_path: Path):
-        """Clears and fills the table with contents of the directory."""
-        # self.file_table.setRowCount(0) # Clear existing rows <-- Removed: Not needed/valid for QTableView+Model
+        """Clears and fills the table with contents of the directory using a worker thread."""
+        # Cancel any ongoing directory loading
+        if self.current_directory_worker:
+            self.current_directory_worker.cancel()
+            
+        # Show loading indicator
+        self.empty_label.setText(f"Loading {directory_path.name}...")
+        self.empty_label.show()
+        self.file_table.hide()
+        self.loading_animation_step = 0
+        self.loading_timer.start()
+        
+        # Create and start a new worker
+        worker = DirectoryWorker(directory_path)
+        worker.signals.started.connect(self._on_directory_loading_started)
+        worker.signals.progress.connect(self._on_directory_loading_progress)
+        worker.signals.finished.connect(lambda files_data: self._on_directory_loading_finished(files_data, directory_path))
+        worker.signals.error.connect(self._on_directory_loading_error)
+        
+        self.current_directory_worker = worker
+        self.thread_pool.start(worker)
 
-        files_data = []
-        try:
-            for item_path in directory_path.iterdir(): # Iterate through items directly
-                try:
-                    # Get stats - skip if error (e.g., permissions, broken link)
-                    stats = item_path.stat()
-                    is_dir = item_path.is_dir()
-                    filename = item_path.name
-                    filesize_bytes = stats.st_size if not is_dir else -1 # Size -1 for dirs
-                    filesize_str = format_file_size(filesize_bytes) if not is_dir else "<DIR>"
-                    mod_time_stamp = stats.st_mtime
-                    mod_time_str = format_modified_time(mod_time_stamp)
-                    
-                    # Add data for sorting/display
-                    files_data.append({
-                        'path': str(item_path),
-                        'filename': filename,
-                        'size_bytes': filesize_bytes,
-                        'size_str': filesize_str,
-                        'mod_stamp': mod_time_stamp,
-                        'mod_str': mod_time_str,
-                        'is_dir': is_dir
-                    })
-                except Exception as e:
-                    print(f"[BrowserPage] Error accessing item {item_path}: {e}")
-                    continue # Skip this item
-                    
-        except Exception as e:
-            print(f"[BrowserPage] Error listing directory {directory_path}: {e}")
-            self.empty_label.setText(f"Error accessing directory: {directory_path.name}")
-            self.file_table.hide()
-            self.empty_label.show()
+    def _on_directory_loading_started(self):
+        """Handle directory loading started signal"""
+        print(f"[BrowserPage] Directory loading started for: {self._current_directory}")
+        
+    def _on_directory_loading_progress(self, current, total):
+        """Handle directory loading progress signal"""
+        if total > 0:
+            percent = (current / total) * 100
+            self.empty_label.setText(f"Loading {self._current_directory.name}... {current}/{total} ({percent:.0f}%)")
+    
+    def _on_directory_loading_finished(self, files_data, directory_path):
+        """Handle directory loading finished signal"""
+        # Stop the loading animation
+        self.loading_timer.stop()
+        
+        # Clear reference to worker
+        self.current_directory_worker = None
+        
+        # Check if this is for the current directory (could have changed during loading)
+        if self._current_directory != directory_path:
+            print(f"[BrowserPage] Ignoring loading results for outdated directory: {directory_path}")
             return
-
+            
+        print(f"[BrowserPage] Directory loading finished: {len(files_data)} items found")
+        
         if not files_data:
             self._update_empty_message(is_empty=True)
             return
         
         # We have files, show table and hide message
         self.empty_label.hide()
-        self.file_table.show() # Show the table directly
+        self.file_table.show()
         
         # Set up model and proxy
         self.model = BaseTableModel(source_objects=files_data, column_definitions=browser_col_defs)
@@ -372,6 +476,37 @@ class BrowserPage(QWidget):
         self.file_table.setModel(self.proxy_model)
 
         self.file_table.resizeRowsToContents()
+        
+        # --- Handle Pending Selection ---
+        if directory_path == self._pending_selection_dir and self._pending_selection_filename:
+            print(f"[BrowserPage] Executing pending selection for: {self._pending_selection_filename}")
+            self._select_file_by_name(self._pending_selection_filename)
+        # Clear pending state regardless of whether selection happened (avoid stale requests)
+        self._pending_selection_dir = None
+        self._pending_selection_filename = None
+        # ------------------------------
+
+    def _on_directory_loading_error(self, error_msg):
+        """Handle directory loading error signal"""
+        # Stop the loading animation
+        self.loading_timer.stop()
+        
+        # Clear reference to worker
+        self.current_directory_worker = None
+        
+        print(f"[BrowserPage] Directory loading error: {error_msg}")
+        self.empty_label.setText(f"Error: {error_msg}")
+        self.empty_label.show()
+        self.file_table.hide()
+        
+    def _update_loading_animation(self):
+        """Update the loading animation character in the empty label"""
+        if not self._current_directory:
+            return
+            
+        char = self.loading_animation_chars[self.loading_animation_step % len(self.loading_animation_chars)]
+        self.empty_label.setText(f"Loading {self._current_directory.name}... {char}")
+        self.loading_animation_step += 1
 
     def _update_empty_message(self, is_empty: bool = False):
         """Shows or hides the empty message based on directory state."""
@@ -671,46 +806,141 @@ class BrowserPage(QWidget):
         """
         Navigate to the specified directory and optionally select a file.
         This method is the public API for external components to navigate within the browser.
+        Handles asynchronous loading before selection.
         
         Args:
-            directory_path (str): Path to the directory to navigate to
+            directory_path (str or Path): Path to the directory to navigate to
             filename (str, optional): Name of the file to select after navigation
             
         Returns:
-            bool: True if navigation was successful
+            bool: True if navigation process was initiated successfully
         """
+        print(f"[BrowserPage] navigate_to_file called: dir={directory_path}, file={filename}")
+        
         if not directory_path:
-            print(f"[BrowserPage] Cannot navigate to empty path")
+            print("[BrowserPage] Cannot navigate: Empty directory path provided.")
             return False
             
-        # Convert to Path object if it's not already
+        # Convert to Path object for consistency
         if not isinstance(directory_path, Path):
-            directory_path = Path(directory_path)
+            try:
+                target_dir = Path(directory_path)
+            except Exception as e:
+                print(f"[BrowserPage] Cannot navigate: Invalid directory path '{directory_path}': {e}")
+                return False
+        else:
+            target_dir = directory_path
+
+        # --- Navigation/Refresh Logic ---
+        needs_load = False
+        if self._current_directory == target_dir:
+            print(f"[BrowserPage] Already in target directory: {target_dir}")
+            # Check if file exists in the CURRENT model
+            if filename and self._is_file_in_table(filename):
+                print(f"[BrowserPage] File '{filename}' found in current view. Selecting.")
+                self._select_file_by_name(filename)
+                # Clear any old pending selection from previous navigations
+                self._pending_selection_dir = None
+                self._pending_selection_filename = None
+                return True # Selection done immediately
+            elif filename:
+                print(f"[BrowserPage] File '{filename}' not in current view. Refresh required.")
+                # File not found, need refresh, then select
+                needs_load = True
+                self._pending_selection_dir = target_dir
+                self._pending_selection_filename = filename
+                self._refresh_view() # Triggers async load via _populate_table
+            else:
+                 # Just navigating to the directory, no selection needed
+                 self._pending_selection_dir = None
+                 self._pending_selection_filename = None
+                 return True # Already in the directory
+        else:
+            print(f"[BrowserPage] Navigating to different directory: {target_dir}")
+            # Need to navigate to a different directory
+            needs_load = True
+            self._pending_selection_dir = target_dir
+            self._pending_selection_filename = filename # Store filename even if None, handled in _on_directory_loading_finished
+            self._navigate_to_directory(target_dir) # Triggers async load via _populate_table
+        
+        # --- Handle Navigation Flag --- 
+        # If we initiated a load, update the navigation flag state from the caller
+        # This logic was previously inside the delegated file_table.navigate_to_file
+        # It prevents showEvent from reloading the *previous* last directory if 
+        # navigation was triggered programmatically while the page wasn't visible.
+        if needs_load and self._navigation_in_progress:
+            # NOTE: The flag is reset in _navigate_to_directory or _refresh_view implicitly
+            # because they update _current_directory which showEvent checks against.
+            # However, we might need to explicitly save the *target* directory here if 
+            # the load fails or is cancelled before _on_directory_loading_finished runs?
+            # For now, let's assume the load will complete or error out appropriately.
+            pass # No immediate action needed here, pending selection handles the rest
+        
+        # Let the caller know navigation/load was initiated
+        return needs_load 
+
+    # --- Helper methods for file checking and selection (moved from BrowserTableView) ---
+    def _is_file_in_table(self, filename: str) -> bool:
+        """Helper method to check if a file is currently loaded in the file_table view."""
+        if not filename:
+            return False
+        
+        try:
+            proxy_model = self.file_table.model()
+            if not proxy_model:
+                print("[BrowserPage] _is_file_in_table: No model available.")
+                return False
             
-        # If a filename is specified, let the file_table handle the navigation
-        # which will check if refresh is needed
-        if filename and hasattr(self, 'file_table') and hasattr(self.file_table, 'navigate_to_file'):
-            result = self.file_table.navigate_to_file(str(directory_path), filename)
-            
-            # After navigation, save the new directory to settings and reset the navigation flag
-            if result and self._navigation_in_progress:
-                # Save the current directory as the last browsed directory
-                self.settings.set('browser/last_browse_dir', str(directory_path), SettingType.PATH)
-                print(f"[BrowserPage] Updated last_browse_dir setting to: {directory_path}")
-                # Reset the navigation flag
-                self._navigation_in_progress = False
+            for row in range(proxy_model.rowCount()):
+                index = proxy_model.index(row, self.COL_FILENAME) # Use COL_FILENAME
+                data = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
+                item_data = proxy_model.data(index, Qt.ItemDataRole.UserRole)
                 
-            return result
-        
-        # No filename specified - use the shared directory navigation method
-        result = self._navigate_to_directory(directory_path)
-        
-        # After navigation, save the new directory to settings and reset the navigation flag
-        if result and self._navigation_in_progress:
-            # Save the current directory as the last browsed directory
-            self.settings.set('browser/last_browse_dir', str(directory_path), SettingType.PATH)
-            print(f"[BrowserPage] Updated last_browse_dir setting to: {directory_path}")
-            # Reset the navigation flag
-            self._navigation_in_progress = False
+                if (data == filename or 
+                    (isinstance(item_data, dict) and item_data.get('filename') == filename)):
+                    return True
+            return False
+        except Exception as e:
+            print(f"[BrowserPage] Error in _is_file_in_table for '{filename}': {e}")
+            return False
+
+    def _select_file_by_name(self, filename: str) -> bool:
+        """Helper method to select a file in the file_table by its name."""
+        if not filename:
+            return False
             
-        return result 
+        try:
+            proxy_model = self.file_table.model()
+            if not proxy_model:
+                print("[BrowserPage] _select_file_by_name: No model available.")
+                return False
+                
+            # Check if already selected (visual check, might not be strictly necessary but good for log)
+            selected_indices = self.file_table.selectedIndexes()
+            if selected_indices:
+                for index in selected_indices:
+                    if index.column() == self.COL_FILENAME:
+                        if proxy_model.data(index, Qt.ItemDataRole.DisplayRole) == filename:
+                            print(f"[BrowserPage] File '{filename}' is already selected. Scrolling to ensure visible.")
+                            self.file_table.scrollTo(index, QAbstractItemView.ScrollHint.EnsureVisible)
+                            return True
+            
+            # Find the row containing the file
+            for row in range(proxy_model.rowCount()):
+                index = proxy_model.index(row, self.COL_FILENAME) # Use COL_FILENAME
+                data = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
+                item_data = proxy_model.data(index, Qt.ItemDataRole.UserRole)
+                
+                if (data == filename or 
+                    (isinstance(item_data, dict) and item_data.get('filename') == filename)):
+                    print(f"[BrowserPage] Selecting file: '{filename}' at view row {row}")
+                    self.file_table.selectRow(row)
+                    self.file_table.scrollTo(index, QAbstractItemView.ScrollHint.EnsureVisible)
+                    return True
+            
+            print(f"[BrowserPage] File not found in browser table for selection: '{filename}'")
+            return False
+        except Exception as e:
+            print(f"[BrowserPage] Error in _select_file_by_name for '{filename}': {e}")
+            return False
+    # --- End Helper methods --- 

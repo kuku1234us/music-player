@@ -32,6 +32,36 @@ APPLICATION_ID = "MusicPlayer-SingleInstance" # Unique ID for socket communicati
 class SingleInstanceListener(QObject):
     url_received = pyqtSignal(str, str) # url, format_type
 
+def parse_protocol_url(url):
+    """
+    Parse a musicplayerdl protocol URL to extract format type and target URL.
+    Returns a tuple of (format_type, url_to_download)
+    """
+    if not url.startswith('musicplayerdl://'):
+        return None, None
+        
+    protocol_path = url.replace('musicplayerdl://', '')
+    format_type = "video"  # Default format type
+    url_to_download = None
+    
+    if protocol_path.startswith('audio/'):
+        format_type = "audio"
+        url_part = protocol_path[len('audio/'):] # Get part after prefix
+        url_to_download = urllib.parse.unquote(url_part)
+    elif protocol_path.startswith('video/'):
+        format_type = "video"
+        url_part = protocol_path[len('video/'):]
+        url_to_download = urllib.parse.unquote(url_part)
+    elif protocol_path.startswith('best/'):
+        format_type = "best"
+        url_part = protocol_path[len('best/'):]
+        url_to_download = urllib.parse.unquote(url_part)
+    else:
+        # Assume legacy format or just URL (treat as video)
+        url_to_download = urllib.parse.unquote(protocol_path)
+    
+    return format_type, url_to_download
+
 def main():
     """Main entry point for the Music Player application."""
     
@@ -40,46 +70,40 @@ def main():
     temp_app_for_socket = QApplication.instance() # Check if already exists (e.g., testing)
     if temp_app_for_socket is None:
         temp_app_for_socket = QApplication(sys.argv)
-        
-    # --- Single Instance Check & Protocol Handling ---
-    url_to_download = None
-    format_type = "video" # Default format type
     
-    if len(sys.argv) > 1:
-        arg = sys.argv[1]
-        if arg.startswith('musicplayerdl://'):
-            protocol_path = arg.replace('musicplayerdl://', '')
-            if protocol_path.startswith('audio/'):
-                format_type = "audio"
-                url_part = protocol_path[len('audio/'):] # Get part after prefix
-                url_to_download = urllib.parse.unquote(url_part)
-            elif protocol_path.startswith('video/'):
-                format_type = "video"
-                url_part = protocol_path[len('video/'):]
-                url_to_download = urllib.parse.unquote(url_part)
-            else:
-                # Assume legacy format or just URL (treat as video)
-                format_type = "video"
-                url_to_download = urllib.parse.unquote(protocol_path)
-            print(f"[Run] Received protocol URL: {url_to_download} (Type: {format_type})")
-
+    # --- Check for command line arguments ---
+    raw_arg = None if len(sys.argv) <= 1 else sys.argv[1]
+    
+    # --- Single Instance Check ---
+    # Always try to connect to an existing instance first
     socket = QLocalSocket()
     socket.connectToServer(APPLICATION_ID)
 
-    # If connection succeeds, send URL and exit
+    # If connection succeeds, send arg and exit
     if socket.waitForConnected(500):
-        print("[Run] Another instance is running. Sending URL and exiting.")
-        if url_to_download:
-            message = f"{format_type}|{url_to_download}"
-            socket.write(message.encode())
+        print("[Run] Another instance is running.")
+        
+        # If we have a command line argument, pass it to the existing instance
+        if raw_arg:
+            print(f"[Run] Sending raw argument to existing instance: {raw_arg}")
+            socket.write(raw_arg.encode())
             socket.flush()
             if not socket.waitForBytesWritten(1000):
                 print("[Run Warning] Timeout waiting for bytes written to socket.", file=sys.stderr)
+        
         socket.close()
         return 0 # Exit this instance successfully
 
     # --- No Existing Instance Found - Proceed with Full App Initialization ---
     print("[Run] No other instance detected. Starting main application.")
+    
+    # Now parse the protocol URL if one was provided
+    url_to_download = None
+    format_type = "video"  # Default format type
+    
+    if raw_arg and raw_arg.startswith('musicplayerdl://'):
+        format_type, url_to_download = parse_protocol_url(raw_arg)
+        print(f"[Run] Parsed protocol URL: {url_to_download} (Type: {format_type})")
 
     # Define Resource Paths (relative to project_root/run.py)
     config_path = os.path.join("music_player", "resources", "music_player_config.yaml")
@@ -122,17 +146,22 @@ def main():
         conn_socket = server.nextPendingConnection()
         if conn_socket:
             if conn_socket.waitForReadyRead(1000):
-                data = conn_socket.readAll().data().decode()
-                print(f"[Run Server] Received data: {data}")
-                if '|' in data:
-                    received_type, received_url = data.split('|', 1)
-                    # Basic validation (optional)
-                    if received_type in ["audio", "video"] and received_url.startswith("http"):
-                         listener.url_received.emit(received_url, received_type)
+                # Read the raw data sent from the second instance
+                raw_data = conn_socket.readAll().data().decode()
+                print(f"[Run Server] Received raw argument: {raw_data}")
+                
+                # Only process if it's a protocol URL
+                if raw_data.startswith('musicplayerdl://'):
+                    format_type, url = parse_protocol_url(raw_data)
+                    
+                    if format_type and url and url.startswith("http"):
+                        print(f"[Run Server] Parsed protocol URL: {url} (Type: {format_type})")
+                        listener.url_received.emit(url, format_type)
                     else:
-                         print(f"[Run Server Warning] Received malformed data: {data}", file=sys.stderr)
+                        print(f"[Run Server Warning] Failed to parse protocol URL: {raw_data}", file=sys.stderr)
                 else:
-                    print(f"[Run Server Warning] Received data without delimiter: {data}", file=sys.stderr)
+                    print(f"[Run Server Warning] Received non-protocol URL data: {raw_data}", file=sys.stderr)
+                
                 conn_socket.disconnectFromServer() # Close connection after reading
             else:
                  print("[Run Server Warning] Timeout waiting for data on new connection.", file=sys.stderr)
