@@ -4,9 +4,9 @@ Video widget for displaying video output using VLC.
 # --- Use PyQt6 --- 
 from PyQt6.QtWidgets import QWidget, QSizePolicy
 from PyQt6.QtGui import QPalette, QColor
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 # --- Add QKeyEvent import --- 
-from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtGui import QKeyEvent, QMouseEvent
 # ----------------------------
 # --- Add typing for handler --- 
 from typing import Optional
@@ -17,6 +17,9 @@ class VideoWidget(QWidget):
     """
     A simple QWidget subclass intended to be used as a video output surface for VLC.
     """
+    # Signal to request toggling full-screen mode
+    fullScreenRequested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         # Enable background styling - Still potentially useful for styling borders etc.
@@ -65,3 +68,13 @@ class VideoWidget(QWidget):
         # Always call base implementation to handle focus etc.
         super().mousePressEvent(event)
     # ---------------------------------
+
+    # --- Implement mouseDoubleClickEvent ---
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        """Handle left mouse double-clicks to request full-screen toggle."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.fullScreenRequested.emit()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
+    # --------------------------------------

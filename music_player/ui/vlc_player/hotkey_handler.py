@@ -50,6 +50,7 @@ class HotkeyHandler(QObject):
             Qt.Key.Key_BracketLeft: self._decrease_playback_speed,  # [ key to decrease speed
             Qt.Key.Key_BracketRight: self._increase_playback_speed, # ] key to increase speed
             Qt.Key.Key_0: self._reset_playback_speed,  # 0 key to reset speed to normal
+            Qt.Key.Key_F12: self._request_toggle_full_screen,
             # Add more hotkeys as needed
         }
         
@@ -142,6 +143,13 @@ class HotkeyHandler(QObject):
     def _reset_playback_speed(self):
         """Reset playback speed to normal (1.0)"""
         self.main_player.set_rate(1.0)
+        
+    def _request_toggle_full_screen(self):
+        """Requests the main player to toggle full-screen mode."""
+        if hasattr(self.main_player, 'request_toggle_full_screen'):
+            self.main_player.request_toggle_full_screen()
+        else:
+            print("[HotkeyHandler] MainPlayer does not have request_toggle_full_screen method.")
         
     def _increase_volume(self):
         """Increase volume by 10%"""

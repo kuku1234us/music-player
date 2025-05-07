@@ -340,17 +340,23 @@ class PlayerPage(QWidget):
 
             # Update UI immediately with current player state/media if available
             # Get current media info
-        current_metadata = self.persistent_player.get_current_track_metadata()
-        if current_metadata:
-            self._update_track_info(current_metadata)
-        
-        # Direct access to artwork path as fallback
-        if hasattr(self.persistent_player, 'get_current_artwork_path'):
-            artwork_path = self.persistent_player.get_current_artwork_path()
-            if artwork_path:
-                self.album_art.set_image(artwork_path)
-                self.album_art.setVisible(True)
-                self.album_art.update()
+            current_metadata = self.persistent_player.get_current_track_metadata()
+            if current_metadata:
+                self._update_track_info(current_metadata)
+            
+            # Direct access to artwork path as fallback
+            if hasattr(self.persistent_player, 'get_current_artwork_path'):
+                artwork_path = self.persistent_player.get_current_artwork_path()
+                if artwork_path:
+                    self.album_art.set_image(artwork_path)
+                    # self.album_art.setVisible(True) # Visibility now controlled by stack
+                    self.album_art.update()
+
+            # --- Call MainPlayer's register_player_page method --- # MOVED HERE
+            if hasattr(self.persistent_player, 'register_player_page'):
+                print("[PlayerPage] Registering self with MainPlayer.")
+                self.persistent_player.register_player_page(self)
+            # -----------------------------------------------------
                 
         # Force an update
         self.update()
@@ -489,3 +495,20 @@ class PlayerPage(QWidget):
     # +++++++++++++++++++++++++++++++++
 
     # --- Add Event Filter Method +++
+
+    # --- Add methods to control media_display_stack visibility --- 
+    def show_video_view(self):
+        """Switches the PlayerPage to display the video widget."""
+        print("[PlayerPage] Showing video view.")
+        self.media_display_stack.setCurrentWidget(self.video_widget)
+        # Ensure video widget is visible if stack itself is visible
+        # self.video_widget.setVisible(True) # setCurrentWidget should handle this
+        # self.album_art.setVisible(False)
+
+    def show_album_art_view(self):
+        """Switches the PlayerPage to display the album art."""
+        print("[PlayerPage] Showing album art view.")
+        self.media_display_stack.setCurrentWidget(self.album_art)
+        # self.album_art.setVisible(True)
+        # self.video_widget.setVisible(False)
+    # ----------------------------------------------------------

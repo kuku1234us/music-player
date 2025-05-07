@@ -23,6 +23,12 @@ from music_player.models.recently_played import RecentlyPlayedModel
 
 from .enums import STATE_PLAYING, STATE_PAUSED, STATE_ENDED, STATE_ERROR, REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM # REPEAT_NONE removed
 
+# --- Add FullScreenManager import ---
+from music_player.ui.components.player_components.full_screen_video import FullScreenManager
+# ------------------------------------
+# --- Add PlayerPage import for type hinting and method call ---
+from music_player.ui.pages.player_page import PlayerPage 
+# -----------------------------------------------------------
 
 class MainPlayer(QWidget):
     """
@@ -75,6 +81,12 @@ class MainPlayer(QWidget):
         self._playback_mode = 'single'  # 'single' or 'playlist'
         # Use string literal for type hint
         self._current_playlist: Optional['Playlist'] = None
+        
+        # --- Add FullScreenManager instance attribute ---
+        self.full_screen_manager: Optional[FullScreenManager] = None
+        # --- Add PlayerPage reference attribute ---
+        self._player_page_ref: Optional[PlayerPage] = None
+        # ----------------------------------------
         
         # UI Components
         self.player_widget = PlayerWidget(self, persistent=persistent_mode)
@@ -483,6 +495,11 @@ class MainPlayer(QWidget):
         """
         # Unregister from player_state - REMOVED
         # player_state.unregister_track_play_requested_callback(self._on_track_play_requested)
+        
+        # --- Call FullScreenManager cleanup ---
+        if self.full_screen_manager:
+            self.full_screen_manager.cleanup()
+        # -------------------------------------
         
         # Stop playback and clean up
         self.backend.stop()
@@ -1208,6 +1225,34 @@ class MainPlayer(QWidget):
         self._video_widget = widget
         self._set_vlc_window_handle(widget) # Use helper to set the handle
 
+        # --- Instantiate and connect FullScreenManager ---
+        if self._video_widget:
+            # If a previous manager exists, clean it up
+            if self.full_screen_manager:
+                self.full_screen_manager.cleanup()
+            
+            self.full_screen_manager = FullScreenManager(
+                video_widget=self._video_widget, 
+                main_player=self, 
+                parent=self # QObject parent for auto-cleanup if MainPlayer is deleted
+            )
+            if hasattr(self._video_widget, 'fullScreenRequested'):
+                self._video_widget.fullScreenRequested.connect(self._handle_full_screen_request)
+            else:
+                print("[MainPlayer] Warning: VideoWidget does not have fullScreenRequested signal.")
+            # --- Connect to FullScreenManager's exit_requested_via_escape signal ---
+            if hasattr(self.full_screen_manager, 'exit_requested_via_escape'):
+                self.full_screen_manager.exit_requested_via_escape.connect(self._handle_exit_request_from_escape)
+            else:
+                print("[MainPlayer] Warning: FullScreenManager does not have exit_requested_via_escape signal.")
+            # --- Connect to FullScreenManager's did_exit_full_screen signal ---
+            if hasattr(self.full_screen_manager, 'did_exit_full_screen'):
+                self.full_screen_manager.did_exit_full_screen.connect(self._sync_player_page_display)
+            else:
+                print("[MainPlayer] Warning: FullScreenManager does not have did_exit_full_screen signal.")
+            # -------------------------------------------------------------------
+        # -------------------------------------------------
+
     def _set_vlc_window_handle(self, widget: Optional[VideoWidget]):
         """Internal helper to set the VLC window handle via the backend."""
         if not widget:
@@ -1323,3 +1368,76 @@ class MainPlayer(QWidget):
                 
                 # Update UI
                 self._update_subtitle_controls()
+
+    # --- Add slot for full screen request ---
+    @pyqtSlot()
+    def _handle_full_screen_request(self):
+        """Handles the request to toggle full-screen mode."""
+        if self.full_screen_manager:
+            print("[MainPlayer] Toggling full screen via FullScreenManager.")
+            self.full_screen_manager.toggle_full_screen()
+            # --- Sync player page display after toggle ---
+            # if not self.full_screen_manager.is_full_screen: # If exited full screen # REMOVED - Handled by did_exit_full_screen signal
+            #     self._sync_player_page_display()
+            # --------------------------------------------
+        else:
+            print("[MainPlayer] Warning: FullScreenManager not initialized. Cannot toggle full screen.")
+    # --------------------------------------
+
+    # --- Add method to be called by HotkeyHandler for F12 ---
+    def request_toggle_full_screen(self):
+        """Public method to request toggling full-screen mode, typically called by HotkeyHandler."""
+        if self.full_screen_manager:
+            print("[MainPlayer] F12 pressed, toggling full screen via FullScreenManager.")
+            self.full_screen_manager.toggle_full_screen()
+            # --- Sync player page display after toggle ---
+            # if not self.full_screen_manager.is_full_screen: # If exited full screen # REMOVED - Handled by did_exit_full_screen signal
+            #     self._sync_player_page_display()
+            # --------------------------------------------
+        else:
+            print("[MainPlayer] Warning: FullScreenManager not initialized. F12 action ignored.")
+    # ------------------------------------------------------
+
+    # --- Add new slot for ESC exit from FullScreenManager ---
+    @pyqtSlot()
+    def _handle_exit_request_from_escape(self):
+        """Handles the explicit exit request from FullScreenManager (due to ESC)."""
+        if self.full_screen_manager and self.full_screen_manager.is_full_screen:
+            print("[MainPlayer] ESC pressed in full screen, triggering manager to exit.")
+            self.full_screen_manager.exit_full_screen() # Manager handles the exit mechanics and will emit did_exit_full_screen
+            # self._sync_player_page_display() # MainPlayer syncs its own UI view # REMOVED - Handled by did_exit_full_screen signal
+        else:
+            print("[MainPlayer] Warning: FullScreenManager not init or not in full screen for ESC exit.")
+    # ---------------------------------------------------------
+
+    # --- Add method to synchronize PlayerPage display state ---
+    def _sync_player_page_display(self):
+        """Ensures the PlayerPage displays the correct view (video or album art)."""
+        print(f"[MainPlayer._sync_player_page_display] Called. Current media is video: {self._is_current_media_video}")
+        if not self._player_page_ref: # Check if player_page_ref is set
+            # Try to find PlayerPage if not set (e.g., if MainPlayer is child of Dashboard)
+            # This is a fallback, ideally _player_page_ref is set explicitly.
+            parent_widget = self.parentWidget()
+            while parent_widget:
+                if hasattr(parent_widget, 'player_page') and isinstance(parent_widget.player_page, PlayerPage):
+                    self._player_page_ref = parent_widget.player_page
+                    break
+                parent_widget = parent_widget.parentWidget()
+
+        if self._player_page_ref and hasattr(self._player_page_ref, 'show_video_view') and hasattr(self._player_page_ref, 'show_album_art_view'):
+            if self._is_current_media_video:
+                print("[MainPlayer] Syncing PlayerPage to show video view.")
+                self._player_page_ref.show_video_view()
+            else:
+                print("[MainPlayer] Syncing PlayerPage to show album art view.")
+                self._player_page_ref.show_album_art_view()
+        else:
+            print("[MainPlayer] Warning: _player_page_ref not set or PlayerPage missing view methods. Cannot sync display.")
+    # ---------------------------------------------------------
+
+    # --- Method for PlayerPage to register itself (optional, alternative to parent search) ---
+    def register_player_page(self, player_page: PlayerPage):
+        """Allows PlayerPage to register itself with MainPlayer."""
+        self._player_page_ref = player_page
+        print("[MainPlayer] PlayerPage registered.")
+    # ------------------------------------------------------------------------------------

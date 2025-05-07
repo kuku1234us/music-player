@@ -1,57 +1,19 @@
-[2025-05-06 16:47:55-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-05-06 16:47:55-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-05-06 16:47:55-DEBUG][BaseWindow]Restored window geometry.
-[2025-05-06 16:47:55-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-05-06 16:47:56-INFO ][YoutubePage]UI setup complete.
-[2025-05-06 16:47:56-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-05-06 16:47:56-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-05-06 16:47:56-INFO ][YoutubePage]Initialized.
-[2025-05-06 16:47:57-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-05-06 16:47:57-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-05-06 16:47:57-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-05-06 16:47:57-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-05-06 16:48:37-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=GaLE7zVWTzk (Type: best)
-[2025-05-06 16:48:37-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=GaLE7zVWTzk, Type=best
-[2025-05-06 16:48:37-INFO ][YoutubePage]Using best_video_default preset for protocol download.
-[2025-05-06 16:48:37-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=GaLE7zVWTzk, Dir=Z:\AAAAA01
-[2025-05-06 16:48:37-INFO ][YoutubePage]Shown.
-[2025-05-06 16:48:37-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=GaLE7zVWTzk
-[2025-05-06 16:48:37-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
-[2025-05-06 16:48:37-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
-[2025-05-06 16:48:37-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
-[2025-05-06 16:48:37-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format 'bestvideo[protocol=https]+bestaudio[protocol=https]/best[protocol=https]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=GaLE7zVWTzk'
-[2025-05-06 16:48:39-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
-[2025-05-06 16:48:39-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 99 cookies from firefox
-[2025-05-06 16:48:39-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=GaLE7zVWTzk
-[2025-05-06 16:48:39-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] GaLE7zVWTzk: Downloading webpage
-[2025-05-06 16:48:41-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] GaLE7zVWTzk: Downloading tv client config
-[2025-05-06 16:48:41-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] GaLE7zVWTzk: Downloading player 14cfd4c0-main
-[2025-05-06 16:48:44-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] GaLE7zVWTzk: Downloading tv player API JSON
-[2025-05-06 16:48:45-INFO ][CLIDownloadWorker][yt-dlp output] [info] GaLE7zVWTzk: Downloading 1 format(s): 243+251
-[2025-05-06 16:48:48-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\刘德华与张学友经典对戏.f243.webm
-[2025-05-06 16:48:48-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\刘德华与张学友经典对戏.f243.webm
-[2025-05-06 16:48:48-DEBUG][CLIDownloadWorker]Added temporary filename candidate: 刘德华与张学友经典对戏.f243.webm
-[2025-05-06 16:48:48-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-05-06 16:48:55-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\刘德华与张学友经典对戏.f251.webm
-[2025-05-06 16:48:55-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\刘德华与张学友经典对戏.f251.webm
-[2025-05-06 16:48:55-DEBUG][CLIDownloadWorker]Added temporary filename candidate: 刘德华与张学友经典对戏.f251.webm
-[2025-05-06 16:48:55-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-05-06 16:49:00-INFO ][CLIDownloadWorker][yt-dlp output] [Merger] Merging formats into "Z:\AAAAA01\刘德华与张学友经典对戏.webm"
-[2025-05-06 16:49:00-INFO ][CLIDownloadWorker]Detected final merged file: 刘德华与张学友经典对戏.webm
-[2025-05-06 16:49:03-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\刘德华与张学友经典对戏.f251.webm (pass -k to keep)
-[2025-05-06 16:49:03-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\刘德华与张学友经典对戏.f243.webm (pass -k to keep)
-[2025-05-06 16:49:04-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
-[2025-05-06 16:49:04-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
-[2025-05-06 16:49:04-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=GaLE7zVWTzk. Emitting finished signal.
-[2025-05-06 16:49:04-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=GaLE7zVWTzk
-[2025-05-06 16:49:04-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=GaLE7zVWTzk from active. Count: 0
-[2025-05-06 16:49:04-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=GaLE7zVWTzk
-[2025-05-06 16:49:08-INFO ][MusicPlayerDashboard]Navigating to downloaded file: Z:\AAAAA01/刘德华与张学友经典对戏.webm
-[2025-05-06 16:49:20-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\刘德华与张学友经典对戏.webm, switching to PlayerPage.
-[2025-05-06 16:49:20-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-05-06 16:49:38-INFO ][YoutubePage]Shown.
-[2025-05-06 16:49:39-INFO ][MusicPlayerDashboard]Navigating to downloaded file: Z:\AAAAA01/刘德华与张学友经典对戏.webm
-[2025-05-06 16:49:43-INFO ][YoutubePage]Shown.
-[2025-05-06 16:49:44-INFO ][MusicPlayerDashboard]Navigating to downloaded file: Z:\AAAAA01/刘德华与张学友经典对戏.webm
-[2025-05-06 16:49:50-INFO ][YoutubePage]Shown.
-[2025-05-06 16:49:51-INFO ][MusicPlayerDashboard]Navigating to downloaded file: Z:\AAAAA01/刘德华与张学友经典对戏.webm
+[2025-05-07 17:47:19-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-05-07 17:47:19-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-05-07 17:47:19-DEBUG][BaseWindow]Restored window geometry.
+[2025-05-07 17:47:19-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-05-07 17:47:20-INFO ][YoutubePage]UI setup complete.
+[2025-05-07 17:47:20-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-05-07 17:47:20-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-05-07 17:47:20-INFO ][YoutubePage]Initialized.
+[2025-05-07 17:47:20-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-05-07 17:47:20-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-05-07 17:47:20-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-05-07 17:47:21-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-05-07 17:47:24-INFO ][MusicPlayerDashboard]Handling single file request: D:\Downloads\Companion.2025.1080p.MA.WEBRip.10Bit.DDP5.1.x265-RAWHD.mkv, switching to PlayerPage.
+[2025-05-07 17:47:24-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
+[2025-05-07 17:49:48-INFO ][MusicPlayerDashboard]Main window close event triggered.
+[2025-05-07 17:49:48-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
+[2025-05-07 17:49:48-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
+[2025-05-07 17:49:48-INFO ][DownloadManager]No active downloads to shut down.
+[2025-05-07 17:49:48-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.
