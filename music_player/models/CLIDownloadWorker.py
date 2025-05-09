@@ -70,6 +70,7 @@ class CLIDownloadWorker(QObject):
         self.temporary_filenames = [] # List to store potential temp/stream filenames
         self.process = None
         self._process_lock = threading.Lock() # Add lock for thread safety
+        self._process_output = [] # Store output lines for later analysis
     
     @pyqtSlot() # Make run a slot
     def run(self):
@@ -134,6 +135,9 @@ class CLIDownloadWorker(QObject):
                     if self.cancelled:
                         self.logger.info(caller="CLIDownloadWorker", msg=f"Cancellation detected for {self.url}, stopping output processing.")
                         break # ---> EXIT LOOP DUE TO CANCELLATION
+
+                    # Store the line for later analysis
+                    self._process_output.append(line)
 
                     # --- Refactored Parsing Logic ---
                     
@@ -358,8 +362,44 @@ class CLIDownloadWorker(QObject):
                     else:
                         # If only subtitles were tracked or none at all
                         self.logger.warning(caller="CLIDownloadWorker", msg="No media filename captured directly via tracking.")
-                        # Note: Disk scan fallback was removed as unreliable. We rely on Merger or last media file.
-                        # If we reach here, self.downloaded_filename remains None.
+                        
+                        # Check if file already exists by examining stdout output
+                        already_exists, detected_filename = self._check_if_already_downloaded(self._process_output, stderr_output)
+                        if already_exists:
+                            self.logger.info(caller="CLIDownloadWorker", msg=f"File already exists: {detected_filename or 'unknown'}")
+                            self.error_signal.emit(self.url, "Already Exists")
+                            # Gracefully terminate yt-dlp process if still running
+                            if local_process and local_process.poll() is None:
+                                try:
+                                    local_process.terminate()
+                                except Exception as e:
+                                    self.logger.warning(caller="CLIDownloadWorker", msg=f"Error terminating yt-dlp after already exists: {e}")
+                            # Exit the method to prevent further output parsing and error emission
+                            return
+                        else:
+                            # Check once more by looking for the "has already been downloaded" message
+                            # directly in the stdout/stderr outputs
+                            
+                            # Check if we can find the message in merged stdout/stderr
+                            all_output = ""
+                            if stderr_output:
+                                all_output += stderr_output
+                            
+                            try:
+                                if local_process.stdout:
+                                    local_process.stdout.seek(0)
+                                    stdout_content = local_process.stdout.read()
+                                    all_output += stdout_content
+                            except:
+                                pass  # Can't seek stdout, continue with what we have
+                                
+                            if "has already been downloaded" in all_output:
+                                self.logger.info(caller="CLIDownloadWorker", msg=f"Detected file already exists from stdout/stderr")
+                                self.error_signal.emit(self.url, "Already Exists")
+                            else:
+                                # Note: Disk scan fallback was removed as unreliable. We rely on Merger or last media file.
+                                # If we reach here, self.downloaded_filename remains None.
+                                self.error_signal.emit(self.url, "Download finished but could not determine output filename.")
 
                 if self.downloaded_filename:
                      final_filepath = os.path.join(self.output_dir, self.downloaded_filename)
@@ -686,4 +726,56 @@ class CLIDownloadWorker(QObject):
         
         # DO NOT start a thread here.
         # The main _execute_download loop will detect self.cancelled and handle termination/cleanup.
+        
+    def _check_if_already_downloaded(self, output_lines, stderr_content=None):
+        """
+        Check if the output contains messages indicating the file has already been downloaded.
+        
+        Args:
+            output_lines (list): List of output lines to check
+            stderr_content (str, optional): Additional error output to check
+            
+        Returns:
+            tuple: (already_exists, filename) - Boolean if already exists, and filename if detected
+        """
+        already_exists = False
+        detected_filename = None
+        
+        # Pattern to match file paths. This pattern looks for a drive letter,
+        # followed by a colon and backslash, then any characters that are not
+        # invalid in a filename, and stops before " has already been downloaded".
+        path_pattern = r'([A-Za-z]:\\[^"<>|:*?\r\n]+?)(?=\s+has already been downloaded)'
+        
+        # First check output lines
+        for line in output_lines:
+            if "has already been downloaded" in line:
+                already_exists = True
+                
+                # Try to extract the filename using regex for Windows paths
+                import re
+                matches = re.findall(path_pattern, line)
+                if matches:
+                    file_path = matches[0]
+                    self.logger.info(caller="CLIDownloadWorker", msg=f"Found file path: {file_path}")
+                    detected_filename = os.path.basename(file_path)
+                break
+        
+        # If not found in output lines, check stderr
+        if not already_exists and stderr_content:
+            if "has already been downloaded" in stderr_content:
+                already_exists = True
+                
+                # Try to extract the filename from stderr
+                import re
+                matches = re.findall(path_pattern, stderr_content)
+                if matches:
+                    file_path = matches[0]
+                    self.logger.info(caller="CLIDownloadWorker", msg=f"Found file path in stderr: {file_path}")
+                    detected_filename = os.path.basename(file_path)
+        
+        # If we found it exists but couldn't get filename, log this
+        if already_exists and not detected_filename:
+            self.logger.warning(caller="CLIDownloadWorker", msg="File exists but couldn't extract filename from output")
+            
+        return already_exists, detected_filename
         

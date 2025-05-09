@@ -4,7 +4,7 @@ Video widget for displaying video output using VLC.
 # --- Use PyQt6 --- 
 from PyQt6.QtWidgets import QWidget, QSizePolicy
 from PyQt6.QtGui import QPalette, QColor
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 # --- Add QKeyEvent import --- 
 from PyQt6.QtGui import QKeyEvent, QMouseEvent
 # ----------------------------
@@ -38,6 +38,14 @@ class VideoWidget(QWidget):
         # Set size policy
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
+        # --- Add click timer to handle double-click detection ---
+        self._click_timer = QTimer()
+        self._click_timer.setSingleShot(True)
+        self._click_timer.setInterval(200)  # 200ms is typical double-click threshold
+        self._click_timer.timeout.connect(self._handle_single_click)
+        self._pending_click = False
+        # -----------------------------------------------------
+    
     # --- Add handler setter --- 
     def set_hotkey_handler(self, handler: Optional[HotkeyHandler]):
         """Sets the hotkey handler instance to use."""
@@ -57,22 +65,35 @@ class VideoWidget(QWidget):
         super().keyPressEvent(event)
     # -------------------------------
 
-    # --- Implement mousePressEvent --- 
+    # --- Modified mousePressEvent --- 
     def mousePressEvent(self, event):
-        """Handle left mouse clicks to toggle play/pause."""
+        """Handle left mouse clicks to toggle play/pause with double-click detection."""
         if event.button() == Qt.MouseButton.LeftButton:
-            if self.hotkey_handler:
-                self.hotkey_handler._toggle_play_pause()
-                # We don't accept the event here, let the base class handle focus etc.
-
+            # Start the timer and flag that we have a pending click
+            self._pending_click = True
+            self._click_timer.start()
+            
         # Always call base implementation to handle focus etc.
         super().mousePressEvent(event)
     # ---------------------------------
 
-    # --- Implement mouseDoubleClickEvent ---
+    # --- Add method to handle single click after timer ---
+    def _handle_single_click(self):
+        """Called when click timer expires - confirmed to be a single click."""
+        if self._pending_click and self.hotkey_handler:
+            self.hotkey_handler._toggle_play_pause()
+        self._pending_click = False
+    # ---------------------------------------------------
+
+    # --- Modified mouseDoubleClickEvent ---
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         """Handle left mouse double-clicks to request full-screen toggle."""
         if event.button() == Qt.MouseButton.LeftButton:
+            # Cancel the pending single click
+            self._pending_click = False
+            self._click_timer.stop()
+            
+            # Request fullscreen mode
             self.fullScreenRequested.emit()
             event.accept()
             return

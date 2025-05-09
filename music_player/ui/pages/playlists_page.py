@@ -24,6 +24,9 @@ from music_player.models import player_state
 from music_player.ui.components.playlist_components.playlist_dashboard import PlaylistDashboardWidget
 from music_player.ui.components.playlist_components.playlist_playmode import PlaylistPlaymodeWidget
 
+# Import settings definitions
+from music_player.models.settings_defs import PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR
+
 
 class PlaylistsPage(QWidget):
     """
@@ -194,7 +197,7 @@ class PlaylistsPage(QWidget):
             self.playlist_manager = PlaylistManager()
 
         # Use the configured working directory as the default starting point
-        working_dir = self.settings.get('preferences/working_dir', Path.home(), SettingType.PATH)
+        working_dir = self.settings.get(PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR, SettingType.PATH)
 
         # Open file dialog to select playlist files
         files, _ = QFileDialog.getOpenFileNames(

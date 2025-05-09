@@ -1,19 +1,75 @@
-[2025-05-07 17:47:19-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-05-07 17:47:19-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-05-07 17:47:19-DEBUG][BaseWindow]Restored window geometry.
-[2025-05-07 17:47:19-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-05-07 17:47:20-INFO ][YoutubePage]UI setup complete.
-[2025-05-07 17:47:20-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-05-07 17:47:20-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-05-07 17:47:20-INFO ][YoutubePage]Initialized.
-[2025-05-07 17:47:20-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-05-07 17:47:20-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-05-07 17:47:20-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-05-07 17:47:21-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-05-07 17:47:24-INFO ][MusicPlayerDashboard]Handling single file request: D:\Downloads\Companion.2025.1080p.MA.WEBRip.10Bit.DDP5.1.x265-RAWHD.mkv, switching to PlayerPage.
-[2025-05-07 17:47:24-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-05-07 17:49:48-INFO ][MusicPlayerDashboard]Main window close event triggered.
-[2025-05-07 17:49:48-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
-[2025-05-07 17:49:48-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
-[2025-05-07 17:49:48-INFO ][DownloadManager]No active downloads to shut down.
-[2025-05-07 17:49:48-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.
+[2025-05-10 00:09:21-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-05-10 00:09:21-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-05-10 00:09:21-DEBUG][BaseWindow]Restored window geometry.
+[2025-05-10 00:09:21-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-05-10 00:09:23-INFO ][YoutubePage]UI setup complete.
+[2025-05-10 00:09:23-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-05-10 00:09:23-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-05-10 00:09:23-INFO ][YoutubePage]Initialized.
+[2025-05-10 00:09:23-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-05-10 00:09:23-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-05-10 00:09:23-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-05-10 00:09:23-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-05-10 00:09:29-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=JPrQxnPm6pQ (Type: best)
+[2025-05-10 00:09:29-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=JPrQxnPm6pQ, Type=best
+[2025-05-10 00:09:29-INFO ][YoutubePage]Using best_video_default preset for protocol download.
+[2025-05-10 00:09:29-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=JPrQxnPm6pQ, Dir=Z:\AAAAA01
+[2025-05-10 00:09:29-INFO ][YoutubePage]Shown.
+[2025-05-10 00:09:29-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=JPrQxnPm6pQ
+[2025-05-10 00:09:29-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-05-10 00:09:29-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-05-10 00:09:29-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-05-10 00:09:29-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format 'bestvideo[protocol=https]+bestaudio[protocol=https]/best[protocol=https]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=JPrQxnPm6pQ'
+[2025-05-10 00:09:31-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-05-10 00:09:31-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 107 cookies from firefox
+[2025-05-10 00:09:31-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=JPrQxnPm6pQ
+[2025-05-10 00:09:31-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] JPrQxnPm6pQ: Downloading webpage
+[2025-05-10 00:09:33-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] JPrQxnPm6pQ: Downloading tv client config
+[2025-05-10 00:09:34-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] JPrQxnPm6pQ: Downloading player ab11fe69-main
+[2025-05-10 00:09:36-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] JPrQxnPm6pQ: Downloading tv player API JSON
+[2025-05-10 00:09:38-INFO ][CLIDownloadWorker][yt-dlp output] [info] JPrQxnPm6pQ: Downloading 1 format(s): 315+251
+[2025-05-10 00:09:38-INFO ][CLIDownloadWorker][yt-dlp output] [download] Z:\AAAAA01\Miss Sweet - Monaco Dreams on Holiday ｜ Chill R&B Vibes ｜ Official Music Video.webm has already been downloaded
+[2025-05-10 00:09:39-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-05-10 00:09:39-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-05-10 00:09:39-WARNING][CLIDownloadWorker]No media filename captured directly via tracking.
+[2025-05-10 00:09:39-INFO ][CLIDownloadWorker]Found file path: Z:\AAAAA01\Miss Sweet - Monaco Dreams on Holiday ｜ Chill R&B Vibes ｜ Official Music Video.webm
+[2025-05-10 00:09:39-INFO ][CLIDownloadWorker]File already exists: Miss Sweet - Monaco Dreams on Holiday ｜ Chill R&B Vibes ｜ Official Music Video.webm
+[2025-05-10 00:09:39-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=JPrQxnPm6pQ. Emitting finished signal.
+[2025-05-10 00:09:39-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=JPrQxnPm6pQ
+[2025-05-10 00:09:39-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=JPrQxnPm6pQ from active. Count: 0
+[2025-05-10 00:09:39-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=JPrQxnPm6pQ
+[2025-05-10 00:13:15-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=dCVih3GmHfg (Type: best)
+[2025-05-10 00:13:15-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=dCVih3GmHfg, Type=best
+[2025-05-10 00:13:15-INFO ][YoutubePage]Using best_video_default preset for protocol download.
+[2025-05-10 00:13:15-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=dCVih3GmHfg, Dir=Z:\AAAAA01
+[2025-05-10 00:13:15-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=dCVih3GmHfg
+[2025-05-10 00:13:15-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-05-10 00:13:15-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-05-10 00:13:15-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-05-10 00:13:15-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format 'bestvideo[protocol=https]+bestaudio[protocol=https]/best[protocol=https]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=dCVih3GmHfg'
+[2025-05-10 00:13:19-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-05-10 00:13:19-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 107 cookies from firefox
+[2025-05-10 00:13:19-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=dCVih3GmHfg
+[2025-05-10 00:13:19-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] dCVih3GmHfg: Downloading webpage
+[2025-05-10 00:13:21-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] dCVih3GmHfg: Downloading tv client config
+[2025-05-10 00:13:22-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] dCVih3GmHfg: Downloading player ab11fe69-main
+[2025-05-10 00:13:24-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] dCVih3GmHfg: Downloading tv player API JSON
+[2025-05-10 00:13:26-INFO ][CLIDownloadWorker][yt-dlp output] [info] dCVih3GmHfg: Downloading 1 format(s): 315+251
+[2025-05-10 00:13:27-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Miss Sweet - Whispers of Hope - همسات الأمل ｜  Chill R&B Vibes ｜ Official Music Video.f315.webm
+[2025-05-10 00:13:27-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Miss Sweet - Whispers of Hope - همسات الأمل ｜  Chill R&B Vibes ｜ Official Music Video.f315.webm
+[2025-05-10 00:13:27-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Miss Sweet - Whispers of Hope - همسات الأمل ｜  Chill R&B Vibes ｜ Official Music Video.f315.webm
+[2025-05-10 00:13:27-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-05-10 00:15:55-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Miss Sweet - Whispers of Hope - همسات الأمل ｜  Chill R&B Vibes ｜ Official Music Video.f251.webm
+[2025-05-10 00:15:55-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Miss Sweet - Whispers of Hope - همسات الأمل ｜  Chill R&B Vibes ｜ Official Music Video.f251.webm
+[2025-05-10 00:15:55-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Miss Sweet - Whispers of Hope - همسات الأمل ｜  Chill R&B Vibes ｜ Official Music Video.f251.webm
+[2025-05-10 00:15:55-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-05-10 00:15:58-INFO ][CLIDownloadWorker][yt-dlp output] [Merger] Merging formats into "Z:\AAAAA01\Miss Sweet - Whispers of Hope - همسات الأمل ｜  Chill R&B Vibes ｜ Official Music Video.webm"
+[2025-05-10 00:15:58-INFO ][CLIDownloadWorker]Detected final merged file: Miss Sweet - Whispers of Hope - همسات الأمل ｜  Chill R&B Vibes ｜ Official Music Video.webm
+[2025-05-10 00:16:21-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\Miss Sweet - Whispers of Hope - همسات الأمل ｜  Chill R&B Vibes ｜ Official Music Video.f251.webm (pass -k to keep)
+[2025-05-10 00:16:22-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\Miss Sweet - Whispers of Hope - همسات الأمل ｜  Chill R&B Vibes ｜ Official Music Video.f315.webm (pass -k to keep)
+[2025-05-10 00:16:22-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-05-10 00:16:22-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-05-10 00:16:22-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=dCVih3GmHfg. Emitting finished signal.
+[2025-05-10 00:16:22-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=dCVih3GmHfg
+[2025-05-10 00:16:22-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=dCVih3GmHfg from active. Count: 0
+[2025-05-10 00:16:22-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=dCVih3GmHfg

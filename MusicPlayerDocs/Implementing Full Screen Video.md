@@ -175,12 +175,78 @@ Ensuring that all hotkeys defined in `hotkey_handler.py` (which operate on `Main
 
 ## VLC Instance and `winId` Update
 
--   When `VideoWidget` is re-parented into `FullScreenVideoHostWindow`, its platform-specific window ID (`winId()`) will change.
+-   When `VideoWidget` is re-parented into `FullScreenVideoHostWindow`, its platform-specific window ID (`winId()`) will change. This is because the `winId()` is tied to the top-level native window context; `FullScreenVideoHostWindow` is a new, distinct top-level window from the main application window where `VideoWidget` originally resided. Thus, moving `VideoWidget` between these two contexts necessarily changes the `winId()` that VLC must use.
 -   The VLC media player instance, managed by `VLCBackend`, is associated with a specific window ID for rendering video (via `vlc.MediaPlayer.set_hwnd()`).
 -   The `FullScreenManager`, in coordination with `MainPlayer` (which interfaces with `VLCBackend`), must ensure that `VLCBackend.set_video_output()` is called with the new `winId()` of the `VideoWidget`. This call should be made *after* the `VideoWidget` has been re-parented and the `FullScreenVideoHostWindow` is shown and visible, as the `winId()` might not be valid or stable before that point.
 -   Similarly, when exiting full screen, the `winId()` should be updated again: either to the `VideoWidget`'s `winId()` in its original parent (if video continues) or set to `None` (or `0`) via `VLCBackend.set_video_output(None)` if the video display is to be detached or hidden.
 
 This dedicated manager approach provides a clear separation of concerns, making the full-screen functionality more robust, maintainable, and extensible, aligning with good software design principles.
+
+## Full-Screen Toggle Event Flow (F12 Key)
+
+Understanding the sequence of events when toggling full-screen mode is crucial for debugging and further development. The F12 key serves as the primary toggle. Below is a detailed breakdown of what happens under the hood.
+
+### Entering Full Screen (F12 Press in In-App Mode)
+
+When the user is viewing video content within the main application window (in-app mode) and presses F12, the following sequence is initiated to transition to an immersive full-screen experience:
+
+1.  **F12 Key Detection**:
+    *   The `MainPlayer` (typically through its integrated `HotkeyHandler` or via an event filter on the main application window) captures the F12 key press. This centralized handling ensures F12 works globally within the application.
+
+2.  **Delegation to `FullScreenManager`**:
+    *   Upon detecting F12, `MainPlayer` invokes the `toggle_full_screen()` method on its `FullScreenManager` instance. Since the player is not currently in full-screen, this effectively calls `FullScreenManager.enter_full_screen()`.
+
+3.  **`FullScreenManager.enter_full_screen()` Orchestration**:
+    *   **State Preservation**: The manager first saves the `VideoWidget`'s current state within `PlayerPage`. This includes:
+        *   Its original parent widget (e.g., the `QStackedWidget` in `PlayerPage`).
+        *   Its current visibility, geometry, and layout details (like its index and stretch factor within the original parent's layout).
+        *   The `VideoWidget` is then programmatically removed from its current layout in `PlayerPage`. This prepares it to be moved.
+    *   **Re-parenting `VideoWidget`**: The `VideoWidget` is re-parented to the `FullScreenVideoHostWindow`. Think of this like temporarily moving your TV from the living room stand to a dedicated cinema room wall. The `VideoWidget` instance itself isn't destroyed and recreated; it's the same widget, just in a new temporary home.
+        *   `self._video_widget_ref.setParent(self._host_window)`
+    *   **Integrating into Host Layout**: The `VideoWidget` is added to the layout of the `FullScreenVideoHostWindow`, configured to fill the entire host window.
+    *   **Displaying the Host Window**:
+        *   The `FullScreenVideoHostWindow` (now containing the `VideoWidget`) is shown in true full-screen mode using `self._host_window.showFullScreen()`.
+        *   The host window is activated, raised to the top, and given input focus. The `VideoWidget` geometry is explicitly set to match the host window's content area.
+    *   **VLC `winId` Update**: This is a critical step. When a widget is re-parented and shown in a new top-level window, its underlying window system identifier (`winId()`) changes. VLC needs this `winId` to know where to draw the video.
+        *   `MainPlayer` (via `FullScreenManager`) calls `VLCBackend.set_video_output()` (or a similar method like `_set_vlc_window_handle`) with the `VideoWidget`'s *new* `winId()`. This must happen *after* the `FullScreenVideoHostWindow` is visible and the `VideoWidget` is part of it.
+    *   **Internal State Update**: `FullScreenManager` sets its internal `_is_full_screen` flag to `True`.
+
+At this point, the video is playing full-screen, and the `FullScreenVideoHostWindow` is responsible for handling input like the ESC key for exiting.
+
+### Exiting Full Screen (F12 Press in Full-Screen Mode)
+
+When F12 is pressed while in full-screen mode, the application transitions back to the normal in-app view:
+
+1.  **F12 Key Detection**:
+    *   Similar to entering, `MainPlayer`'s global F12 handler detects the key. Alternatively, if the `FullScreenVideoHostWindow` has focus, it might detect F12 and signal `FullScreenManager`. The global handler in `MainPlayer` is generally more robust for a toggle.
+
+2.  **Delegation to `FullScreenManager`**:
+    *   `MainPlayer` calls `FullScreenManager.toggle_full_screen()`. Since `_is_full_screen` is true, this routes to `FullScreenManager.exit_full_screen()`.
+
+3.  **`FullScreenManager.exit_full_screen()` Orchestration**:
+    *   **Removing from Host**: The `VideoWidget` is removed from the `FullScreenVideoHostWindow`'s layout.
+    *   **Detaching `VideoWidget`**: The `VideoWidget`'s parent is set to `None` (`self._video_widget_ref.setParent(None)`). It's now "homeless" momentarily, waiting to be re-adopted by `PlayerPage`.
+    *   **Hiding Host Window**: The `FullScreenVideoHostWindow` is first set to `showNormal()` (to exit the OS's full-screen mode gracefully) and then hidden using `self._host_window.hide()`.
+    *   **VLC `winId` Update (Detachment)**: `MainPlayer` (via `FullScreenManager`) calls `VLCBackend.set_video_output(None)`. This tells VLC to stop trying to render to the `VideoWidget`'s old `winId` (which is associated with the now-hidden host window).
+    *   **Restoring Focus**: Focus is explicitly returned to the main application window.
+    *   **Internal State Update**: `FullScreenManager` sets `_is_full_screen` to `False` and emits the `did_exit_full_screen` signal.
+
+4.  **`MainPlayer` Coordinates `PlayerPage` Update**:
+    *   `MainPlayer` typically has a slot connected to `FullScreenManager.did_exit_full_screen` or reacts directly. This often involves calling a method like `_sync_player_page_display()` to ensure the UI reflects the current state.
+
+5.  **`PlayerPage.show_video_view()` Re-integrates `VideoWidget`**:
+    *   This method is called by `MainPlayer` to restore the video display within `PlayerPage`.
+    *   **Re-parenting**: `self.video_widget.setParent(self.media_display_stack)` makes the `VideoWidget` a child of the `QStackedWidget` in `PlayerPage`.
+    *   **Re-adding to Stack**: `self.media_display_stack.addWidget(self.video_widget)` is crucial. It re-registers the `VideoWidget` with the `QStackedWidget`'s layout and page management system. This step is vital to avoid the "widget not contained in stack" errors and ensure correct resizing.
+    *   **Making Visible**: `self.media_display_stack.setCurrentWidget(self.video_widget)` makes it the active page. Its visibility is ensured, and `update()`/`updateGeometry()` calls trigger a layout pass, resizing it correctly within `PlayerPage`.
+
+6.  **`MainPlayer` Re-attaches VLC to `VideoWidget` in `PlayerPage`**:
+    *   Once `VideoWidget` is visible and correctly sized within `PlayerPage`, `MainPlayer` must again update VLC's output.
+    *   It calls `VLCBackend.set_video_output()` with the `VideoWidget`'s `winId()`. This `winId` is now relative to its place within the `PlayerPage` and the main application window.
+
+The video playback now seamlessly continues within the `PlayerPage`, scaled correctly, and all application controls are accessible again.
+
+This two-way process of detaching, re-parenting, and re-integrating the `VideoWidget`, coupled with timely `winId` updates for VLC, is fundamental to the full-screen functionality.
 
 ## Implementation Milestones Checklist
 

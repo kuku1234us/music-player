@@ -185,6 +185,7 @@ The core media playback functionality is encapsulated within the `VLCBackend` cl
 
 *   **Initialization:** Creates a VLC instance and a media player instance.
 *   **Event Manager:** Attaches to VLC events (e.g., `MediaPlayerPositionChanged`, `MediaPlayerEndReached`, `MediaPlayerStateChanged`) to monitor playback status.
+*   **Window Handle (`winId()`) Management for Video:** A crucial aspect of video playback is providing VLC with a valid window identifier (`winId()` on Qt, which corresponds to HWND on Windows) where it can draw the video. When a `VideoWidget` is re-parented between different top-level window contexts (e.g., from the main application window to a separate `FullScreenVideoHostWindow`), its `winId()` changes. This is because the `winId()` is tied to the native top-level window. `VLCBackend` must be updated with the new `winId()` via its `set_video_output()` method whenever such a re-parenting and context switch occurs to ensure continuous video rendering.
 *   **Signal Emission:** Translates VLC events into Qt signals (`position_changed`, `duration_changed`, `state_changed`, `end_reached`, `error_occurred`, `media_loaded`) for consumption by the UI/Control layer.
 
 ### 5.2 Media Loading and Management

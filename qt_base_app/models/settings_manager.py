@@ -51,11 +51,11 @@ class SettingsManager:
         
         # Store settings
         settings.set('player/volume', 75, SettingType.INT)
-        settings.set('preferences/playlists_dir', Path('/music/playlists'), SettingType.PATH)
+        settings.set('preferences/working_dir', Path('/music'), SettingType.PATH)
         
         # Retrieve settings
         volume = settings.get('player/volume', 100, SettingType.INT)
-        playlists_dir = settings.get('preferences/playlists_dir', Path.home(), SettingType.PATH)
+        working_dir = settings.get('preferences/working_dir', Path.home(), SettingType.PATH)
     """
     
     _instance = None
@@ -133,7 +133,7 @@ class SettingsManager:
         self._defaults = {
             'player/volume': (100, SettingType.INT),
             'preferences/seek_interval': (3, SettingType.INT),
-            'preferences/playlists_dir': (str(Path.home()), SettingType.PATH),
+            'preferences/working_dir': (str(Path.home()), SettingType.PATH),
             'ui/sidebar/expanded': (True, SettingType.BOOL),
             'recent/files': ([], SettingType.LIST),
             'recent/playlists': ([], SettingType.LIST),

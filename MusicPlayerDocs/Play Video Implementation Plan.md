@@ -146,6 +146,7 @@ This combination of media type detection in the backend, signal-based communicat
 *   **Performance:** Video rendering can be more resource-intensive. Monitor performance.
 *   **Error Handling:** Ensure errors during video playback or handle passing are caught.
 *   **Platform Differences:** `winId()` and the corresponding VLC functions (`set_hwnd`, `set_xwindow`, `set_nsobject`) are platform-specific. Ensure the correct VLC call is made based on the operating system (`sys.platform`).
+*   **`winId()` Changes on Re-parenting:** It's critical to remember that the `winId()` of the `VideoWidget` will change if it's re-parented between different top-level window contexts (e.g., from the main application window to a separate `FullScreenVideoHostWindow` for full-screen mode). The `winId()` is tied to the native top-level window. Therefore, VLC must be updated with the new `winId()` via `VLCBackend.set_video_output()` whenever such a re-parenting and context switch occurs to ensure continuous and correct video rendering.
 *   **VLC Instance:** Ensure the VLC instance is created appropriately for video playback (it usually is by default).
 
 ## 6. Implementation Checklist

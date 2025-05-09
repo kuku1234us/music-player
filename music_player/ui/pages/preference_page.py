@@ -16,7 +16,7 @@ from qt_base_app.models.settings_manager import SettingsManager, SettingType
 # Import keys and defaults from settings_defs
 from music_player.models.settings_defs import (
     PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL,
-    PREF_PLAYLISTS_DIR_KEY, DEFAULT_PLAYLISTS_DIR,
+    PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR,
     YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR,
     # Import QSettings keys for API keys
     YT_API_QSETTINGS_KEY, DEFAULT_YT_API_KEY, 
@@ -93,29 +93,29 @@ class PreferencePage(QWidget):
         
         # --- Library Settings ---
         
-        # Renamed this setting, now specific to playlists
-        self.playlists_dir_label = QLabel("Playlists Directory:")
-        self.playlists_dir_label.setStyleSheet(label_style)
+        # Renamed this setting to Working Directory
+        self.working_dir_label = QLabel("Working Directory:")
+        self.working_dir_label.setStyleSheet(label_style)
         
-        self.playlists_dir_container = QWidget()
-        self.playlists_dir_layout = QHBoxLayout(self.playlists_dir_container)
-        self.playlists_dir_layout.setContentsMargins(0, 0, 0, 0)
-        self.playlists_dir_layout.setSpacing(8)
+        self.working_dir_container = QWidget()
+        self.working_dir_layout = QHBoxLayout(self.working_dir_container)
+        self.working_dir_layout.setContentsMargins(0, 0, 0, 0)
+        self.working_dir_layout.setSpacing(8)
         
-        self.playlists_dir_edit = QLineEdit()
-        self.playlists_dir_edit.setPlaceholderText("Choose playlists directory")
-        self.playlists_dir_edit.setReadOnly(True)
-        self.playlists_dir_edit.setStyleSheet(input_style)
+        self.working_dir_edit = QLineEdit()
+        self.working_dir_edit.setPlaceholderText("Choose working directory")
+        self.working_dir_edit.setReadOnly(True)
+        self.working_dir_edit.setStyleSheet(input_style)
         
-        self.browse_playlists_dir_button = QPushButton("Browse...")
-        self.browse_playlists_dir_button.setMaximumWidth(100)
-        self.browse_playlists_dir_button.clicked.connect(self.browse_playlists_dir)
-        self.browse_playlists_dir_button.setStyleSheet(button_style)
+        self.browse_working_dir_button = QPushButton("Browse...")
+        self.browse_working_dir_button.setMaximumWidth(100)
+        self.browse_working_dir_button.clicked.connect(self.browse_working_dir)
+        self.browse_working_dir_button.setStyleSheet(button_style)
         
-        self.playlists_dir_layout.addWidget(self.playlists_dir_edit)
-        self.playlists_dir_layout.addWidget(self.browse_playlists_dir_button)
+        self.working_dir_layout.addWidget(self.working_dir_edit)
+        self.working_dir_layout.addWidget(self.browse_working_dir_button)
         
-        form_layout.addRow(self.playlists_dir_label, self.playlists_dir_container)
+        form_layout.addRow(self.working_dir_label, self.working_dir_container)
         
         # --- Download Settings ---
         
@@ -183,9 +183,9 @@ class PreferencePage(QWidget):
         seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.INT)
         self.seek_interval_spinbox.setValue(seek_interval)
         
-        # Load playlists directory (using specific key)
-        playlists_dir = self.settings.get(PREF_PLAYLISTS_DIR_KEY, DEFAULT_PLAYLISTS_DIR, SettingType.PATH)
-        self.playlists_dir_edit.setText(str(playlists_dir))
+        # Load working directory (using specific key)
+        working_dir = self.settings.get(PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR, SettingType.PATH)
+        self.working_dir_edit.setText(str(working_dir))
 
         # Load download directory
         download_dir = self.settings.get(YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR, SettingType.PATH)
@@ -223,14 +223,14 @@ class PreferencePage(QWidget):
         """Reset settings to default values."""
         # Reset UI fields
         self.seek_interval_spinbox.setValue(DEFAULT_SEEK_INTERVAL)
-        self.playlists_dir_edit.setText(str(DEFAULT_PLAYLISTS_DIR))
+        self.working_dir_edit.setText(str(DEFAULT_WORKING_DIR))
         self.download_dir_edit.setText(str(DEFAULT_YT_DOWNLOAD_DIR))
         self.yt_api_key_edit.setText(DEFAULT_YT_API_KEY)
         self.groq_api_key_edit.setText(DEFAULT_GROQ_API_KEY)
         
         # Set QSettings back to defaults
         self.settings.set(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.INT)
-        self.settings.set(PREF_PLAYLISTS_DIR_KEY, DEFAULT_PLAYLISTS_DIR, SettingType.PATH)
+        self.settings.set(PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR, SettingType.PATH)
         self.settings.set(YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR, SettingType.PATH)
         self.settings.set(YT_API_QSETTINGS_KEY, DEFAULT_YT_API_KEY, SettingType.STRING)
         self.settings.set(GROQ_API_QSETTINGS_KEY, DEFAULT_GROQ_API_KEY, SettingType.STRING)
@@ -245,31 +245,31 @@ class PreferencePage(QWidget):
         # Reload settings to ensure we display the most current values
         self.load_settings()
         
-    def browse_playlists_dir(self):
-        """Open directory browser dialog to select playlists directory"""
-        current_dir = self.settings.get(PREF_PLAYLISTS_DIR_KEY, DEFAULT_PLAYLISTS_DIR, SettingType.PATH)
+    def browse_working_dir(self):
+        """Open directory browser dialog to select working directory"""
+        current_dir = self.settings.get(PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR, SettingType.PATH)
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Select Playlists Directory",
+            "Select Working Directory",
             str(current_dir),
             QFileDialog.Option.ShowDirsOnly
         )
         
         if directory:
             # Update the text field
-            self.playlists_dir_edit.setText(directory)
+            self.working_dir_edit.setText(directory)
             
             # Save the new directory path
             try:
                 # Convert to Path object and save
                 path_obj = Path(directory)
-                self.settings.set(PREF_PLAYLISTS_DIR_KEY, path_obj, SettingType.PATH)
+                self.settings.set(PREF_WORKING_DIR_KEY, path_obj, SettingType.PATH)
                 self.settings.sync() # Persist changes immediately
             except Exception as e:
                 QMessageBox.warning(
                     self,
                     "Save Error",
-                    f"Failed to save playlists directory: {str(e)}"
+                    f"Failed to save working directory: {str(e)}"
                 ) 
 
     def browse_download_dir(self):

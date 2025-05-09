@@ -340,17 +340,17 @@ class PlayerPage(QWidget):
 
             # Update UI immediately with current player state/media if available
             # Get current media info
-            current_metadata = self.persistent_player.get_current_track_metadata()
-            if current_metadata:
-                self._update_track_info(current_metadata)
-            
-            # Direct access to artwork path as fallback
-            if hasattr(self.persistent_player, 'get_current_artwork_path'):
-                artwork_path = self.persistent_player.get_current_artwork_path()
-                if artwork_path:
-                    self.album_art.set_image(artwork_path)
+        current_metadata = self.persistent_player.get_current_track_metadata()
+        if current_metadata:
+            self._update_track_info(current_metadata)
+        
+        # Direct access to artwork path as fallback
+        if hasattr(self.persistent_player, 'get_current_artwork_path'):
+            artwork_path = self.persistent_player.get_current_artwork_path()
+            if artwork_path:
+                self.album_art.set_image(artwork_path)
                     # self.album_art.setVisible(True) # Visibility now controlled by stack
-                    self.album_art.update()
+                self.album_art.update()
 
             # --- Call MainPlayer's register_player_page method --- # MOVED HERE
             if hasattr(self.persistent_player, 'register_player_page'):
@@ -500,15 +500,49 @@ class PlayerPage(QWidget):
     def show_video_view(self):
         """Switches the PlayerPage to display the video widget."""
         print("[PlayerPage] Showing video view.")
+        
+        # Ensure the VideoWidget is parented to the QStackedWidget.
+        # This is necessary if it was previously detached (e.g., parent set to None).
+        if self.video_widget.parentWidget() != self.media_display_stack:
+            print(f"[PlayerPage] VideoWidget current parent is {self.video_widget.parentWidget()}, reparenting to {self.media_display_stack}.")
+            # Ensure it's fully detached from any old parent before reparenting.
+            # This is usually handled by setParent, but being explicit can avoid edge cases.
+            if self.video_widget.parentWidget() is not None:
+                self.video_widget.setParent(None)
+            self.video_widget.setParent(self.media_display_stack)
+            
+            # CRUCIAL: After reparenting, the widget must be re-added to the QStackedWidget's
+            # internal page list and layout management. Calling addWidget handles this.
+            # QStackedWidget.addWidget is idempotent if the widget is already present in some form,
+            # but it's essential here because reparenting effectively removes it from stack's layout.
+            print("[PlayerPage] Re-adding VideoWidget to media_display_stack via addWidget after reparenting.")
+            self.media_display_stack.addWidget(self.video_widget)
+        else:
+            # Even if parented correctly, it might have been 'deregistered' from the stack's view.
+            # The "not contained in stack" warning is the primary indicator.
+            # If indexOf returns -1, it means it's not in the stack's managed pages.
+            if self.media_display_stack.indexOf(self.video_widget) == -1:
+                print("[PlayerPage] VideoWidget parented to stack, but not found by indexOf. Re-adding via addWidget.")
+                self.media_display_stack.addWidget(self.video_widget)
+        
+        # Now, the widget should be correctly parented AND managed by the stack.
         self.media_display_stack.setCurrentWidget(self.video_widget)
-        # Ensure video widget is visible if stack itself is visible
-        # self.video_widget.setVisible(True) # setCurrentWidget should handle this
-        # self.album_art.setVisible(False)
+        
+        self.video_widget.setVisible(True) # Ensure it's visible
+        
+        # These updates help ensure the layout recalculates and applies the correct geometry.
+        self.video_widget.update() 
+        self.video_widget.updateGeometry() 
+        
+        # Also tell the stack widget itself to update its geometry, which might affect its children.
+        self.media_display_stack.updateGeometry()
+
+        print(f"[PlayerPage] VideoWidget current in stack, visible: {self.video_widget.isVisible()}, geometry: {self.video_widget.geometry()}")
 
     def show_album_art_view(self):
         """Switches the PlayerPage to display the album art."""
         print("[PlayerPage] Showing album art view.")
         self.media_display_stack.setCurrentWidget(self.album_art)
-        # self.album_art.setVisible(True)
+        self.album_art.setVisible(True) # Explicitly ensure visible
         # self.video_widget.setVisible(False)
     # ----------------------------------------------------------

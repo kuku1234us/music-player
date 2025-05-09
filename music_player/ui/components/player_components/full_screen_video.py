@@ -164,7 +164,7 @@ class FullScreenManager(QObject):
         self._original_parent_widget_ref = self._video_widget_ref.parentWidget()
         self._video_widget_was_visible = self._video_widget_ref.isVisible()
         self._original_geometry = self._video_widget_ref.geometry() # Store geometry
-        self._original_window_flags = self._video_widget_ref.windowFlags() # Store flags if it was a window itself
+        self._original_window_flags = self._video_widget_ref.windowFlags() # Store flags if it was a window
         
         if self._original_parent_widget_ref:
             original_layout = self._original_parent_widget_ref.layout()
@@ -185,23 +185,15 @@ class FullScreenManager(QObject):
         self._video_widget_ref.setParent(self._host_window)
         
         # 3. Add VideoWidget to host window's layout
-        host_layout = self._host_window.layout() # Get the existing layout from FullScreenVideoHostWindow
-        if host_layout: 
-            # Clear any previous widget in the main content area if necessary
-            # This is a simple clear; for more complex layouts, might need specific item removal
-            while host_layout.count() > 0:
-                item = host_layout.takeAt(0)
-                if item and item.widget(): # Check if item and widget exist
-                    item.widget().setParent(None) # Detach the widget
-            
-            host_layout.addWidget(self._video_widget_ref, 1) # Add with stretch factor 1
-        else:
-            # This case should ideally not be reached if FullScreenVideoHostWindow is correctly initialized.
-            print("[FullScreenManager] Critical Error: FullScreenVideoHostWindow has no layout! Creating one.")
-            # This fallback would likely re-introduce the warning if hit, but is a safety measure.
-            fallback_layout = QVBoxLayout(self._host_window) 
-            fallback_layout.setContentsMargins(0,0,0,0)
-            fallback_layout.addWidget(self._video_widget_ref, 1)
+        host_layout = self._host_window._main_layout # Directly access the layout we know was created
+        
+        # Clear any previous widget from the layout
+        while host_layout.count() > 0:
+            item = host_layout.takeAt(0)
+            if item and item.widget():
+                item.widget().setParent(None) 
+        
+        host_layout.addWidget(self._video_widget_ref, 1) 
 
         # 4. Show host window in full screen
         self._video_widget_ref.show() # Ensure video widget is visible within the new parent
@@ -219,14 +211,13 @@ class FullScreenManager(QObject):
         # -------------------------------------------------
         
         # 5. Update VLC backend HWND
-        # Assuming MainPlayer has a method like `_set_vlc_window_handle` or `set_video_output`
+        # MainPlayer's _set_vlc_window_handle method is the designated way to interact
+        # with the VLC backend for setting the video output.
         if hasattr(self._main_player_ref, '_set_vlc_window_handle'):
             # pylint: disable=protected-access
             self._main_player_ref._set_vlc_window_handle(self._video_widget_ref) # type: ignore
-        elif hasattr(self._main_player_ref, 'set_video_output'): # Common alternative
-            self._main_player_ref.set_video_output(self._video_widget_ref.winId()) # type: ignore
         else:
-            print("[FullScreenManager] Warning: MainPlayer does not have a known method to set VLC window handle.")
+            print("[FullScreenManager] Warning: MainPlayer does not have the _set_vlc_window_handle method.")
 
         self._is_full_screen = True
         print("[FullScreenManager] Entered full-screen mode.")
@@ -236,66 +227,66 @@ class FullScreenManager(QObject):
         if not self._is_full_screen or not self._video_widget_ref:
             return
 
-        # 1. Remove VideoWidget from host window's layout and re-parent
+        # 1. Remove VideoWidget from host window's layout
         host_layout = self._host_window.layout()
         if host_layout:
             host_layout.removeWidget(self._video_widget_ref)
         
-        self._video_widget_ref.setParent(self._original_parent_widget_ref)
-
-        # 2. Restore VideoWidget to original layout and parent
-        if self._original_layout_ref and self._original_layout_index != -1:
-            # Insert back into the original layout at the stored index and stretch
-            self._original_layout_ref.insertWidget(self._original_layout_index, self._video_widget_ref, self._original_layout_stretch)
-        elif self._original_parent_widget_ref: 
-            # If no specific layout info, but there was a parent, just add it back generally.
-            # This might not restore perfectly if original layout was complex and not Q[HV]BoxLayout
-            parent_layout = self._original_parent_widget_ref.layout()
-            if parent_layout:
-                parent_layout.addWidget(self._video_widget_ref)
-            # else: video widget had a parent but no layout, so just re-parenting is enough.
-        else:
-            # VideoWidget might have been a top-level window itself originally
+        # 2. Detach VideoWidget by setting its parent to None.
+        # PlayerPage will be responsible for making it visible in its QStackedWidget.
+        self._video_widget_ref.setParent(None) 
+        
+        # Restore original window flags if it was a standalone window before
+        # This case is less likely if VideoWidget always lives within PlayerPage initially.
+        if not self._original_parent_widget_ref: # Was a top-level window before full screen
             self._video_widget_ref.setWindowFlags(self._original_window_flags or Qt.WindowType.Widget)
-            if self._original_geometry: # Restore original geometry
-                 self._video_widget_ref.setGeometry(self._original_geometry)
+            # Geometry and visibility will be handled by PlayerPage or its own logic if it's shown standalone
 
         # 3. Hide host window
         self._host_window.showNormal() # Recommended before hide if it was full screen
         self._host_window.hide()
 
         # 4. Update VLC backend HWND
-        # Call with the video_widget_ref if it's successfully re-parented and intended to be visible,
-        # or None/0 if it's hidden or detached.
+        # When exiting full screen, the VideoWidget is detached.
+        # MainPlayer's _set_vlc_window_handle(None) will tell the backend to detach.
         if hasattr(self._main_player_ref, '_set_vlc_window_handle'):
             # pylint: disable=protected-access
-            if self._original_parent_widget_ref and self._video_widget_was_visible:
-                self._main_player_ref._set_vlc_window_handle(self._video_widget_ref) # type: ignore
-            else: # If it was a top-level window or meant to be hidden
-                self._main_player_ref._set_vlc_window_handle(None) # type: ignore
-        elif hasattr(self._main_player_ref, 'set_video_output'):
-            if self._original_parent_widget_ref and self._video_widget_was_visible:
-                self._main_player_ref.set_video_output(self._video_widget_ref.winId()) # type: ignore
-            else:
-                self._main_player_ref.set_video_output(None) # type: ignore
+            self._main_player_ref._set_vlc_window_handle(None) # type: ignore
         else:
-            print("[FullScreenManager] Warning: MainPlayer does not have a known method to set VLC window handle for exit.")
+            print("[FullScreenManager] Warning: MainPlayer does not have the _set_vlc_window_handle method for exit.")
         
-        if self._video_widget_was_visible:
-            self._video_widget_ref.show()
-        else:
-            self._video_widget_ref.hide()
+        # Visibility of _video_widget_ref is now PlayerPage's responsibility via _sync_player_page_display
+        # We removed the explicit self._video_widget_ref.show()/hide() here.
+
+        # --- Add diagnostic prints --- 
+        print(f"[FullScreenManager exit] VideoWidget parent after setParent(None): {self._video_widget_ref.parentWidget()}")
+        print(f"[FullScreenManager exit] VideoWidget visible (state before PlayerPage sync): {self._video_widget_ref.isVisible()}")
+        print(f"[FullScreenManager exit] VideoWidget geometry (state before PlayerPage sync): {self._video_widget_ref.geometry()}")
+        # The following might be None now if original_layout_ref was for a different parent structure
+        # if self._original_parent_widget_ref and self._original_parent_widget_ref.layout():
+        #     print(f"[FullScreenManager exit] Original parent ({self._original_parent_widget_ref.objectName() if self._original_parent_widget_ref else 'None'}) layout: {self._original_parent_widget_ref.layout()}")
+        #     print(f"[FullScreenManager exit] VideoWidget in original layout at index: {self._original_parent_widget_ref.layout().indexOf(self._video_widget_ref)}")
+        # -----------------------------
             
-        # Restore focus to original parent if it exists and is active
-        if self._original_parent_widget_ref and self._original_parent_widget_ref.isActiveWindow():
-            self._original_parent_widget_ref.activateWindow()
-            self._original_parent_widget_ref.setFocus()
-        elif self._video_widget_ref.isWindow(): # If it was a top level window
-            self._video_widget_ref.activateWindow()
-            self._video_widget_ref.setFocus()
+        # Restore focus to the main application window or original parent's window.
+        main_app_window = None
+        if self._original_parent_widget_ref:
+            main_app_window = self._original_parent_widget_ref.window()
+        elif hasattr(self._main_player_ref, 'window'): # If MainPlayer is a QWidget
+             main_app_window = self._main_player_ref.window() # type: ignore
+        elif isinstance(self._main_player_ref, QWidget):
+             main_app_window = self._main_player_ref.window()
+        
+        if main_app_window and main_app_window.isActiveWindow():
+            main_app_window.activateWindow()
+            main_app_window.setFocus()
+        elif main_app_window: # If not active, still try to show and activate
+            main_app_window.show()
+            main_app_window.activateWindow()
+            main_app_window.setFocus()
 
         self._is_full_screen = False
-        print("[FullScreenManager] Exited full-screen mode.")
+        print("[FullScreenManager] Exited full-screen mode (VideoWidget detached).")
         self.did_exit_full_screen.emit() # Emit signal after exit is complete
 
     # --- Add new slot to emit dedicated signal for ESC --- 

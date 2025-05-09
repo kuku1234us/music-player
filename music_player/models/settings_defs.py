@@ -6,7 +6,7 @@ from qt_base_app.models.settings_manager import SettingType
 PLAYER_VOLUME_KEY = 'player/volume'
 # Preferences
 PREF_SEEK_INTERVAL_KEY = 'preferences/seek_interval'
-PREF_PLAYLISTS_DIR_KEY = 'preferences/playlists_dir'
+PREF_WORKING_DIR_KEY = 'preferences/working_dir'
 # Recent items
 RECENT_FILES_KEY = 'recent/files'
 RECENT_PLAYLISTS_KEY = 'recent/playlists'
@@ -37,7 +37,7 @@ YT_MAX_CONCURRENT_KEY = 'youtube_downloader/max_concurrent'
 DEFAULT_PLAYER_VOLUME = 100
 DEFAULT_SEEK_INTERVAL = 3
 # Default from old settings manager was Path.home()
-DEFAULT_PLAYLISTS_DIR = str(Path.home())
+DEFAULT_WORKING_DIR = str(Path.home())
 DEFAULT_RECENT_FILES = []
 DEFAULT_RECENT_PLAYLISTS = []
 # Youtube defaults
@@ -64,7 +64,7 @@ MUSIC_PLAYER_DEFAULTS = {
     # Map Key Constant -> (Default Value, SettingType)
     PLAYER_VOLUME_KEY: (DEFAULT_PLAYER_VOLUME, SettingType.INT),
     PREF_SEEK_INTERVAL_KEY: (DEFAULT_SEEK_INTERVAL, SettingType.INT),
-    PREF_PLAYLISTS_DIR_KEY: (DEFAULT_PLAYLISTS_DIR, SettingType.PATH),
+    PREF_WORKING_DIR_KEY: (DEFAULT_WORKING_DIR, SettingType.PATH),
     RECENT_FILES_KEY: (DEFAULT_RECENT_FILES, SettingType.LIST),
     RECENT_PLAYLISTS_KEY: (DEFAULT_RECENT_PLAYLISTS, SettingType.LIST),
     # Youtube Downloader defaults

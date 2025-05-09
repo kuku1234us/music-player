@@ -1,0 +1,36 @@
+---
+description: 
+globs: *.py
+alwaysApply: false
+---
+# Type Safety and Method Rules
+
+## Rule: Invoke Only the Known Correct Method
+
+**Principle:** When a specific method is known to be the correct one for an interaction, call it directly. Avoid probing for multiple alternative method names.
+
+**Problem Avoided:**
+Searching for and calling alternative or outdated method names (e.g., via sequential `hasattr` checks for `method_a`, `method_b_alias`, `method_c_old`) introduces risks of future misuse of the incorrect names.
+
+**Example of What to Avoid:**
+
+```python
+# Problematic: Probes for multiple names, implying they might all be valid for the same task.
+if hasattr(service_obj, 'correct_method_v2'):
+    service_obj.correct_method_v2(data)
+elif hasattr(service_obj, 'old_method_alias'):
+    service_obj.old_method_alias(data)
+elif hasattr(service_obj, 'generic_execute'):
+    service_obj.generic_execute(data)
+```
+
+**Correct Approach:**
+
+```python
+# Clear and direct: Assumes 'correct_method_v2' is the known, correct method.
+if hasattr(service_obj, 'correct_method_v2'):
+    service_obj.correct_method_v2(data)
+else:
+    print("Error: Required method 'correct_method_v2' not found.")
+```
+

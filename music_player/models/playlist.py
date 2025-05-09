@@ -10,44 +10,58 @@ from qt_base_app.models.settings_manager import SettingsManager, SettingType
 # If not, define them or adjust path
 from music_player.ui.vlc_player.enums import REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM
 from datetime import datetime
+from music_player.models.settings_defs import PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR
 
 # --- Define a default location for the working directory ---
 def get_default_working_dir() -> Path:
     settings = SettingsManager.instance()
     
     # Get working directory from settings
-    working_dir = settings.get('preferences/working_dir', None, SettingType.PATH)
+    working_dir = settings.get(PREF_WORKING_DIR_KEY, None, SettingType.PATH)
+    print(f"[DEBUG] get_default_working_dir: Settings returned working_dir = {working_dir}")
     
     # Check if the working directory is valid and accessible
     if working_dir is not None:
+        print(f"[DEBUG] get_default_working_dir: Working dir exists in settings, checking if valid...")
         try:
             # Verify if the directory exists or can be created
             if not working_dir.exists():
+                print(f"[DEBUG] get_default_working_dir: Directory doesn't exist, creating: {working_dir}")
                 working_dir.mkdir(parents=True, exist_ok=True)
                 
             # Test if we can write to it
+            print(f"[DEBUG] get_default_working_dir: Testing write permissions for: {working_dir}")
             test_file = working_dir / ".write_test"
             test_file.touch()
             test_file.unlink()  # Remove the test file
                 
             # If we got this far, the directory is valid
+            print(f"[DEBUG] get_default_working_dir: Directory is valid, returning: {working_dir}")
             return working_dir
         except Exception as e:
+            print(f"[DEBUG] get_default_working_dir: Exception when validating working dir: {e}")
             print(f"Warning: Invalid working directory from settings '{working_dir}': {e}")
             # Fall through to default
+    else:
+        print(f"[DEBUG] get_default_working_dir: No working_dir in settings or value is None")
     
     # Use a reliable default location in the user's home directory
     home_music_dir = Path.home() / ".musicplayer"
+    print(f"[DEBUG] get_default_working_dir: Using default location: {home_music_dir}")
     try:
         home_music_dir.mkdir(parents=True, exist_ok=True)
         # Save this as the new default
-        settings.set('preferences/working_dir', home_music_dir, SettingType.PATH)
+        print(f"[DEBUG] get_default_working_dir: Saving new default to settings")
+        settings.set(PREF_WORKING_DIR_KEY, home_music_dir, SettingType.PATH)
         print(f"Created default working directory: {home_music_dir}")
         return home_music_dir
     except Exception as e:
+        print(f"[DEBUG] get_default_working_dir: Error creating home dir: {e}")
         print(f"Error creating directory in home folder: {e}")
         # Last resort fallback - use current working directory
-        return Path.cwd()
+        cwd = Path.cwd()
+        print(f"[DEBUG] get_default_working_dir: Last resort fallback to cwd: {cwd}")
+        return cwd
 
 def is_valid_working_dir(path: Path) -> bool:
     """Check if a path is valid and accessible for use as a working directory."""

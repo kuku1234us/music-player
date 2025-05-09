@@ -334,6 +334,12 @@ class YoutubeProgress(QWidget):
             self.dismiss_button.show()
             # Reset cursor to default for error state
             self.thumbnail.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+        elif status == "Already Exists":
+            # Special handling for already existing files
+            self.set_stats("Already Exists")
+            self.highlight_already_exists() # Apply special visual style
+            self.dismiss_button.show()
+            self.thumbnail.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
         elif status == "Cancelled": # <-- Add handling for Cancelled
             self.set_stats("Cancelled")
             self.highlight_cancelled() # Apply cancelled visual style
@@ -344,6 +350,41 @@ class YoutubeProgress(QWidget):
              self.set_stats(status) # Show other statuses like 'Downloading' if needed
              self.dismiss_button.hide()
              self.thumbnail.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+    
+    def highlight_already_exists(self):
+        """Apply special styling to highlight already exists state."""
+        # Add subtle yellow-brown border to thumbnail
+        self.thumbnail_container.setStyleSheet("""
+            QFrame { 
+                border: 2px solid #8e7102; 
+                background-color: #2A2A2A; 
+            }
+        """)
+        
+        # Change progress bar to subtle yellow-brown color
+        self.progress_bar.setStyleSheet("""
+            TitleProgressBar { 
+                 border: 1px solid #8e7102; 
+                 background-color: #3A3A1A; 
+            }
+            QLabel { 
+                 background-color: transparent; 
+                 color: #DDDDDD;
+            }
+        """)
+        
+        # Make the already exists message noticeable but subtle
+        self.stats_overlay.setStyleSheet("""
+            background-color: rgba(142, 113, 2, 0.85);
+            color: white;
+            padding: 3px;
+            border-radius: 2px;
+            font-size: 8pt;
+            font-weight: bold;
+        """)
+        
+        # Show dismiss button
+        self.dismiss_button.show()
     
     def set_stats(self, stats):
         """Set the stats text and show the overlay."""

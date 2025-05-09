@@ -244,7 +244,7 @@ class YtDlpModel:
             format_str = f"bestaudio{protocol_constraint}{audio_format_constraint}"
             if not use_m4a:
                 format_str += "/best"
-                
+            
             format_options["format"] = format_str
             
             # Set output format for audio

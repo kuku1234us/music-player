@@ -519,7 +519,14 @@ class DownloadManager(QObject):
             if url not in self._errors: # Add to error list
                 self._errors.append(url)
             if url in self._metadata: # Update metadata
-                self._metadata[url]['status'] = 'Error'
+                # Check if this is an "Already Exists" message
+                if error_message == "Already Exists":
+                    self._metadata[url]['status'] = 'Already Exists'
+                    print(f"DEBUG: Setting status for {url} to 'Already Exists'")
+                else:
+                    self._metadata[url]['status'] = 'Error'
+                    print(f"DEBUG: Setting status for {url} to 'Error' (message was: {error_message})")
+                    
                 self._metadata[url]['stats'] = error_message
                 self._metadata[url]['dismissable'] = True
                 need_queue_update = True # Need to update UI state

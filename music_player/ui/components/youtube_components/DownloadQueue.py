@@ -288,7 +288,9 @@ class DownloadQueue(QScrollArea):
         
         if url in self.progress_components:
             component = self.progress_components[url]
-            component.set_status("Error")
+            status = self.download_manager.get_status(url)
+            component.set_status(status if status else "Error")            
+            # component.set_status("Error")
             
             # Truncate very long error messages for UI display
             if len(error_message) > 100:
