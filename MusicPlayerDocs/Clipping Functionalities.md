@@ -6,6 +6,8 @@ The media clipping functionality allows users to easily cut out unwanted portion
 
 The clipping process is controlled by three primary hotkeys:
 
+**Important:** These "Beginning" and "End" points are temporary markers stored only in memory for the currently loaded media. They will be reset automatically if you load a new media file or restart the application.
+
 *   **`b` - Mark Beginning:**
     *   When a media file is playing, pressing the `b` key marks the current playback position on the timeline as the "Beginning" of the desired clip.
     *   If a "Beginning" point is already set, pressing `b` again will update it to the new current playback position.
@@ -26,7 +28,10 @@ The clipping process is controlled by three primary hotkeys:
 
 To provide clear visual feedback to the user, the player timeline will be updated as "Beginning" and "End" points are marked:
 
-*   **Marked Points:** The "Beginning" and "End" points themselves should be visually distinct on the timeline (e.g., with markers or different colored lines).
+*   **Marked Points:** The "Beginning" and "End" points are visually represented on the timeline as distinct markers (e.g., badges similar in shape to the play head).
+    *   The "Beginning" marker is shaded green.
+    *   The "End" marker is shaded red.
+    *   Users can click directly on a marker badge on the timeline to remove (cancel) that specific marker.
 *   **Unwanted Portions:** The sections of the timeline *before* the marked "Beginning" and *after* the marked "End" should be visually differentiated to indicate they will be excluded from the clip. This could be achieved by dimming these areas, using a different background color, or a strikethrough effect.
 *   **Selected Region:** The segment between the "Beginning" and "End" points (or from the start/to the end if one is not set) should clearly represent the portion that will be kept.
 

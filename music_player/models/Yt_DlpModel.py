@@ -68,20 +68,44 @@ class YtDlpModel:
         if subtitle_lang:
             format_options['writesubtitles'] = True
             format_options['writeautomaticsub'] = True  # Include auto-generated subtitles
-            
-            # Set the language(s) to download
+
+            # Helper to expand language codes for English and Chinese
+            def expand_subtitle_lang(lang):
+                l = lang.lower()
+                # English
+                if l in ['en', 'english']:
+                    return ['en', 'en-GB', 'en-US', 'en-en-GB']
+                # Simplified Chinese
+                elif l in ['zh', 'zh-cn', 'zh-hans']:
+                    return ['zh', 'zh-CN', 'zh-Hans', 'zh-Hans-CN', 'zh-Hans-en-GB']
+                # Traditional Chinese
+                elif l in ['zh-tw', 'zh-hant']:
+                    return ['zh-TW', 'zh-Hant', 'zh-Hant-TW', 'zh-Hant-en-GB']
+                # All
+                elif l == 'all':
+                    return ['all']
+                # Fallback: just return as is
+                else:
+                    return [lang]
+
+            # Set the language(s) to download, with robust expansion for English and Chinese
             if isinstance(subtitle_lang, list):
-                # If subtitle_lang is a list (e.g., ['zh-CN', 'zh-TW'] for Chinese)
-                format_options['subtitleslangs'] = subtitle_lang
-                print(f"DEBUG: Multiple subtitle languages requested: {subtitle_lang}")
-            elif subtitle_lang.lower() == 'all':
-                format_options['subtitleslangs'] = ['all']
+                expanded_langs = []
+                for lang in subtitle_lang:
+                    expanded_langs.extend(expand_subtitle_lang(lang))
+                # Remove duplicates while preserving order
+                seen = set()
+                expanded_langs = [x for x in expanded_langs if not (x in seen or seen.add(x))]
+                format_options['subtitleslangs'] = expanded_langs
+                print(f"DEBUG: Multiple subtitle languages requested: {expanded_langs}")
             else:
-                format_options['subtitleslangs'] = [subtitle_lang]
-                
+                expanded_langs = expand_subtitle_lang(subtitle_lang)
+                format_options['subtitleslangs'] = expanded_langs
+                print(f"DEBUG: Subtitle language(s) requested: {expanded_langs}")
+
             # Accept multiple subtitle formats in order of preference
             format_options['subtitlesformat'] = 'srt/vtt/ttml/best'
-            
+
             # Embed subtitles for video downloads
             if resolution or prefer_best_video:
                 format_options['embedsubtitles'] = True

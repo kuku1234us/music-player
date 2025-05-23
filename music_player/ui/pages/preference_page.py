@@ -4,7 +4,7 @@ Preferences page for the Music Player application.
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QSpinBox, QFormLayout, QGroupBox,
-    QLineEdit, QFileDialog, QMessageBox
+    QLineEdit, QFileDialog, QMessageBox, QDoubleSpinBox
 )
 from PyQt6.QtCore import Qt, QRegularExpression
 from PyQt6.QtGui import QFont, QColor, QRegularExpressionValidator
@@ -82,10 +82,12 @@ class PreferencePage(QWidget):
         self.seek_interval_label = QLabel("Seek interval (seconds):")
         self.seek_interval_label.setStyleSheet(label_style)
         
-        self.seek_interval_spinbox = QSpinBox()
-        self.seek_interval_spinbox.setMinimum(1)
-        self.seek_interval_spinbox.setMaximum(60)
-        self.seek_interval_spinbox.setValue(3)  # Default value
+        self.seek_interval_spinbox = QDoubleSpinBox()
+        self.seek_interval_spinbox.setMinimum(0.1)
+        self.seek_interval_spinbox.setMaximum(60.0)
+        self.seek_interval_spinbox.setDecimals(1)
+        self.seek_interval_spinbox.setSingleStep(0.5)
+        self.seek_interval_spinbox.setValue(3.0)
         self.seek_interval_spinbox.valueChanged.connect(self._save_seek_interval)
         self.seek_interval_spinbox.setStyleSheet(input_style)
         
@@ -180,7 +182,7 @@ class PreferencePage(QWidget):
     def load_settings(self):
         """Load settings from SettingsManager"""
         # Load general settings
-        seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.INT)
+        seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
         self.seek_interval_spinbox.setValue(seek_interval)
         
         # Load working directory (using specific key)
@@ -201,7 +203,7 @@ class PreferencePage(QWidget):
     def _save_seek_interval(self):
         """Save the seek interval setting."""
         seek_interval = self.seek_interval_spinbox.value()
-        self.settings.set(PREF_SEEK_INTERVAL_KEY, seek_interval, SettingType.INT)
+        self.settings.set(PREF_SEEK_INTERVAL_KEY, seek_interval, SettingType.FLOAT)
         self.settings.sync() # Sync immediately after changing this setting
         print("[PreferencePage] Seek interval saved:", seek_interval)
         
@@ -229,7 +231,7 @@ class PreferencePage(QWidget):
         self.groq_api_key_edit.setText(DEFAULT_GROQ_API_KEY)
         
         # Set QSettings back to defaults
-        self.settings.set(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.INT)
+        self.settings.set(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
         self.settings.set(PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR, SettingType.PATH)
         self.settings.set(YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR, SettingType.PATH)
         self.settings.set(YT_API_QSETTINGS_KEY, DEFAULT_YT_API_KEY, SettingType.STRING)
