@@ -332,7 +332,7 @@ class SelectionPoolWidget(QWidget):
         
     def _show_context_menu(self, position):
         """Display context menu for selection pool items"""
-        if self.pool_table.rowCount() == 0:
+        if not self.pool_table.model() or self.pool_table.model().rowCount() == 0:
             return
             
         menu = QMenu(self)

@@ -20,7 +20,9 @@ from music_player.models.settings_defs import (
     YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR,
     # Import QSettings keys for API keys
     YT_API_QSETTINGS_KEY, DEFAULT_YT_API_KEY, 
-    GROQ_API_QSETTINGS_KEY, DEFAULT_GROQ_API_KEY 
+    GROQ_API_QSETTINGS_KEY, DEFAULT_GROQ_API_KEY,
+    # --- NEW: Import Conversion Setting --- #
+    CONVERSION_MP3_BITRATE_KEY, DEFAULT_CONVERSION_MP3_BITRATE
 )
 
 
@@ -92,6 +94,20 @@ class PreferencePage(QWidget):
         self.seek_interval_spinbox.setStyleSheet(input_style)
         
         form_layout.addRow(self.seek_interval_label, self.seek_interval_spinbox)
+        
+        # --- NEW: Conversion Settings --- #
+        self.mp3_bitrate_label = QLabel("MP3 Bitrate (kbps):")
+        self.mp3_bitrate_label.setStyleSheet(label_style)
+        
+        self.mp3_bitrate_spinbox = QSpinBox()
+        self.mp3_bitrate_spinbox.setMinimum(32)  # Min typical MP3 bitrate
+        self.mp3_bitrate_spinbox.setMaximum(320) # Max typical MP3 bitrate
+        self.mp3_bitrate_spinbox.setSingleStep(16) # Steps like 64, 96, 128, 192, 256, 320
+        self.mp3_bitrate_spinbox.setValue(DEFAULT_CONVERSION_MP3_BITRATE)
+        self.mp3_bitrate_spinbox.valueChanged.connect(self._save_mp3_bitrate)
+        self.mp3_bitrate_spinbox.setStyleSheet(input_style)
+        form_layout.addRow(self.mp3_bitrate_label, self.mp3_bitrate_spinbox)
+        # --- END NEW --- #
         
         # --- Library Settings ---
         
@@ -200,6 +216,11 @@ class PreferencePage(QWidget):
         groq_api_key = self.settings.get(GROQ_API_QSETTINGS_KEY, DEFAULT_GROQ_API_KEY, SettingType.STRING)
         self.groq_api_key_edit.setText(groq_api_key)
         
+        # --- NEW: Load MP3 Bitrate --- #
+        mp3_bitrate = self.settings.get(CONVERSION_MP3_BITRATE_KEY, DEFAULT_CONVERSION_MP3_BITRATE, SettingType.INT)
+        self.mp3_bitrate_spinbox.setValue(mp3_bitrate)
+        # --- END NEW --- #
+        
     def _save_seek_interval(self):
         """Save the seek interval setting."""
         seek_interval = self.seek_interval_spinbox.value()
@@ -221,6 +242,15 @@ class PreferencePage(QWidget):
         self.settings.sync()
         print("[PreferencePage] Groq API key saved")
         
+    # --- NEW: Save MP3 Bitrate --- #    
+    def _save_mp3_bitrate(self):
+        """Save the MP3 bitrate setting."""
+        bitrate = self.mp3_bitrate_spinbox.value()
+        self.settings.set(CONVERSION_MP3_BITRATE_KEY, bitrate, SettingType.INT)
+        self.settings.sync()
+        print(f"[PreferencePage] MP3 Bitrate saved: {bitrate} kbps")
+    # --- END NEW --- #
+        
     def reset_settings(self):
         """Reset settings to default values."""
         # Reset UI fields
@@ -229,6 +259,9 @@ class PreferencePage(QWidget):
         self.download_dir_edit.setText(str(DEFAULT_YT_DOWNLOAD_DIR))
         self.yt_api_key_edit.setText(DEFAULT_YT_API_KEY)
         self.groq_api_key_edit.setText(DEFAULT_GROQ_API_KEY)
+        # --- NEW: Reset MP3 Bitrate UI --- #
+        self.mp3_bitrate_spinbox.setValue(DEFAULT_CONVERSION_MP3_BITRATE)
+        # --- END NEW --- #
         
         # Set QSettings back to defaults
         self.settings.set(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
@@ -237,6 +270,9 @@ class PreferencePage(QWidget):
         self.settings.set(YT_API_QSETTINGS_KEY, DEFAULT_YT_API_KEY, SettingType.STRING)
         self.settings.set(GROQ_API_QSETTINGS_KEY, DEFAULT_GROQ_API_KEY, SettingType.STRING)
         # Add sets for any other QSettings managed here
+        # --- NEW: Reset MP3 Bitrate in QSettings --- #
+        self.settings.set(CONVERSION_MP3_BITRATE_KEY, DEFAULT_CONVERSION_MP3_BITRATE, SettingType.INT)
+        # --- END NEW --- #
         
         self.settings.sync()
         print("[PreferencePage] Settings reset.")

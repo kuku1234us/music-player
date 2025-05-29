@@ -397,8 +397,8 @@ class CLIDownloadWorker(QObject):
                                 self.logger.info(caller="CLIDownloadWorker", msg=f"Detected file already exists from stdout/stderr")
                                 self.error_signal.emit(self.url, "Already Exists")
                             else:
-                                # Note: Disk scan fallback was removed as unreliable. We rely on Merger or last media file.
-                                # If we reach here, self.downloaded_filename remains None.
+                        # Note: Disk scan fallback was removed as unreliable. We rely on Merger or last media file.
+                        # If we reach here, self.downloaded_filename remains None.
                                 self.error_signal.emit(self.url, "Download finished but could not determine output filename.")
 
                 if self.downloaded_filename:

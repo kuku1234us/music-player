@@ -1,0 +1,1 @@
+[ConversionWorker] Logging FFmpeg output to: ffmpeg_logs\ffmpeg_conversion_t_wav_20250525_164308.log\n[ConversionWorker] Getting duration with command: ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 Z:\AAAAA01\t.wav\n

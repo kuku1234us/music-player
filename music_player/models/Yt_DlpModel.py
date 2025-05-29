@@ -68,7 +68,7 @@ class YtDlpModel:
         if subtitle_lang:
             format_options['writesubtitles'] = True
             format_options['writeautomaticsub'] = True  # Include auto-generated subtitles
-
+            
             # Helper to expand language codes for English and Chinese
             def expand_subtitle_lang(lang):
                 l = lang.lower()
@@ -102,14 +102,14 @@ class YtDlpModel:
                 expanded_langs = expand_subtitle_lang(subtitle_lang)
                 format_options['subtitleslangs'] = expanded_langs
                 print(f"DEBUG: Subtitle language(s) requested: {expanded_langs}")
-
+                
             # Accept multiple subtitle formats in order of preference
             format_options['subtitlesformat'] = 'srt/vtt/ttml/best'
-
+            
             # Embed subtitles for video downloads
             if resolution or prefer_best_video:
                 format_options['embedsubtitles'] = True
-
+        
         # Determine codec filtering based on parameters
         codec_filter = ""
         if prefer_avc:
@@ -231,7 +231,7 @@ class YtDlpModel:
             # Force MP4 output if m4a is selected
             if use_m4a:
                 format_options["merge_output_format"] = "mp4"
-                
+            
             # Add subtitle embedding postprocessor if we're downloading subtitles
             if subtitle_lang:
                 format_options["postprocessors"] = [

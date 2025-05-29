@@ -115,6 +115,14 @@ class VLCBackend(QObject):
         Args:
             event: VLC event object
         """
+        # DEBUG: Log entry and current parsed status
+        if self.current_media:
+            current_parsed_status_for_log = self.current_media.get_parsed_status()
+            print(f"[VLCBackend DEBUG] _on_media_parsed entered. Current media parsed status: {current_parsed_status_for_log}, Event: {event}")
+        else:
+            print("[VLCBackend DEBUG] _on_media_parsed entered but self.current_media is None.")
+            return
+
         if not self.current_media:
             return
             
@@ -192,6 +200,7 @@ class VLCBackend(QObject):
         new_duration = metadata.get('duration', 0)
         if new_duration != self.current_duration:
             self.current_duration = new_duration
+            print(f"[VLCBackend] Duration changed. Emitting duration_changed with: {self.current_duration} ms") # DEBUG
             self.duration_changed.emit(self.current_duration)
         
         # Emit media loaded signal with metadata and is_video flag

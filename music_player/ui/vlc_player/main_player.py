@@ -21,6 +21,10 @@ from music_player.models import player_state
 # Import the recently played model
 from music_player.models.recently_played import RecentlyPlayedModel
 
+# --- Add ClippingManager import ---
+from music_player.models.ClippingManager import ClippingManager
+# ---------------------------------
+
 from .enums import STATE_PLAYING, STATE_PAUSED, STATE_ENDED, STATE_ERROR, REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM # REPEAT_NONE removed
 
 # --- Add FullScreenManager import ---
@@ -69,6 +73,10 @@ class MainPlayer(QWidget):
         self._is_current_media_video = False # <-- NEW: Flag to track media type
         # Use VideoWidget for type hint as it's more specific, though QWidget is also valid
         self._video_widget: Optional[VideoWidget] = None # <-- NEW: Reference to video output widget
+        
+        # --- Get ClippingManager instance ---
+        self.clipping_manager = ClippingManager.instance()
+        # ----------------------------------
         
         # Subtitle state tracking
         self._has_subtitle_tracks = False
@@ -489,13 +497,6 @@ class MainPlayer(QWidget):
         """Clean up resources"""
         self.backend.cleanup()
         
-    def closeEvent(self, event):
-        """
-        Clean up resources when the main player is closed.
-        """
-        # Unregister from player_state - REMOVED
-        # player_state.unregister_track_play_requested_callback(self._on_track_play_requested)
-        
         # --- Call FullScreenManager cleanup ---
         if self.full_screen_manager:
             self.full_screen_manager.cleanup()
@@ -611,6 +612,10 @@ class MainPlayer(QWidget):
                      else:
                          print("[MainPlayer] New media is audio, keeping video widget hidden.")
                 # -------------------------------
+                # --- NEW: Notify PlayerTimeline and ClippingManager about media change ---
+                self.player_widget.timeline.set_current_media_path(self.current_media_path)
+                self.clipping_manager.set_media(self.current_media_path if self.current_media_path else "")
+                # ---------------------------------------------------------------------
 
             self.setFocus()
             return True
@@ -621,6 +626,13 @@ class MainPlayer(QWidget):
                  print("[MainPlayer] File dialog cancelled, restoring video widget visibility.")
                  self._video_widget.setVisible(True)
             # --------------------------------
+            # --- NEW: Notify PlayerTimeline and ClippingManager if dialog cancelled (media path becomes None effectively) ---
+            # self.player_widget.timeline.set_current_media_path(None) # self.current_media_path would be None
+            # self.clipping_manager.set_media("") # No specific media path was set
+            # Decided against this here, as current_media_path wouldn't have changed to a *new* valid path.
+            # The existing media (if any) remains, so markers for it should persist.
+            # Clearing happens when a *new* media is successfully loaded or explicitly stopped.
+            # -----------------------------------------------------------------------------------------------------------
             return False
 
     def on_media_metadata_loaded(self, media: dict, is_video: bool):
@@ -869,7 +881,7 @@ class MainPlayer(QWidget):
                 
         # Update UI
         self._update_subtitle_controls()
-
+        
     def get_current_track_metadata(self):
         """ Returns metadata of the currently playing track. """
         return self.last_metadata
@@ -1047,6 +1059,14 @@ class MainPlayer(QWidget):
             # Display the extracted path in the error message
             error_display_path = actual_path if actual_path else "(Empty Path)"
             self._show_error(f"Media file not found: {error_display_path}")
+            # --- NEW: If load fails, ensure timeline and clipping manager know there's effectively no *new* media ---
+            # This assumes current_media_path might have been optimistically set before this check.
+            # If _load_and_play_path is only called with confirmed paths, this might be redundant.
+            # However, it's safer to ensure state is consistent if an error occurs mid-load.
+            if self.current_media_path != actual_path or not actual_path: # If intended path failed
+                self.player_widget.timeline.set_current_media_path(None) # Or previous valid path if applicable
+                self.clipping_manager.set_media("")
+            # -------------------------------------------------------------------------------------------------
             if self._playback_mode == 'playlist':
                 # If loading fails in playlist mode, try to advance
                 self.play_next_track(force_advance=True)
@@ -1055,6 +1075,11 @@ class MainPlayer(QWidget):
         # Use the extracted actual_path from now on
         self.current_media_path = actual_path
         print(f"[MainPlayer] Backend loading: {actual_path}")
+        
+        # --- NEW: Notify PlayerTimeline and ClippingManager about new media path BEFORE loading ---
+        self.player_widget.timeline.set_current_media_path(self.current_media_path)
+        self.clipping_manager.set_media(self.current_media_path)
+        # ------------------------------------------------------------------------------------
         
         # Always set the app state to playing BEFORE loading media for responsive UI
         self._set_app_state(STATE_PLAYING)
@@ -1282,8 +1307,20 @@ class MainPlayer(QWidget):
         # self._set_app_state(STATE_STOPPED) # If we add a stopped state
         # Or just let backend state signal handle it?
         # For now, just delegate and rely on backend signal if state needs update.
-        self.backend._loading_media=True
-        self.backend.media_player.stop()
+        self.backend._loading_media=True # This seems like an internal flag for VLCBackend
+        self.backend.media_player.stop() # Direct call to VLC instance player
+
+        # --- NEW: When stopping, clear media context for timeline and clipping ---
+        # This effectively signals that no media is active for clipping.
+        self.current_media_path = None # Explicitly clear path
+        self.player_widget.timeline.set_current_media_path(None)
+        self.clipping_manager.set_media("") # Pass empty string to denote no media
+        # Optionally, reset timeline display if desired (e.g., clear duration/position labels)
+        self.player_widget.timeline.set_duration(0)
+        self.player_widget.timeline.set_position(0)
+        self.player_widget.update_track_info("No Media", "", "", None)
+        self._set_app_state(STATE_PAUSED) # Or a new STATE_STOPPED if defined
+        # -----------------------------------------------------------------------
     # -----------------------
 
     # --- Add methods for subtitle control ---

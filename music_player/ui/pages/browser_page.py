@@ -27,6 +27,10 @@ from music_player.ui.components.round_button import RoundButton
 # Import OPlayer service and overlay
 from music_player.services.oplayer_service import OPlayerService
 from music_player.ui.components.upload_status_overlay import UploadStatusOverlay
+# --- NEW IMPORTS FOR CONVERSION --- #
+from music_player.models.conversion_manager import ConversionManager
+from music_player.ui.components.browser_components.conversion_progress import ConversionProgress
+# --- END NEW IMPORTS --- #
 from music_player.ui.components.base_table import BaseTableModel, ColumnDefinition
 from music_player.ui.components.browser_components.browser_table import BrowserTableView
 
@@ -192,6 +196,11 @@ class BrowserPage(QWidget):
         self._current_upload_index = 0
         self._total_files_to_upload = 0
 
+        # --- NEW: Conversion Manager and Progress UI --- #
+        self.conversion_manager = ConversionManager(self)
+        self.conversion_progress_overlay = ConversionProgress(self)
+        # --- END NEW --- #
+
         # Timer for temporary messages
         self.temp_message_timer = QTimer(self)
         self.temp_message_timer.setSingleShot(True)
@@ -341,6 +350,28 @@ class BrowserPage(QWidget):
 
         self.upload_status = UploadStatusOverlay(self)
 
+        # --- NEW: MP3 Conversion Button --- #
+        self.mp3_convert_button = RoundButton(
+            parent=self,
+            text="MP3", # Changed from MP to MP3 for clarity
+            diameter=48,
+            bg_opacity=0.5
+        )
+        self.mp3_convert_button.setToolTip("Convert Selected to MP3")
+        # --- END NEW --- #
+
+        # --- NEW: Cancel Conversion Button --- #
+        self.cancel_conversion_button = RoundButton(
+            parent=self,
+            icon_name="fa5s.times-circle", # Using a times-circle icon
+            diameter=48,
+            icon_size=24,
+            bg_opacity=0.5
+        )
+        self.cancel_conversion_button.setToolTip("Cancel Ongoing Conversions")
+        self.cancel_conversion_button.hide() # Initially hidden
+        # --- END NEW --- #
+
     def _connect_signals(self):
         self.browse_button.clicked.connect(self._browse_folder)
         self.file_table.fileDoubleClicked.connect(self._on_file_double_clicked)
@@ -355,6 +386,20 @@ class BrowserPage(QWidget):
         self.temp_message_timer.timeout.connect(self.temp_message_label.hide)
         self.ftp_host_edit.editingFinished.connect(self._handle_oplayer_setting_changed)
         self.ftp_port_spinbox.valueChanged.connect(self._handle_oplayer_setting_changed)
+
+        # --- NEW: Connect Conversion Signals --- #
+        self.mp3_convert_button.clicked.connect(self._on_mp3_convert_selected_clicked)
+        self.conversion_manager.conversion_batch_started.connect(self._on_conversion_batch_started)
+        self.conversion_manager.conversion_file_started.connect(self._on_conversion_file_started)
+        self.conversion_manager.conversion_file_progress.connect(self._on_conversion_file_progress)
+        self.conversion_manager.conversion_file_completed.connect(self._on_conversion_file_completed)
+        self.conversion_manager.conversion_file_failed.connect(self._on_conversion_file_failed)
+        self.conversion_manager.conversion_batch_finished.connect(self._on_conversion_batch_finished)
+        # --- END NEW --- #
+
+        # --- NEW: Connect Cancel Button --- #
+        self.cancel_conversion_button.clicked.connect(self._on_cancel_conversions_clicked)
+        # --- END NEW --- #
 
     def _browse_folder(self):
         """Opens a directory dialog and populates the table."""
@@ -460,7 +505,7 @@ class BrowserPage(QWidget):
             return
             
         print(f"[BrowserPage] Directory loading finished: {len(files_data)} items found")
-        
+
         if not files_data:
             self._update_empty_message(is_empty=True)
             return
@@ -653,11 +698,28 @@ class BrowserPage(QWidget):
         self.refresh_button.move(refresh_button_x, button_y)
         self.refresh_button.raise_()
 
+        # --- NEW: Position MP3 Convert Button --- #
+        mp3_convert_button_x = refresh_button_x - self.mp3_convert_button.width() - 10
+        self.mp3_convert_button.move(mp3_convert_button_x, button_y)
+        self.mp3_convert_button.raise_()
+        # --- END NEW --- #
+
+        # --- NEW: Position Cancel Conversion Button --- #
+        # Position it to the left of the MP3 convert button
+        cancel_conversion_button_x = mp3_convert_button_x - self.cancel_conversion_button.width() - 10
+        self.cancel_conversion_button.move(cancel_conversion_button_x, button_y)
+        self.cancel_conversion_button.raise_()
+        # --- END NEW --- #
+
         # Position the upload status overlay (relative to BrowserPage)
         self._update_upload_status_position()
 
         # Position the temporary message label (relative to BrowserPage)
         self._update_temp_message_position()
+        
+        # --- NEW: Position Conversion Progress Overlay --- #
+        self._update_conversion_progress_position()
+        # --- END NEW --- #
 
     def _update_upload_status_position(self):
         """Update the position of the upload status overlay (relative to BrowserPage)"""
@@ -707,7 +769,7 @@ class BrowserPage(QWidget):
         if self._navigation_in_progress:
             print(f"[BrowserPage] Skipping auto-load of last directory (navigation in progress)")
             return
-            
+        
         # Get the last browsed directory from settings
         last_dir_str = self.settings.get('browser/last_browse_dir', None, SettingType.PATH)
         
@@ -944,3 +1006,108 @@ class BrowserPage(QWidget):
             print(f"[BrowserPage] Error in _select_file_by_name for '{filename}': {e}")
             return False
     # --- End Helper methods --- 
+
+    # --- NEW: MP3 Conversion Handlers --- #
+    def _on_mp3_convert_selected_clicked(self):
+        selected_objects = self.file_table.get_selected_items_data()
+        files_to_convert = []
+
+        if not selected_objects:
+            QMessageBox.warning(self, "No Selection", "Please select one or more files to convert to MP3.")
+            return
+
+        # Filter for files only (not directories)
+        for obj in selected_objects:
+            path_str = obj.get('path')
+            is_dir = obj.get('is_dir', False)
+            if path_str and not is_dir and os.path.exists(path_str):
+                # Basic check for media-like extensions - can be improved
+                # For now, accept common audio/video. FFmpeg will fail if not convertible.
+                if any(path_str.lower().endswith(ext) for ext in ['.wav', '.mp4', '.mkv', '.avi', '.flac', '.ogg', '.mov']):
+                    if path_str not in [f['path'] for f in files_to_convert]: # Avoid duplicates
+                        files_to_convert.append(obj) # Pass the whole object, manager might need more info
+                else:
+                    print(f"[BrowserPage] Skipping non-media-like file for conversion: {path_str}")
+            elif is_dir:
+                print(f"[BrowserPage] Skipping directory for conversion: {path_str}")
+
+        if not files_to_convert:
+            QMessageBox.information(self, "No Convertible Files", "The current selection contains no files suitable for MP3 conversion.")
+            return
+
+        if not self._current_directory or not self._current_directory.is_dir():
+            QMessageBox.critical(self, "Error", "Cannot determine output directory. Please select a valid folder first.")
+            return
+        
+        output_directory = str(self._current_directory)
+        print(f"[BrowserPage] Starting MP3 conversion for {len(files_to_convert)} files to directory: {output_directory}")
+        self.conversion_manager.start_conversions(files_to_convert, output_directory)
+
+    def _on_conversion_batch_started(self, total_files: int):
+        print(f"[BrowserPage] Conversion batch started for {total_files} files.")
+        self.conversion_progress_overlay.show_conversion_started(total_files)
+        self._update_conversion_progress_position()
+        self.cancel_conversion_button.show() # Show cancel button when batch starts
+
+    def _on_conversion_file_started(self, task_id: str, original_filename: str, file_index: int, total_files: int):
+        print(f"[BrowserPage] Conversion started for file {file_index + 1}/{total_files}: {original_filename} (Task ID: {task_id})")
+        # Pass task_id to show_file_progress, percentage is 0.0 initially
+        self.conversion_progress_overlay.show_file_progress(task_id, os.path.basename(original_filename), file_index, total_files, 0.0)
+        self._update_conversion_progress_position() # Ensure visible and positioned
+
+    def _on_conversion_file_progress(self, task_id: str, percentage: float):
+        # Now directly call the new update method on the overlay
+        self.conversion_progress_overlay.update_current_file_progress(task_id, percentage)
+        # print(f"[BrowserPage] Conversion progress for Task ID {task_id}: {percentage*100:.1f}%") # Can be noisy
+
+    def _on_conversion_file_completed(self, task_id: str, original_filename: str, output_filepath: str):
+        print(f"[BrowserPage] Conversion completed: {original_filename} -> {output_filepath} (Task ID: {task_id})")
+        # The ConversionProgress overlay might already show "Completed: ..." based on its own logic
+        # or simply wait for the next file to start.
+        # We can call show_file_completed to ensure the filename is updated if it was showing an error previously.
+        self.conversion_progress_overlay.show_file_completed(os.path.basename(original_filename))
+        self._update_conversion_progress_position()
+
+    def _on_conversion_file_failed(self, task_id: str, original_filename: str, error_message: str):
+        print(f"[BrowserPage] Conversion failed for {original_filename} (Task ID: {task_id}): {error_message}")
+        self.conversion_progress_overlay.show_file_failed(os.path.basename(original_filename), error_message)
+        self._update_conversion_progress_position()
+
+    def _on_conversion_batch_finished(self):
+        print("[BrowserPage] Conversion batch finished.")
+        self.conversion_progress_overlay.show_batch_finished()
+        self.cancel_conversion_button.hide() # Hide cancel button when batch finishes
+        self._update_conversion_progress_position() # Ensure final message is positioned
+        # Refresh the browser view to show newly converted files
+        QTimer.singleShot(500, self._refresh_view) # Short delay before refresh
+    # --- END NEW --- #
+
+    # --- NEW: Cancel Conversion Handler --- #
+    def _on_cancel_conversions_clicked(self):
+        print("[BrowserPage] Cancel conversions button clicked.")
+        if self.conversion_manager:
+            self.conversion_manager.cancel_all_conversions()
+        # The ConversionProgress overlay and cancel button will be hidden by
+        # the conversion_batch_finished signal if the cancellation leads to that.
+        # Or if a file fails due to cancellation, it might show that message.
+    # --- END NEW --- #
+
+    # --- NEW: Conversion Progress Position --- # 
+    def _update_conversion_progress_position(self):
+        """Update the position of the conversion progress overlay (relative to BrowserPage)"""
+        if self.conversion_progress_overlay.isVisible():
+            self.conversion_progress_overlay.adjustSize()
+            overlay_width = self.conversion_progress_overlay.width()
+            overlay_height = self.conversion_progress_overlay.height()
+            
+            overlay_x = (self.width() - overlay_width) // 2
+            overlay_y = 60 
+            if self.upload_status.isVisible():
+                overlay_y = self.upload_status.y() + self.upload_status.height() + 10
+            
+            self.conversion_progress_overlay.move(overlay_x, overlay_y)
+            self.conversion_progress_overlay.raise_()
+            print(f"[BrowserPage DEBUG] _update_conversion_progress_position: Moved overlay to ({overlay_x}, {overlay_y}). Size: ({overlay_width}, {overlay_height}). IsVisible: {self.conversion_progress_overlay.isVisible()}")
+        else:
+            print(f"[BrowserPage DEBUG] _update_conversion_progress_position: Overlay is NOT visible, not attempting to position.")
+    # --- END NEW --- #

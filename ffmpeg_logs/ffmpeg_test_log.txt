@@ -1,0 +1,1058 @@
+--- FFmpeg Test Log ---
+Input: Z:\AAAAA01\t.wav
+Output: Z:\AAAAA01\t.mp3
+Command: ffmpeg -i Z:\AAAAA01\t.wav -b:a 256k -vn -y -progress pipe:1 -loglevel error -stats Z:\AAAAA01\t.mp3
+Timestamp: 2025-05-25 15:01:28
+------------------------------
+[INFO] Getting duration with command: ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 Z:\AAAAA01\t.wav
+[INFO] Detected duration: 11418.45 seconds
+--- FFmpeg Output Start ---
+[STDOUT] bitrate= 153.7kbits/s
+[STDOUT] total_size=82124
+[STDOUT] out_time_us=4273958
+[STDOUT] out_time_ms=4273958
+[STDOUT] out_time=00:00:04.273958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed=8.34x
+[STDOUT] progress=continue
+[PROGRESS] 0.0%
+[STDERR] size=      80KiB time=00:00:04.27 bitrate= 153.7kbits/s speed=8.34x
+[STDOUT] bitrate= 157.3kbits/s
+[STDOUT] total_size=167084
+[STDOUT] out_time_us=8497958
+[STDOUT] out_time_ms=8497958
+[STDOUT] out_time=00:00:08.497958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed=8.22x
+[STDOUT] progress=continue
+[PROGRESS] 0.1%
+[STDERR] size=     163KiB time=00:00:08.49 bitrate= 157.3kbits/s speed=8.22x
+[STDOUT] bitrate= 157.9kbits/s
+[STDOUT] total_size=253964
+[STDOUT] out_time_us=12865958
+[STDOUT] out_time_ms=12865958
+[STDOUT] out_time=00:00:12.865958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed=8.36x
+[STDOUT] progress=continue
+[PROGRESS] 0.1%
+[STDERR] size=     248KiB time=00:00:12.86 bitrate= 157.9kbits/s speed=8.36x
+[STDOUT] bitrate= 148.8kbits/s
+[STDOUT] total_size=2621440
+[STDOUT] out_time_us=140905958
+[STDOUT] out_time_ms=140905958
+[STDOUT] out_time=00:02:20.905958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed=68.4x
+[STDOUT] progress=continue
+[PROGRESS] 1.2%
+[STDERR] size=    2560KiB time=00:02:20.90 bitrate= 148.8kbits/s speed=68.4x
+[STDOUT] bitrate= 157.0kbits/s
+[STDOUT] total_size=5505024
+[STDOUT] out_time_us=280513958
+[STDOUT] out_time_ms=280513958
+[STDOUT] out_time=00:04:40.513958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 109x
+[STDOUT] progress=continue
+[PROGRESS] 2.5%
+[STDERR] size=    5376KiB time=00:04:40.51 bitrate= 157.0kbits/s speed= 109x
+[STDOUT] bitrate= 154.9kbits/s
+[STDOUT] total_size=8126464
+[STDOUT] out_time_us=419569958
+[STDOUT] out_time_ms=419569958
+[STDOUT] out_time=00:06:59.569958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 136x
+[STDOUT] progress=continue
+[PROGRESS] 3.7%
+[STDOUT] bitrate= 158.1kbits/s
+[STDERR] size=    7936KiB time=00:06:59.56 bitrate= 154.9kbits/s speed= 136x
+[STDOUT] total_size=11010048
+[STDOUT] out_time_us=557065958
+[STDOUT] out_time_ms=557065958
+[STDOUT] out_time=00:09:17.065958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 154x
+[STDOUT] progress=continue
+[PROGRESS] 4.9%
+[STDERR] size=   10752KiB time=00:09:17.06 bitrate= 158.1kbits/s speed= 154x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=13893632
+[STDOUT] out_time_us=695977958
+[STDOUT] out_time_ms=695977958
+[STDOUT] out_time=00:11:35.977958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 169x
+[STDOUT] progress=continue
+[PROGRESS] 6.1%
+[STDERR] size=   13568KiB time=00:11:35.97 bitrate= 159.7kbits/s speed= 169x
+[STDOUT] bitrate= 157.6kbits/s
+[STDOUT] total_size=16515072
+[STDOUT] out_time_us=838489958
+[STDOUT] out_time_ms=838489958
+[STDOUT] out_time=00:13:58.489958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 180x
+[STDOUT] progress=continue
+[PROGRESS] 7.3%
+[STDERR] size=   16128KiB time=00:13:58.48 bitrate= 157.6kbits/s speed= 180x
+[STDOUT] bitrate= 157.8kbits/s
+[STDOUT] total_size=18874368
+[STDOUT] out_time_us=956953958
+[STDOUT] out_time_ms=956953958
+[STDOUT] out_time=00:15:56.953958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 186x
+[STDOUT] progress=continue
+[PROGRESS] 8.4%
+[STDOUT] bitrate= 159.2kbits/s
+[STDERR] size=   18432KiB time=00:15:56.95 bitrate= 157.8kbits/s speed= 186x
+[STDOUT] total_size=21757952
+[STDOUT] out_time_us=1093273958
+[STDOUT] out_time_ms=1093273958
+[STDOUT] out_time=00:18:13.273958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 193x
+[STDOUT] progress=continue
+[PROGRESS] 9.6%
+[STDERR] size=   21248KiB time=00:18:13.27 bitrate= 159.2kbits/s speed= 193x
+[STDOUT] bitrate= 158.7kbits/s
+[STDOUT] total_size=24379392
+[STDOUT] out_time_us=1228609958
+[STDOUT] out_time_ms=1228609958
+[STDOUT] out_time=00:20:28.609958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 199x
+[STDOUT] progress=continue
+[PROGRESS] 10.8%
+[STDOUT] bitrate= 158.4kbits/s
+[STDERR] size=   23808KiB time=00:20:28.60 bitrate= 158.7kbits/s speed= 199x
+[STDOUT] total_size=27000832
+[STDOUT] out_time_us=1363273958
+[STDOUT] out_time_ms=1363273958
+[STDOUT] out_time=00:22:43.273958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 204x
+[STDOUT] progress=continue
+[PROGRESS] 11.9%
+[STDERR] size=   26368KiB time=00:22:43.27 bitrate= 158.4kbits/s speed= 204x
+[STDOUT] bitrate= 158.6kbits/s
+[STDOUT] total_size=29622272
+[STDOUT] out_time_us=1494361958
+[STDOUT] out_time_ms=1494361958
+[STDOUT] out_time=00:24:54.361958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 207x
+[STDOUT] progress=continue
+[PROGRESS] 13.1%
+[STDERR] size=   28928KiB time=00:24:54.36 bitrate= 158.6kbits/s speed= 207x
+[STDOUT] bitrate= 159.2kbits/s
+[STDOUT] total_size=32505856
+[STDOUT] out_time_us=1633441958
+[STDOUT] out_time_ms=1633441958
+[STDOUT] out_time=00:27:13.441958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 211x
+[STDOUT] progress=continue
+[PROGRESS] 14.3%
+[STDOUT] bitrate= 158.9kbits/s
+[STDERR] size=   31744KiB time=00:27:13.44 bitrate= 159.2kbits/s speed= 211x
+[STDOUT] total_size=35127296
+[STDOUT] out_time_us=1768705958
+[STDOUT] out_time_ms=1768705958
+[STDOUT] out_time=00:29:28.705958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 214x
+[STDOUT] progress=continue
+[PROGRESS] 15.5%
+[STDERR] size=   34304KiB time=00:29:28.70 bitrate= 158.9kbits/s speed= 214x
+[STDOUT] bitrate= 158.9kbits/s
+[STDOUT] total_size=37748736
+[STDOUT] out_time_us=1900681958
+[STDOUT] out_time_ms=1900681958
+[STDOUT] out_time=00:31:40.681958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 217x
+[STDOUT] progress=continue
+[PROGRESS] 16.6%
+[STDERR] size=   36864KiB time=00:31:40.68 bitrate= 158.9kbits/s speed= 217x
+[STDOUT] bitrate= 159.6kbits/s
+[STDOUT] total_size=40632320
+[STDOUT] out_time_us=2036137958
+[STDOUT] out_time_ms=2036137958
+[STDOUT] out_time=00:33:56.137958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 219x
+[STDOUT] progress=continue
+[PROGRESS] 17.8%
+[STDERR] size=   39680KiB time=00:33:56.13 bitrate= 159.6kbits/s speed= 219x
+[STDOUT] bitrate= 159.5kbits/s
+[STDOUT] total_size=43253760
+[STDOUT] out_time_us=2169625958
+[STDOUT] out_time_ms=2169625958
+[STDOUT] out_time=00:36:09.625958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 221x
+[STDOUT] progress=continue
+[PROGRESS] 19.0%
+[STDERR] size=   42240KiB time=00:36:09.62 bitrate= 159.5kbits/s speed= 221x
+[STDOUT] bitrate= 159.6kbits/s
+[STDOUT] total_size=46137344
+[STDOUT] out_time_us=2313313958
+[STDOUT] out_time_ms=2313313958
+[STDOUT] out_time=00:38:33.313958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 224x
+[STDOUT] progress=continue
+[PROGRESS] 20.3%
+[STDOUT] bitrate= 159.3kbits/s
+[STDERR] size=   45056KiB time=00:38:33.31 bitrate= 159.6kbits/s speed= 224x
+[STDOUT] total_size=48496640
+[STDOUT] out_time_us=2436097958
+[STDOUT] out_time_ms=2436097958
+[STDOUT] out_time=00:40:36.097958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 225x
+[STDOUT] progress=continue
+[PROGRESS] 21.3%
+[STDERR] size=   47360KiB time=00:40:36.09 bitrate= 159.3kbits/s speed= 225x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=51380224
+[STDOUT] out_time_us=2572873958
+[STDOUT] out_time_ms=2572873958
+[STDOUT] out_time=00:42:52.873958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 226x
+[STDOUT] progress=continue
+[PROGRESS] 22.5%
+[STDERR] size=   50176KiB time=00:42:52.87 bitrate= 159.8kbits/s speed= 226x
+[STDOUT] bitrate= 159.2kbits/s
+[STDOUT] total_size=53477376
+[STDOUT] out_time_us=2686753958
+[STDOUT] out_time_ms=2686753958
+[STDOUT] out_time=00:44:46.753958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 226x
+[STDOUT] progress=continue
+[PROGRESS] 23.5%
+[STDERR] size=   52224KiB time=00:44:46.75 bitrate= 159.2kbits/s speed= 226x
+[STDOUT] bitrate= 159.2kbits/s
+[STDOUT] total_size=55574528
+[STDOUT] out_time_us=2791969958
+[STDOUT] out_time_ms=2791969958
+[STDOUT] out_time=00:46:31.969958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 225x
+[STDOUT] progress=continue
+[PROGRESS] 24.5%
+[STDERR] size=   54272KiB time=00:46:31.96 bitrate= 159.2kbits/s speed= 225x
+[STDOUT] bitrate= 159.5kbits/s
+[STDOUT] total_size=57933824
+[STDOUT] out_time_us=2905945958
+[STDOUT] out_time_ms=2905945958
+[STDOUT] out_time=00:48:25.945958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 225x
+[STDOUT] progress=continue
+[PROGRESS] 25.4%
+[STDERR] size=   56576KiB time=00:48:25.94 bitrate= 159.5kbits/s speed= 225x
+[STDOUT] bitrate= 160.0kbits/s
+[STDOUT] total_size=60293120
+[STDOUT] out_time_us=3014953958
+[STDOUT] out_time_ms=3014953958
+[STDOUT] out_time=00:50:14.953958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 225x
+[STDOUT] progress=continue
+[PROGRESS] 26.4%
+[STDERR] size=   58880KiB time=00:50:14.95 bitrate= 160.0kbits/s speed= 225x
+[STDOUT] bitrate= 159.4kbits/s
+[STDOUT] total_size=62914560
+[STDOUT] out_time_us=3157873958
+[STDOUT] out_time_ms=3157873958
+[STDOUT] out_time=00:52:37.873958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 227x
+[STDOUT] progress=continue
+[PROGRESS] 27.7%
+[STDERR] size=   61440KiB time=00:52:37.87 bitrate= 159.4kbits/s speed= 227x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=65536000
+[STDOUT] out_time_us=3278377958
+[STDOUT] out_time_ms=3278377958
+[STDOUT] out_time=00:54:38.377958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 227x
+[STDOUT] progress=continue
+[PROGRESS] 28.7%
+[STDERR] size=   64000KiB time=00:54:38.37 bitrate= 159.9kbits/s speed= 227x
+[STDOUT] bitrate= 159.4kbits/s
+[STDOUT] total_size=67895296
+[STDOUT] out_time_us=3408001958
+[STDOUT] out_time_ms=3408001958
+[STDOUT] out_time=00:56:48.001958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 228x
+[STDOUT] progress=continue
+[PROGRESS] 29.8%
+[STDERR] size=   66304KiB time=00:56:48.00 bitrate= 159.4kbits/s speed= 228x
+[STDOUT] bitrate= 159.6kbits/s
+[STDOUT] total_size=70516736
+[STDOUT] out_time_us=3534673958
+[STDOUT] out_time_ms=3534673958
+[STDOUT] out_time=00:58:54.673958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 228x
+[STDOUT] progress=continue
+[PROGRESS] 31.0%
+[STDERR] size=   68864KiB time=00:58:54.67 bitrate= 159.6kbits/s speed= 228x
+[STDOUT] bitrate= 159.4kbits/s
+[STDOUT] total_size=72876032
+[STDOUT] out_time_us=3657049958
+[STDOUT] out_time_ms=3657049958
+[STDOUT] out_time=01:00:57.049958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 229x
+[STDOUT] progress=continue
+[PROGRESS] 32.0%
+[STDERR] size=   71168KiB time=01:00:57.04 bitrate= 159.4kbits/s speed= 229x
+[STDOUT] bitrate= 159.5kbits/s
+[STDOUT] total_size=75497472
+[STDOUT] out_time_us=3787081958
+[STDOUT] out_time_ms=3787081958
+[STDOUT] out_time=01:03:07.081958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 229x
+[STDOUT] progress=continue
+[PROGRESS] 33.2%
+[STDERR] size=   73728KiB time=01:03:07.08 bitrate= 159.5kbits/s speed= 229x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=78118912
+[STDOUT] out_time_us=3907393958
+[STDOUT] out_time_ms=3907393958
+[STDOUT] out_time=01:05:07.393958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 229x
+[STDOUT] progress=continue
+[PROGRESS] 34.2%
+[STDERR] size=   76288KiB time=01:05:07.39 bitrate= 159.9kbits/s speed= 229x
+[STDOUT] bitrate= 159.6kbits/s
+[STDOUT] total_size=80478208
+[STDOUT] out_time_us=4034881958
+[STDOUT] out_time_ms=4034881958
+[STDOUT] out_time=01:07:14.881958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 230x
+[STDOUT] progress=continue
+[PROGRESS] 35.3%
+[STDERR] size=   78592KiB time=01:07:14.88 bitrate= 159.6kbits/s speed= 230x
+[STDOUT] bitrate= 159.5kbits/s
+[STDOUT] total_size=83099648
+[STDOUT] out_time_us=4167841958
+[STDOUT] out_time_ms=4167841958
+[STDOUT] out_time=01:09:27.841958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 36.5%
+[STDERR] size=   81152KiB time=01:09:27.84 bitrate= 159.5kbits/s speed= 231x
+[STDOUT] bitrate= 159.6kbits/s
+[STDOUT] total_size=85458944
+[STDOUT] out_time_us=4282489958
+[STDOUT] out_time_ms=4282489958
+[STDOUT] out_time=01:11:22.489958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 230x
+[STDOUT] progress=continue
+[PROGRESS] 37.5%
+[STDERR] size=   83456KiB time=01:11:22.48 bitrate= 159.6kbits/s speed= 230x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=87818240
+[STDOUT] out_time_us=4400305958
+[STDOUT] out_time_ms=4400305958
+[STDOUT] out_time=01:13:20.305958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 38.5%
+[STDERR] size=   85760KiB time=01:13:20.30 bitrate= 159.7kbits/s speed= 231x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=90439680
+[STDOUT] out_time_us=4525513958
+[STDOUT] out_time_ms=4525513958
+[STDOUT] out_time=01:15:25.513958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 39.6%
+[STDERR] size=   88320KiB time=01:15:25.51 bitrate= 159.9kbits/s speed= 231x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=93061120
+[STDOUT] out_time_us=4660561958
+[STDOUT] out_time_ms=4660561958
+[STDOUT] out_time=01:17:40.561958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 40.8%
+[STDERR] size=   90880KiB time=01:17:40.56 bitrate= 159.7kbits/s speed= 232x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=95682560
+[STDOUT] out_time_us=4791601958
+[STDOUT] out_time_ms=4791601958
+[STDOUT] out_time=01:19:51.601958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 42.0%
+[STDERR] size=   93440KiB time=01:19:51.60 bitrate= 159.8kbits/s speed= 232x
+[STDOUT] bitrate= 159.6kbits/s
+[STDOUT] total_size=98041856
+[STDOUT] out_time_us=4915321958
+[STDOUT] out_time_ms=4915321958
+[STDOUT] out_time=01:21:55.321958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 43.0%
+[STDERR] size=   95744KiB time=01:21:55.32 bitrate= 159.6kbits/s speed= 232x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=100401152
+[STDOUT] out_time_us=5028433958
+[STDOUT] out_time_ms=5028433958
+[STDOUT] out_time=01:23:48.433958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 44.0%
+[STDERR] size=   98048KiB time=01:23:48.43 bitrate= 159.7kbits/s speed= 232x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=102760448
+[STDOUT] out_time_us=5145385958
+[STDOUT] out_time_ms=5145385958
+[STDOUT] out_time=01:25:45.385958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 45.1%
+[STDERR] size=  100352KiB time=01:25:45.38 bitrate= 159.8kbits/s speed= 232x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=105119744
+[STDOUT] out_time_us=5261137958
+[STDOUT] out_time_ms=5261137958
+[STDOUT] out_time=01:27:41.137958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 46.1%
+[STDERR] size=  102656KiB time=01:27:41.13 bitrate= 159.8kbits/s speed= 232x
+[STDOUT] bitrate= 159.6kbits/s
+[STDOUT] total_size=107216896
+[STDOUT] out_time_us=5374081958
+[STDOUT] out_time_ms=5374081958
+[STDOUT] out_time=01:29:34.081958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 47.1%
+[STDERR] size=  104704KiB time=01:29:34.08 bitrate= 159.6kbits/s speed= 231x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=109576192
+[STDOUT] out_time_us=5486641958
+[STDOUT] out_time_ms=5486641958
+[STDOUT] out_time=01:31:26.641958
+[STDOUT] dup_frames=0
+[PROGRESS] 48.1%
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[STDERR] size=  107008KiB time=01:31:26.64 bitrate= 159.8kbits/s speed= 231x
+[STDOUT] bitrate= 159.6kbits/s
+[STDOUT] total_size=112197632
+[STDOUT] out_time_us=5623129958
+[STDOUT] out_time_ms=5623129958
+[STDOUT] out_time=01:33:43.129958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 49.2%
+[STDERR] size=  109568KiB time=01:33:43.12 bitrate= 159.6kbits/s speed= 232x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=114819072
+[STDOUT] out_time_us=5752201958
+[STDOUT] out_time_ms=5752201958
+[STDOUT] out_time=01:35:52.201958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 50.4%
+[STDERR] size=  112128KiB time=01:35:52.20 bitrate= 159.7kbits/s speed= 232x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=117178368
+[STDOUT] out_time_us=5864881958
+[STDOUT] out_time_ms=5864881958
+[STDOUT] out_time=01:37:44.881958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 51.4%
+[STDERR] size=  114432KiB time=01:37:44.88 bitrate= 159.8kbits/s speed= 232x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=119275520
+[STDOUT] out_time_us=5971441958
+[STDOUT] out_time_ms=5971441958
+[STDOUT] out_time=01:39:31.441958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 52.3%
+[STDOUT] bitrate= 159.7kbits/s
+[STDERR] size=  116480KiB time=01:39:31.44 bitrate= 159.8kbits/s speed= 232x
+[STDOUT] total_size=121372672
+[STDOUT] out_time_us=6081865958
+[STDOUT] out_time_ms=6081865958
+[STDOUT] out_time=01:41:21.865958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 53.3%
+[STDERR] size=  118528KiB time=01:41:21.86 bitrate= 159.7kbits/s speed= 231x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=123731968
+[STDOUT] out_time_us=6199825958
+[STDOUT] out_time_ms=6199825958
+[STDOUT] out_time=01:43:19.825958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 54.3%
+[STDERR] size=  120832KiB time=01:43:19.82 bitrate= 159.7kbits/s speed= 231x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=126091264
+[STDOUT] out_time_us=6313369958
+[STDOUT] out_time_ms=6313369958
+[STDOUT] out_time=01:45:13.369958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 55.3%
+[STDERR] size=  123136KiB time=01:45:13.36 bitrate= 159.8kbits/s speed= 231x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=128188416
+[STDOUT] out_time_us=6419089958
+[STDOUT] out_time_ms=6419089958
+[STDOUT] out_time=01:46:59.089958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 230x
+[STDOUT] progress=continue
+[PROGRESS] 56.2%
+[STDERR] size=  125184KiB time=01:46:59.08 bitrate= 159.8kbits/s speed= 230x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=130285568
+[STDOUT] out_time_us=6527521958
+[STDOUT] out_time_ms=6527521958
+[STDOUT] out_time=01:48:47.521958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 230x
+[STDOUT] progress=continue
+[PROGRESS] 57.2%
+[STDERR] size=  127232KiB time=01:48:47.52 bitrate= 159.7kbits/s speed= 230x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=132644864
+[STDOUT] out_time_us=6645481958
+[STDOUT] out_time_ms=6645481958
+[STDOUT] out_time=01:50:45.481958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 230x
+[STDOUT] progress=continue
+[PROGRESS] 58.2%
+[STDERR] size=  129536KiB time=01:50:45.48 bitrate= 159.7kbits/s speed= 230x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=135266304
+[STDOUT] out_time_us=6776545958
+[STDOUT] out_time_ms=6776545958
+[STDOUT] out_time=01:52:56.545958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 59.3%
+[STDERR] size=  132096KiB time=01:52:56.54 bitrate= 159.7kbits/s speed= 231x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=137887744
+[STDOUT] out_time_us=6907633958
+[STDOUT] out_time_ms=6907633958
+[STDOUT] out_time=01:55:07.633958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 60.5%
+[STDERR] size=  134656KiB time=01:55:07.63 bitrate= 159.7kbits/s speed= 231x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=140509184
+[STDOUT] out_time_us=7037905958
+[STDOUT] out_time_ms=7037905958
+[STDOUT] out_time=01:57:17.905958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 61.6%
+[STDERR] size=  137216KiB time=01:57:17.90 bitrate= 159.7kbits/s speed= 231x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=143130624
+[STDOUT] out_time_us=7159057958
+[STDOUT] out_time_ms=7159057958
+[STDOUT] out_time=01:59:19.057958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 62.7%
+[STDERR] size=  139776KiB time=01:59:19.05 bitrate= 159.9kbits/s speed= 231x
+[STDOUT] bitrate= 160.0kbits/s
+[STDOUT] total_size=145489920
+[STDOUT] out_time_us=7274785958
+[STDOUT] out_time_ms=7274785958
+[STDOUT] out_time=02:01:14.785958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 231x
+[STDOUT] progress=continue
+[PROGRESS] 63.7%
+[STDERR] size=  142080KiB time=02:01:14.78 bitrate= 160.0kbits/s speed= 231x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=147849216
+[STDOUT] out_time_us=7405705958
+[STDOUT] out_time_ms=7405705958
+[STDOUT] out_time=02:03:25.705958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 64.9%
+[STDERR] size=  144384KiB time=02:03:25.70 bitrate= 159.7kbits/s speed= 232x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=150470656
+[STDOUT] out_time_us=7528561958
+[STDOUT] out_time_ms=7528561958
+[STDOUT] out_time=02:05:28.561958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 65.9%
+[STDERR] size=  146944KiB time=02:05:28.56 bitrate= 159.9kbits/s speed= 232x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=153092096
+[STDOUT] out_time_us=7659601958
+[STDOUT] out_time_ms=7659601958
+[STDOUT] out_time=02:07:39.601958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 67.1%
+[STDERR] size=  149504KiB time=02:07:39.60 bitrate= 159.9kbits/s speed= 232x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=155451392
+[STDOUT] out_time_us=7785817958
+[STDOUT] out_time_ms=7785817958
+[STDOUT] out_time=02:09:45.817958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 68.2%
+[STDERR] size=  151808KiB time=02:09:45.81 bitrate= 159.7kbits/s speed= 232x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=158072832
+[STDOUT] out_time_us=7908577958
+[STDOUT] out_time_ms=7908577958
+[STDOUT] out_time=02:11:48.577958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 69.3%
+[STDERR] size=  154368KiB time=02:11:48.57 bitrate= 159.9kbits/s speed= 232x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=160432128
+[STDOUT] out_time_us=8027905958
+[STDOUT] out_time_ms=8027905958
+[STDOUT] out_time=02:13:47.905958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 70.3%
+[STDERR] size=  156672KiB time=02:13:47.90 bitrate= 159.9kbits/s speed= 232x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=162791424
+[STDOUT] out_time_us=8152801958
+[STDOUT] out_time_ms=8152801958
+[STDOUT] out_time=02:15:52.801958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 232x
+[STDOUT] progress=continue
+[PROGRESS] 71.4%
+[STDERR] size=  158976KiB time=02:15:52.80 bitrate= 159.7kbits/s speed= 232x
+[STDOUT] bitrate= 159.7kbits/s
+[STDOUT] total_size=165412864
+[STDOUT] out_time_us=8283889958
+[STDOUT] out_time_ms=8283889958
+[STDOUT] out_time=02:18:03.889958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 72.5%
+[STDERR] size=  161536KiB time=02:18:03.88 bitrate= 159.7kbits/s speed= 233x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=168034304
+[STDOUT] out_time_us=8406433958
+[STDOUT] out_time_ms=8406433958
+[STDOUT] out_time=02:20:06.433958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 73.6%
+[STDERR] size=  164096KiB time=02:20:06.43 bitrate= 159.9kbits/s speed= 233x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=170393600
+[STDOUT] out_time_us=8523049958
+[STDOUT] out_time_ms=8523049958
+[STDOUT] out_time=02:22:03.049958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 74.6%
+[STDERR] size=  166400KiB time=02:22:03.04 bitrate= 159.9kbits/s speed= 233x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=172752896
+[STDOUT] out_time_us=8650873958
+[STDOUT] out_time_ms=8650873958
+[STDOUT] out_time=02:24:10.873958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 75.8%
+[STDERR] size=  168704KiB time=02:24:10.87 bitrate= 159.8kbits/s speed= 233x
+[STDOUT] bitrate= 160.0kbits/s
+[STDOUT] total_size=175374336
+[STDOUT] out_time_us=8770009958
+[STDOUT] out_time_ms=8770009958
+[STDOUT] out_time=02:26:10.009958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 76.8%
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=177471488
+[STDERR] size=  171264KiB time=02:26:10.00 bitrate= 160.0kbits/s speed= 233x
+[STDOUT] out_time_us=8886817958
+[STDOUT] out_time_ms=8886817958
+[STDOUT] out_time=02:28:06.817958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 77.8%
+[STDOUT] bitrate= 160.0kbits/s
+[STDERR] size=  173312KiB time=02:28:06.81 bitrate= 159.8kbits/s speed= 233x
+[STDOUT] total_size=180355072
+[STDOUT] out_time_us=9019705958
+[STDOUT] out_time_ms=9019705958
+[STDOUT] out_time=02:30:19.705958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 79.0%
+[STDERR] size=  176128KiB time=02:30:19.70 bitrate= 160.0kbits/s speed= 233x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=182452224
+[STDOUT] out_time_us=9135841958
+[STDOUT] out_time_ms=9135841958
+[STDOUT] out_time=02:32:15.841958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 80.0%
+[STDERR] size=  178176KiB time=02:32:15.84 bitrate= 159.8kbits/s speed= 233x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=185073664
+[STDOUT] out_time_us=9266929958
+[STDOUT] out_time_ms=9266929958
+[STDOUT] out_time=02:34:26.929958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 81.2%
+[STDERR] size=  180736KiB time=02:34:26.92 bitrate= 159.8kbits/s speed= 233x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=187432960
+[STDOUT] out_time_us=9383617958
+[STDOUT] out_time_ms=9383617958
+[STDOUT] out_time=02:36:23.617958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 82.2%
+[STDERR] size=  183040KiB time=02:36:23.61 bitrate= 159.8kbits/s speed= 233x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=190054400
+[STDOUT] out_time_us=9507433958
+[STDOUT] out_time_ms=9507433958
+[STDOUT] out_time=02:38:27.433958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 83.3%
+[STDERR] size=  185600KiB time=02:38:27.43 bitrate= 159.9kbits/s speed= 233x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=192675840
+[STDOUT] out_time_us=9638857958
+[STDOUT] out_time_ms=9638857958
+[STDOUT] out_time=02:40:38.857958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 233x
+[STDOUT] progress=continue
+[PROGRESS] 84.4%
+[STDERR] size=  188160KiB time=02:40:38.85 bitrate= 159.9kbits/s speed= 233x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=195035136
+[STDOUT] out_time_us=9765001958
+[STDOUT] out_time_ms=9765001958
+[STDOUT] out_time=02:42:45.001958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 85.5%
+[STDERR] size=  190464KiB time=02:42:45.00 bitrate= 159.8kbits/s speed= 234x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=197656576
+[STDOUT] out_time_us=9896065958
+[STDOUT] out_time_ms=9896065958
+[STDOUT] out_time=02:44:56.065958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 86.7%
+[STDERR] size=  193024KiB time=02:44:56.06 bitrate= 159.8kbits/s speed= 234x
+[STDOUT] bitrate= 160.0kbits/s
+[STDOUT] total_size=200278016
+[STDOUT] out_time_us=10014337958
+[STDOUT] out_time_ms=10014337958
+[STDOUT] out_time=02:46:54.337958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 87.7%
+[STDERR] size=  195584KiB time=02:46:54.33 bitrate= 160.0kbits/s speed= 234x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=202375168
+[STDOUT] out_time_us=10131985958
+[STDOUT] out_time_ms=10131985958
+[STDOUT] out_time=02:48:51.985958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 88.7%
+[STDERR] size=  197632KiB time=02:48:51.98 bitrate= 159.8kbits/s speed= 234x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=204996608
+[STDOUT] out_time_us=10257913958
+[STDOUT] out_time_ms=10257913958
+[STDOUT] out_time=02:50:57.913958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 89.8%
+[STDERR] size=  200192KiB time=02:50:57.91 bitrate= 159.9kbits/s speed= 234x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=207355904
+[STDOUT] out_time_us=10381033958
+[STDOUT] out_time_ms=10381033958
+[STDOUT] out_time=02:53:01.033958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 90.9%
+[STDERR] size=  202496KiB time=02:53:01.03 bitrate= 159.8kbits/s speed= 234x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=209977344
+[STDOUT] out_time_us=10502329958
+[STDOUT] out_time_ms=10502329958
+[STDOUT] out_time=02:55:02.329958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 92.0%
+[STDERR] size=  205056KiB time=02:55:02.32 bitrate= 159.9kbits/s speed= 234x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=212336640
+[STDOUT] out_time_us=10627993958
+[STDOUT] out_time_ms=10627993958
+[STDOUT] out_time=02:57:07.993958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 93.1%
+[STDERR] size=  207360KiB time=02:57:07.99 bitrate= 159.8kbits/s speed= 234x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=214695936
+[STDOUT] out_time_us=10748041958
+[STDOUT] out_time_ms=10748041958
+[STDOUT] out_time=02:59:08.041958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 94.1%
+[STDERR] size=  209664KiB time=02:59:08.04 bitrate= 159.8kbits/s speed= 234x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=217317376
+[STDOUT] out_time_us=10874353958
+[STDOUT] out_time_ms=10874353958
+[STDOUT] out_time=03:01:14.353958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 95.2%
+[STDERR] size=  212224KiB time=03:01:14.35 bitrate= 159.9kbits/s speed= 234x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=219414528
+[STDOUT] out_time_us=10978825958
+[STDOUT] out_time_ms=10978825958
+[STDOUT] out_time=03:02:58.825958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 96.1%
+[STDERR] size=  214272KiB time=03:02:58.82 bitrate= 159.9kbits/s speed= 234x
+[STDOUT] bitrate= 159.8kbits/s
+[STDOUT] total_size=222035968
+[STDOUT] out_time_us=11115025958
+[STDOUT] out_time_ms=11115025958
+[STDOUT] out_time=03:05:15.025958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 97.3%
+[STDERR] size=  216832KiB time=03:05:15.02 bitrate= 159.8kbits/s speed= 234x
+[STDOUT] bitrate= 160.0kbits/s
+[STDOUT] total_size=224657408
+[STDOUT] out_time_us=11234329958
+[STDOUT] out_time_ms=11234329958
+[STDOUT] out_time=03:07:14.329958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 98.4%
+[STDERR] size=  219392KiB time=03:07:14.32 bitrate= 160.0kbits/s speed= 234x
+[STDOUT] bitrate= 159.9kbits/s
+[STDOUT] total_size=227278848
+[STDOUT] out_time_us=11371897958
+[STDOUT] out_time_ms=11371897958
+[STDOUT] out_time=03:09:31.897958
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=continue
+[PROGRESS] 99.6%
+[STDOUT] bitrate= 160.0kbits/s
+[STDERR] size=  221952KiB time=03:09:31.89 bitrate= 159.9kbits/s speed= 234x
+[STDOUT] total_size=228370604
+[STDERR] size=  223018KiB time=03:10:18.44 bitrate= 160.0kbits/s speed= 234x
+[STDOUT] out_time_us=11418446000
+[STDOUT] out_time_ms=11418446000
+[STDOUT] out_time=03:10:18.446000
+[STDOUT] dup_frames=0
+[STDOUT] drop_frames=0
+[STDOUT] speed= 234x
+[STDOUT] progress=end
+[PROGRESS] 100.0%
+--- FFmpeg Output End ---
+FFmpeg process completed successfully. Exit code: 0
+[PROGRESS] 100.0% (Completed)
+--- Log End ---

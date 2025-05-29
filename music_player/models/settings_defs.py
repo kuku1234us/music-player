@@ -27,6 +27,9 @@ GROQ_API_QSETTINGS_KEY = 'ai/groq/api_key'
 # Add key for max concurrent downloads
 YT_MAX_CONCURRENT_KEY = 'youtube_downloader/max_concurrent'
 
+# --- NEW: Conversion Settings ---
+CONVERSION_MP3_BITRATE_KEY = 'conversion/mp3_bitrate_kbps'
+
 # --- Environment Variable Keys (For .env fallback) ---
 # Only YT needed if hybrid approach was kept, remove otherwise.
 # Assuming QSettings only now, remove both:
@@ -55,6 +58,9 @@ DEFAULT_GROQ_API_KEY = ""
 # Add default for max concurrent downloads
 DEFAULT_YT_MAX_CONCURRENT = 3
 
+# --- NEW: Conversion Defaults ---
+DEFAULT_CONVERSION_MP3_BITRATE = 128 # Stored as integer (e.g., 128 for 128kbps)
+
 # --- Define Defaults Dictionary for Persistent Settings ---
 # This dictionary maps the setting keys to their default values and types.
 # The SettingsManager uses this when set_defaults() is called to initialize
@@ -81,4 +87,6 @@ MUSIC_PLAYER_DEFAULTS = {
     GROQ_API_QSETTINGS_KEY: (DEFAULT_GROQ_API_KEY, SettingType.STRING),
     # Add max concurrent downloads to defaults
     YT_MAX_CONCURRENT_KEY: (DEFAULT_YT_MAX_CONCURRENT, SettingType.INT),
+    # --- NEW: Conversion Settings Default ---
+    CONVERSION_MP3_BITRATE_KEY: (DEFAULT_CONVERSION_MP3_BITRATE, SettingType.INT),
 } 
