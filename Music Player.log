@@ -1,19 +1,19 @@
-[2025-05-31 03:21:52-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-05-31 03:21:52-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-05-31 03:21:53-DEBUG][BaseWindow]Restored window geometry.
-[2025-05-31 03:21:53-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-05-31 03:21:54-INFO ][YoutubePage]UI setup complete.
-[2025-05-31 03:21:54-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-05-31 03:21:54-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-05-31 03:21:54-INFO ][YoutubePage]Initialized.
-[2025-05-31 03:21:54-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-05-31 03:21:54-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-05-31 03:21:54-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-05-31 03:21:54-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-05-31 03:22:00-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\AVE MARIA  (Schubert) Easy Piano Tutorial ｜ Sheet Music.mp4, switching to PlayerPage.
-[2025-05-31 03:22:00-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-05-31 03:22:49-INFO ][MusicPlayerDashboard]Main window close event triggered.
-[2025-05-31 03:22:49-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
-[2025-05-31 03:22:49-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
-[2025-05-31 03:22:49-INFO ][DownloadManager]No active downloads to shut down.
-[2025-05-31 03:22:49-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.
+[2025-05-31 03:25:54-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-05-31 03:25:54-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-05-31 03:25:54-DEBUG][BaseWindow]Restored window geometry.
+[2025-05-31 03:25:54-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-05-31 03:25:55-INFO ][YoutubePage]UI setup complete.
+[2025-05-31 03:25:55-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-05-31 03:25:55-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-05-31 03:25:55-INFO ][YoutubePage]Initialized.
+[2025-05-31 03:25:55-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-05-31 03:25:55-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-05-31 03:25:55-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-05-31 03:25:56-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-05-31 03:26:02-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\AVE MARIA  (Schubert) Easy Piano Tutorial ｜ Sheet Music.mp4, switching to PlayerPage.
+[2025-05-31 03:26:02-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
+[2025-05-31 03:26:29-INFO ][MusicPlayerDashboard]Main window close event triggered.
+[2025-05-31 03:26:29-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
+[2025-05-31 03:26:29-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
+[2025-05-31 03:26:29-INFO ][DownloadManager]No active downloads to shut down.
+[2025-05-31 03:26:29-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.

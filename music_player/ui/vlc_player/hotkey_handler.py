@@ -86,9 +86,9 @@ class HotkeyHandler(QObject):
                 return True
         # -----------------------------------------------------------------
         
-        # Handle left/right seeking only in playing state
+        # Handle left/right seeking in both playing and paused states (for clipping accuracy)
         if key in (Qt.Key.Key_Left, Qt.Key.Key_Right):
-            if self.main_player.app_state == STATE_PLAYING:
+            if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
                 action = self.hotkeys.get(key)
                 if action:
                     action()
