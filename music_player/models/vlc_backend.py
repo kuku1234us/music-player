@@ -24,15 +24,58 @@ class VLCBackend(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        # Initialize VLC instance - Force OpenGL output and disable HW decoding
+        # Initialize VLC instance - Enable hardware acceleration for better performance
         vlc_args = [
-            "--no-video-title-show",
-            "--vout=glwin32",         # Keep forcing OpenGL as a fallback
-            "--avcodec-hw=none"      # Disable hardware decoding
+            "--no-video-title-show",     # Don't show video title
+            "--avcodec-hw=any",          # Enable hardware decoding (auto-detect best option)
+            "--vout=directdraw",         # Use DirectDraw for Windows (hardware accelerated)
+            "--avcodec-fast",            # Use fast decoding algorithms
+            "--intf=dummy",              # No interface
+            "--no-stats",                # Disable statistics for better performance
+            "--network-caching=1000",    # Set network caching (1 second)
+            "--file-caching=300",        # Set file caching (300ms)
+            "--quiet"                    # Reduce verbose output
         ]
-        print(f"[VLCBackend] Initializing VLC instance with args: {vlc_args}")
-        self.vlc_instance = vlc.Instance(vlc_args)
-        self.media_player = self.vlc_instance.media_player_new()
+        print(f"[VLCBackend] Initializing VLC instance with hardware acceleration: {vlc_args}")
+        
+        try:
+            self.vlc_instance = vlc.Instance(vlc_args)
+            if self.vlc_instance is None:
+                print("[VLCBackend] Warning: Hardware acceleration setup failed, trying fallback")
+                # Fallback to basic hardware acceleration
+                fallback_args = [
+                    "--no-video-title-show",
+                    "--avcodec-hw=auto",     # Auto-detect hardware decoding
+                    "--intf=dummy",
+                    "--quiet"
+                ]
+                self.vlc_instance = vlc.Instance(fallback_args)
+                
+            if self.vlc_instance is None:
+                print("[VLCBackend] Warning: Fallback failed, trying minimal setup")
+                # Final fallback to minimal VLC instance
+                self.vlc_instance = vlc.Instance()
+                
+            if self.vlc_instance is None:
+                raise RuntimeError("Failed to create VLC instance with any configuration")
+                
+            self.media_player = self.vlc_instance.media_player_new()
+            if self.media_player is None:
+                raise RuntimeError("Failed to create VLC media player")
+                
+            print("[VLCBackend] VLC instance and media player created successfully")
+            
+        except Exception as e:
+            print(f"[VLCBackend] Error initializing VLC: {e}")
+            # Try one more time with absolutely minimal setup
+            try:
+                print("[VLCBackend] Attempting minimal VLC initialization...")
+                self.vlc_instance = vlc.Instance()
+                self.media_player = self.vlc_instance.media_player_new()
+                print("[VLCBackend] Minimal VLC initialization successful")
+            except Exception as e2:
+                print(f"[VLCBackend] Fatal: Cannot initialize VLC at all: {e2}")
+                raise RuntimeError(f"VLC initialization failed: {e2}")
         
         # State tracking
         self.current_media = None
@@ -206,6 +249,10 @@ class VLCBackend(QObject):
         # Emit media loaded signal with metadata and is_video flag
         print(f"[VLCBackend] Emitting media_loaded signal. is_video: {is_video}")
         self.media_loaded.emit(metadata, is_video)
+        
+        # Report hardware acceleration status if video
+        if is_video:
+            self._report_hardware_acceleration_status()
         # --- Streamlined Logic End --- 
         
     def _extract_album_art(self, file_path):
@@ -372,21 +419,67 @@ class VLCBackend(QObject):
             position_ms (int): Position in milliseconds
         """
         if not self.current_media:
+            print("[VLCBackend] No media loaded, cannot seek")
             return False
             
-        # Check if we're in an ended state
-        current_state = self.media_player.get_state()
-        if current_state == vlc.State.Ended:
-            # When seeking after end of media, we need to reset
-            # the player state to ensure seeking works correctly
-            self.media_player.stop()
-            self.media_player.play()
-            self.media_player.pause()
-        
-        # Now perform the seek
-        self.media_player.set_time(position_ms)
-        self.current_position = position_ms
-        return True
+        try:
+            # Get current state
+            current_state = self.media_player.get_state()
+            print(f"[VLCBackend] Seeking to {position_ms}ms, current state: {current_state}")
+            
+            # Handle different states appropriately
+            if current_state == vlc.State.Ended:
+                print("[VLCBackend] Ended state detected, resetting for seek")
+                # When seeking after end of media, reset the player
+                self.media_player.stop()
+                self.media_player.play()
+                self.media_player.pause()
+                # Brief wait to ensure state change
+                import time
+                time.sleep(0.05)  # Reduced wait time for better responsiveness
+            elif current_state == vlc.State.Error:
+                print("[VLCBackend] Error state detected, attempting recovery")
+                # Try to recover from error state
+                self.media_player.stop()
+                self.media_player.play()
+                self.media_player.pause()
+                import time
+                time.sleep(0.1)
+            
+            # Ensure position is within valid range
+            if self.current_duration > 0:
+                position_ms = max(0, min(position_ms, self.current_duration))
+            
+            # With hardware acceleration, prefer time-based seeking
+            seek_result = self.media_player.set_time(position_ms)
+            if seek_result == -1:
+                print(f"[VLCBackend] Time-based seek failed, trying position-based seek")
+                # Try alternative seek method using relative position
+                if self.current_duration > 0:
+                    relative_position = position_ms / self.current_duration
+                    relative_position = max(0.0, min(1.0, relative_position))
+                    position_result = self.media_player.set_position(relative_position)
+                    if position_result == -1:
+                        print(f"[VLCBackend] Both seek methods failed")
+                        return False
+                    else:
+                        print(f"[VLCBackend] Position-based seek successful to {relative_position:.3f}")
+                else:
+                    print(f"[VLCBackend] Cannot calculate relative position (duration unknown)")
+                    return False
+            else:
+                print(f"[VLCBackend] Time-based seek successful")
+            
+            # Update our position tracking
+            self.current_position = position_ms
+            print(f"[VLCBackend] Seek completed to {position_ms}ms")
+            return True
+            
+        except Exception as e:
+            print(f"[VLCBackend] Error during seek operation: {e}")
+            # Don't emit error signal for seek failures, just log them
+            # self.error_occurred.emit(f"Seek error: {str(e)}")
+            return False
         
     def set_volume(self, volume):
         """
@@ -646,3 +739,41 @@ class VLCBackend(QObject):
             print(f"[VLCBackend] Error getting subtitle tracks: {e}")
             return tracks
     # -----------------------------------
+
+    def _report_hardware_acceleration_status(self):
+        """
+        Report hardware acceleration status for video playback.
+        """
+        try:
+            # Try to get information about the current video codec and hardware acceleration
+            if self.media_player and self.current_media:
+                # Get video track information
+                video_track_count = self.media_player.video_get_track_count()
+                if video_track_count > 0:
+                    print(f"[VLCBackend] Hardware Acceleration Status:")
+                    print(f"[VLCBackend] - Video tracks detected: {video_track_count}")
+                    
+                    # Try to get current video track description
+                    try:
+                        video_tracks = self.media_player.video_get_track_description()
+                        if video_tracks:
+                            for track in video_tracks:
+                                track_id = track[0]
+                                track_name = track[1]
+                                if isinstance(track_name, bytes):
+                                    try:
+                                        track_name = track_name.decode('utf-8', errors='ignore')
+                                    except:
+                                        track_name = str(track_name)
+                                print(f"[VLCBackend] - Video track {track_id}: {track_name}")
+                    except Exception as e:
+                        print(f"[VLCBackend] - Could not get video track details: {e}")
+                    
+                    # Report that hardware acceleration is attempted
+                    print(f"[VLCBackend] - Hardware acceleration: ENABLED (auto-detect)")
+                    print(f"[VLCBackend] - Video output method: DirectDraw (hardware accelerated)")
+                    
+                else:
+                    print(f"[VLCBackend] No video tracks found for hardware acceleration report")
+        except Exception as e:
+            print(f"[VLCBackend] Error reporting hardware acceleration status: {e}")

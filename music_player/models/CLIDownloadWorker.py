@@ -419,7 +419,7 @@ class CLIDownloadWorker(QObject):
         except Exception as e:
             # --- Catch ALL other unexpected exceptions during execution --- 
             error_message = str(e)
-            self.logger.critical(caller="CLIDownloadWorker", msg=f"Unhandled exception in worker {self.url}: {error_message}", exc_info=True) # Log raw error with stack trace
+            self.logger.error(caller="CLIDownloadWorker", msg=f"Unhandled exception in worker {self.url}: {error_message}", exc_info=True) # Log raw error with stack trace
             # Ensure stack trace is logged if possible (requires traceback module)
             # import traceback
             # print(traceback.format_exc())

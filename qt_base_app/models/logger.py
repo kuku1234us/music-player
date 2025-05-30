@@ -25,7 +25,7 @@ class Logger:
     Singleton class for application-wide logging.
 
     Reads configuration from the YAML file loaded via SettingsManager:
-    - logging.level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default: INFO.
+    - logging.level: Logging level (DEBUG, INFO, WARNING, ERROR). Default: INFO.
     - logging.log_to_file: Boolean, whether to log to a file. Default: True.
     - logging.log_to_console: Boolean, whether to print logs to stdout. Default: True.
     - logging.clear_on_startup: Boolean, whether to clear the log file on app start. Default: True.
@@ -187,4 +187,11 @@ class Logger:
             print(f"[Logger Not Configured] Exception from {caller}: {msg}", file=sys.stderr)
             return
         # The 'exception' method implicitly handles exc_info=True
-        self._logger.exception(msg, *args, extra={'caller': caller}, **kwargs) 
+        self._logger.exception(msg, *args, extra={'caller': caller}, **kwargs)
+
+    def critical(self, caller: str, msg: str, *args, exc_info=False, **kwargs):
+        """Logs a CRITICAL message, prepended with the caller name."""
+        if not self._initialized or self._logger is None:
+            print(f"[Logger Not Configured] CRITICAL from {caller}: {msg}", file=sys.stderr)
+            return
+        self._logger.critical(msg, *args, exc_info=exc_info, extra={'caller': caller}, **kwargs) 
