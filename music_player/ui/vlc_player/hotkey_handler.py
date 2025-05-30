@@ -8,6 +8,8 @@ from PyQt6.QtGui import QKeyEvent
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 from .enums import STATE_PLAYING, STATE_PAUSED
 from music_player.models.ClippingManager import ClippingManager
+# Import the seek interval setting key and default
+from music_player.models.settings_defs import PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL
 
 
 class HotkeyHandler(QObject):
@@ -56,6 +58,8 @@ class HotkeyHandler(QObject):
             Qt.Key.Key_B: self._mark_clip_begin,
             Qt.Key.Key_E: self._mark_clip_end,
             Qt.Key.Key_C: self._perform_clip,
+            Qt.Key.Key_A: self._frame_backward,   # A key for one frame backward
+            Qt.Key.Key_F: self._frame_forward,    # F key for one frame forward
             # Add more hotkeys as needed
             # Note: Shift + Key combinations will be handled separately in handle_key_press
         }
@@ -84,10 +88,36 @@ class HotkeyHandler(QObject):
             elif key == Qt.Key.Key_Delete or key == Qt.Key.Key_Backspace: # Allow Shift+Del or Shift+Backspace
                 self._clear_all_segments()
                 return True
+            # --- NEW: Handle Shift + Arrow keys for 2x seek ---
+            elif key == Qt.Key.Key_Left:
+                if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
+                    self._seek_backward_2x()
+                    return True
+            elif key == Qt.Key.Key_Right:
+                if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
+                    self._seek_forward_2x()
+                    return True
+        # --- NEW: Handle Ctrl + Arrow keys for 4x seek ---
+        elif modifiers == Qt.KeyboardModifier.ControlModifier:
+            if key == Qt.Key.Key_Left:
+                if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
+                    self._seek_backward_4x()
+                    return True
+            elif key == Qt.Key.Key_Right:
+                if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
+                    self._seek_forward_4x()
+                    return True
         # -----------------------------------------------------------------
         
         # Handle left/right seeking in both playing and paused states (for clipping accuracy)
         if key in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+            if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
+                action = self.hotkeys.get(key)
+                if action:
+                    action()
+                    return True
+        # Handle frame-by-frame navigation (A/F keys) in both playing and paused states
+        elif key in (Qt.Key.Key_A, Qt.Key.Key_F):
             if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
                 action = self.hotkeys.get(key)
                 if action:
@@ -122,12 +152,14 @@ class HotkeyHandler(QObject):
         self.main_player.stop()
         
     def _seek_backward(self):
-        """Seek backward by 5 seconds"""
-        self.main_player.seek_relative(-5)
+        """Seek backward by the configured seek interval"""
+        seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
+        self.main_player.seek_relative(-seek_interval)
         
     def _seek_forward(self):
-        """Seek forward by 5 seconds"""
-        self.main_player.seek_relative(5)
+        """Seek forward by the configured seek interval"""
+        seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
+        self.main_player.seek_relative(seek_interval)
         
     def _volume_up(self):
         """Increase volume by 5%"""
@@ -233,3 +265,84 @@ class HotkeyHandler(QObject):
             self.clipping_manager.clear_all_segments()
             # print("[HotkeyHandler] Clear all segments requested.")
     # ------------------------------------------ 
+
+    def _frame_backward(self):
+        """Move backward by exactly one frame."""
+        if self.main_player.current_media_path and self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
+            frame_duration_ms = self._get_frame_duration_ms()
+            if frame_duration_ms > 0:
+                self.main_player.seek_relative(-frame_duration_ms / 1000.0)  # Convert to seconds
+                print(f"[HotkeyHandler] Frame backward: {frame_duration_ms}ms")
+
+    def _frame_forward(self):
+        """Move forward by exactly one frame."""
+        if self.main_player.current_media_path and self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
+            frame_duration_ms = self._get_frame_duration_ms()
+            if frame_duration_ms > 0:
+                self.main_player.seek_relative(frame_duration_ms / 1000.0)  # Convert to seconds
+                print(f"[HotkeyHandler] Frame forward: {frame_duration_ms}ms")
+
+    def _get_frame_duration_ms(self):
+        """
+        Calculate the duration of one frame in milliseconds.
+        
+        Returns:
+            float: Duration of one frame in milliseconds
+        """
+        try:
+            # Try to get frame rate from VLC backend if possible
+            if hasattr(self.main_player.backend, 'get_video_fps'):
+                fps = self.main_player.backend.get_video_fps()
+                if fps and fps > 0:
+                    return 1000.0 / fps
+        except Exception as e:
+            print(f"[HotkeyHandler] Could not get video FPS: {e}")
+        
+        # Try to detect frame rate from VLC media player
+        try:
+            if (hasattr(self.main_player.backend, 'media_player') and 
+                self.main_player.backend.media_player):
+                
+                # Get video track information if available
+                video_tracks = self.main_player.backend.media_player.video_get_track_description()
+                if video_tracks:
+                    # VLC doesn't easily expose frame rate through Python bindings
+                    # So we'll use common video frame rates as fallback
+                    pass
+        except Exception as e:
+            print(f"[HotkeyHandler] Could not detect frame rate from VLC: {e}")
+        
+        # Common video frame rates (in order of likelihood)
+        common_fps = [29.97, 30, 25, 24, 23.976, 60, 50]
+        
+        # For now, default to 30 FPS (most common for web videos)
+        # This gives us ~33.33ms per frame
+        default_fps = 30.0
+        frame_duration = 1000.0 / default_fps
+        
+        print(f"[HotkeyHandler] Using default {default_fps} FPS, frame duration: {frame_duration:.2f}ms")
+        return frame_duration
+
+    def _seek_backward_2x(self):
+        """Seek backward by 2x the configured seek interval"""
+        seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
+        self.main_player.seek_relative(-seek_interval * 2)
+        print(f"[HotkeyHandler] Shift+Left: Seeking backward {seek_interval * 2}s")
+        
+    def _seek_forward_2x(self):
+        """Seek forward by 2x the configured seek interval"""
+        seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
+        self.main_player.seek_relative(seek_interval * 2)
+        print(f"[HotkeyHandler] Shift+Right: Seeking forward {seek_interval * 2}s")
+        
+    def _seek_backward_4x(self):
+        """Seek backward by 4x the configured seek interval"""
+        seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
+        self.main_player.seek_relative(-seek_interval * 4)
+        print(f"[HotkeyHandler] Ctrl+Left: Seeking backward {seek_interval * 4}s")
+        
+    def _seek_forward_4x(self):
+        """Seek forward by 4x the configured seek interval"""
+        seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
+        self.main_player.seek_relative(seek_interval * 4)
+        print(f"[HotkeyHandler] Ctrl+Right: Seeking forward {seek_interval * 4}s") 
