@@ -55,11 +55,11 @@ This document lists all available keyboard shortcuts for the Music Player applic
 
 ### Basic Clipping
 
-| Key | Function     | Description                                                  |
-| --- | ------------ | ------------------------------------------------------------ |
-| `B` | Mark Begin   | Mark the current position as the beginning of a clip segment |
-| `E` | Mark End     | Mark the current position as the end of a clip segment       |
-| `C` | Perform Clip | Create a new media file with the marked segments             |
+| Key      | Function   | Description                                                  |
+| -------- | ---------- | ------------------------------------------------------------ |
+| `B`      | Mark Begin | Mark the current position as the beginning of a clip segment |
+| `E`      | Mark End   | Mark the current position as the end of a clip segment       |
+| `Ctrl+S` | Save Clip  | Create a new media file with the marked segments             |
 
 ### Multi-Segment Clipping Management
 
@@ -93,7 +93,7 @@ This document lists all available keyboard shortcuts for the Music Player applic
    - Use `Shift + Delete` to start over and clear everything
 
 4. **Create the Clip:**
-   - Press `C` to merge all segments into a single output file
+   - Press `Ctrl+S` to merge all segments into a single output file
    - The segments will be automatically sorted and merged if they overlap
 
 ## Usage Notes
@@ -105,7 +105,7 @@ This document lists all available keyboard shortcuts for the Music Player applic
   - **Fast:** Shift+Left/Right use 2x the seek interval (default: 6 seconds)
   - **Ultra Fast:** Ctrl+Left/Right use 4x the seek interval (default: 12 seconds)
 - **Frame Navigation:** The A/F keys use a default of 30 FPS for frame calculation. For videos with different frame rates, the movement may not be perfectly frame-accurate
-- **Clipping Output:** Clipped files are saved in the same directory as the original with a naming pattern like `filename(1).ext`, `filename(2).ext`, etc.
+- **Clipping Output:** Clipped files are saved in the same directory as the original with a naming pattern like `filename_clipped.ext`. If that file already exists, it will use `filename_clipped_1.ext`, `filename_clipped_2.ext`, etc.
 - **Hardware Acceleration:** Full-screen mode benefits from hardware acceleration when available
 
 ## Settings Integration

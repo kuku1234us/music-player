@@ -8,190 +8,251 @@ The clipping process is controlled by three primary hotkeys:
 
 **Important:** These "Beginning" and "End" points are temporary markers stored only in memory for the currently loaded media. They will be reset automatically if you load a new media file or restart the application.
 
-*   **`b` - Mark Beginning:**
-    *   When a media file is playing, pressing the `b` key marks the current playback position on the timeline as the "Beginning" of the desired clip.
-    *   If a "Beginning" point is already set, pressing `b` again will update it to the new current playback position.
+- **`b` - Mark Beginning:**
 
-*   **`e` - Mark End:**
-    *   Similarly, pressing the `e` key marks the current playback position as the "End" of the desired clip.
-    *   If an "End" point is already set, pressing `e` again will update it to the new current playback position.
-    *   The "End" point must be after the "Beginning" point. If an "End" point is marked before the "Beginning" point, the action might be ignored, or an appropriate visual cue/message should be provided.
+  - When a media file is playing, pressing the `b` key marks the current playback position on the timeline as the "Beginning" of the desired clip.
+  - If a "Beginning" point is already set, pressing `b` again will update it to the new current playback position.
 
-*   **`c` - Clip Media:**
-    *   This hotkey becomes active once at least a "Beginning" or an "End" point has been marked.
-        *   If only "Beginning" is marked, the clip will be from the "Beginning" point to the end of the media.
-        *   If only "End" is marked, the clip will be from the start of the media to the "End" point.
-        *   If both are marked, the clip will be from "Beginning" to "End".
-    *   Pressing `c` initiates the clipping process using the marked points.
+- **`e` - Mark End:**
+
+  - Similarly, pressing the `e` key marks the current playback position as the "End" of the desired clip.
+  - If an "End" point is already set, pressing `e` again will update it to the new current playback position.
+  - The "End" point must be after the "Beginning" point. If an "End" point is marked before the "Beginning" point, the action might be ignored, or an appropriate visual cue/message should be provided.
+
+- **`Ctrl+s` - Save Clipped Media:**
+  - This hotkey becomes active once at least a "Beginning" or an "End" point has been marked.
+    - If only "Beginning" is marked, the clip will be from the "Beginning" point to the end of the media.
+    - If only "End" is marked, the clip will be from the start of the media to the "End" point.
+    - If both are marked, the clip will be from "Beginning" to "End".
+  - Pressing `Ctrl+s` initiates the clipping process using the marked points and saves the result to a new file.
 
 # Visual Changes to Timeline
 
 To provide clear visual feedback to the user, the player timeline will be updated as "Beginning" and "End" points are marked:
 
-*   **Marked Points:** The "Beginning" and "End" points are visually represented on the timeline as distinct markers (e.g., badges similar in shape to the play head).
-    *   The "Beginning" marker is shaded green.
-    *   The "End" marker is shaded red.
-    *   Users can click directly on a marker badge on the timeline to remove (cancel) that specific marker.
-*   **Unwanted Portions:** The sections of the timeline *before* the marked "Beginning" and *after* the marked "End" should be visually differentiated to indicate they will be excluded from the clip. This could be achieved by dimming these areas, using a different background color, or a strikethrough effect.
-*   **Selected Region:** The segment between the "Beginning" and "End" points (or from the start/to the end if one is not set) should clearly represent the portion that will be kept.
+- **Marked Points:** The "Beginning" and "End" points are visually represented on the timeline as distinct markers (e.g., badges similar in shape to the play head).
+  - The "Beginning" marker is shaded green.
+  - The "End" marker is shaded red.
+  - Users can click directly on a marker badge on the timeline to remove (cancel) that specific marker.
+- **Unwanted Portions:** The sections of the timeline _before_ the marked "Beginning" and _after_ the marked "End" should be visually differentiated to indicate they will be excluded from the clip. This could be achieved by dimming these areas, using a different background color, or a strikethrough effect.
+- **Selected Region:** The segment between the "Beginning" and "End" points (or from the start/to the end if one is not set) should clearly represent the portion that will be kept.
 
 # Clipping Mechanism
 
 The actual clipping of the media file is handled by the `ClippingManager` model (`music_player.models.ClippingManager`). This manager is a singleton responsible for:
 
-*   **Storing Marker State:** It keeps track of the `_current_media_path`, `_begin_marker_ms` (timestamp in milliseconds for the start of the clip), and `_end_marker_ms` (timestamp for the end of the clip). These are updated when the user presses the `b` or `e` hotkeys, or when markers are cleared.
-*   **Signaling Updates:** It emits a `markers_updated(media_path, begin_ms, end_ms)` signal whenever the markers or the associated media file change. The UI (specifically the timeline) will listen to this signal to redraw itself.
-*   **Filename Generation:**
-    *   A new media file is created for the clipped segment.
-    *   The original file remains untouched.
-    *   The new filename is generated by the `_generate_clipped_filename()` method based on the original filename:
-        *   It takes the stem of the original filename.
-        *   It appends `(x)` to the stem, where `x` is an integer starting from 1.
-        *   The system will check for existing files with the same pattern (e.g., `original_stem(1).mp3`, `original_stem(2).mp3`) and use the earliest available integer for `x`. For example, if `original_stem(1).mp3` exists, the new file will be `original_stem(2).mp3`.
-        *   The original file extension is preserved.
-        *   Example: If the original file is `MySong.mp3` and `MySong(1).mp3` already exists, clipping it will create `MySong(2).mp3`.
-*   **FFmpeg Process:**
-    *   The `perform_clip()` method orchestrates the clipping.
-    *   It uses the `ffmpeg` command-line interface (CLI) tool.
-    *   **No Re-encoding:** To ensure speed and preserve quality, `ffmpeg` is instructed to perform the clip without re-encoding the audio or video streams (using `-c copy`).
-    *   **Timestamp Conversion:** Timestamps (begin and end markers) are converted from milliseconds to `HH:MM:SS.mmm` format required by `ffmpeg` using an internal helper `_ms_to_ffmpeg_time()`.
-    *   **Command Execution:** `subprocess.Popen` is used to run `ffmpeg` in a non-blocking way, with `CREATE_NO_WINDOW` on Windows to hide the console.
-    *   **Error Handling:** Includes checks for `ffmpeg` not found, command timeout, and other execution errors.
-    *   **Success/Failure Signals:** Emits `clip_successful(original_path, clipped_path)` or `clip_failed(original_path, error_message)` signals.
+- **Storing Marker State:** It keeps track of the `_current_media_path`, `_begin_marker_ms` (timestamp in milliseconds for the start of the clip), and `_end_marker_ms` (timestamp for the end of the clip). These are updated when the user presses the `b` or `e` hotkeys, or when markers are cleared.
+- **Signaling Updates:** It emits a `markers_updated(media_path, begin_ms, end_ms)` signal whenever the markers or the associated media file change. The UI (specifically the timeline) will listen to this signal to redraw itself.
+- **Filename Generation:**
+  - A new media file is created for the clipped segment.
+  - The original file remains untouched.
+  - The new filename is generated by the `_generate_clipped_filename()` method based on the original filename:
+    - It takes the stem of the original filename.
+    - It appends `_clipped` to the stem.
+    - If a file with this name already exists, it will append a number: `_clipped_1`, `_clipped_2`, etc.
+    - The original file extension is preserved.
+    - Example: If the original file is `MySong.mp3`, clipping it will create `MySong_clipped.mp3`. If that already exists, it will create `MySong_clipped_1.mp3`.
+- **FFmpeg Process:**
+  - The `perform_clip()` method orchestrates the clipping.
+  - It uses the `ffmpeg` command-line interface (CLI) tool.
+  - **No Re-encoding:** To ensure speed and preserve quality, `ffmpeg` is instructed to perform the clip without re-encoding the audio or video streams (using `-c copy`).
+  - **Timestamp Conversion:** Timestamps (begin and end markers) are converted from milliseconds to `HH:MM:SS.mmm` format required by `ffmpeg` using an internal helper `_ms_to_ffmpeg_time()`.
+  - **Command Execution:** `subprocess.Popen` is used to run `ffmpeg` in a non-blocking way, with `CREATE_NO_WINDOW` on Windows to hide the console.
+  - **Error Handling:** Includes checks for `ffmpeg` not found, command timeout, and other execution errors.
+  - **Success/Failure Signals:** Emits `clip_successful(original_path, clipped_path)` or `clip_failed(original_path, error_message)` signals.
 
 ## Milestone and Checklist
 
 This section outlines the key milestones and a checklist for implementing the media clipping functionality.
 
 ### Milestone 1: Core Clipping Logic and State Management (`ClippingManager`)
--   [x] **Singleton Implementation:**
-    -   [x] Implement `ClippingManager` as a singleton class.
-    -   [x] Ensure `instance()` method provides the single instance.
--   [x] **Media Association:**
-    -   [x] Implement `set_media(media_path)`:
-        -   [x] Store `_current_media_path`.
-        -   [x] Clear `_begin_marker_ms` and `_end_marker_ms` if `media_path` changes.
-        -   [x] Emit `markers_updated` signal for the new media (with `None` markers initially).
--   [x] **Marker Management:**
-    -   [x] Implement `mark_begin(timestamp_ms)`:
-        -   [x] Set `_begin_marker_ms`.
-        -   [x] Emit `markers_updated` signal.
-    -   [x] Implement `mark_end(timestamp_ms)`:
-        -   [x] Set `_end_marker_ms`.
-        -   [x] Ensure `_end_marker_ms` > `_begin_marker_ms` if both are set.
-        -   [x] Emit `markers_updated` signal.
-    -   [x] Implement `clear_begin_marker()`:
-        -   [x] Set `_begin_marker_ms` to `None`.
-        -   [x] Emit `markers_updated` signal.
-    -   [x] Implement `clear_end_marker()`:
-        -   [x] Set `_end_marker_ms` to `None`.
-        -   [x] Emit `markers_updated` signal.
-    -   [x] Implement `clear_all_markers()`:
-        -   [x] Set both markers to `None`.
-        -   [x] Emit `markers_updated` signal.
--   [x] **Filename Generation:**
-    -   [x] Implement `_generate_clipped_filename()`:
-        -   [x] Use original stem + `(x)` + original extension.
-        -   [x] Increment `x` to find an unused filename.
--   [x] **FFmpeg Integration:**
-    -   [x] Implement `_ms_to_ffmpeg_time(ms)` helper function.
-    -   [x] Implement `perform_clip()`:
-        -   [x] Construct `ffmpeg` command array.
-        -   [x] Use `-ss` (if `_begin_marker_ms` set) before `-i <input>`.
-        -   [x] Use `-to <timestamp>` (if only `_end_marker_ms` set) or `-t <duration>` (if both set).
-        -   [x] Use `-c copy` for no re-encoding.
-        -   [x] Execute `ffmpeg` using `subprocess.Popen`.
-        -   [x] Add `CREATE_NO_WINDOW` flag on Windows.
-    -   [x] **Error Handling:**
-        -   [x] Check for `ffmpeg` not found (FileNotFoundError).
-        -   [x] Handle command timeout (`subprocess.TimeoutExpired`).
-        -   [x] Handle other execution errors (check `process.returncode`).
-    -   [x] **Signal Emission:**
-        -   [x] Emit `clip_successful(original_path, clipped_path)` on success.
-        -   [x] Emit `clip_failed(original_path, error_message)` on failure.
+
+- [x] **Singleton Implementation:**
+  - [x] Implement `ClippingManager` as a singleton class.
+  - [x] Ensure `instance()` method provides the single instance.
+- [x] **Media Association:**
+  - [x] Implement `set_media(media_path)`:
+    - [x] Store `_current_media_path`.
+    - [x] Clear `_begin_marker_ms` and `_end_marker_ms` if `media_path` changes.
+    - [x] Emit `markers_updated` signal for the new media (with `None` markers initially).
+- [x] **Marker Management:**
+  - [x] Implement `mark_begin(timestamp_ms)`:
+    - [x] Set `_begin_marker_ms`.
+    - [x] Emit `markers_updated` signal.
+  - [x] Implement `mark_end(timestamp_ms)`:
+    - [x] Set `_end_marker_ms`.
+    - [x] Ensure `_end_marker_ms` > `_begin_marker_ms` if both are set.
+    - [x] Emit `markers_updated` signal.
+  - [x] Implement `clear_begin_marker()`:
+    - [x] Set `_begin_marker_ms` to `None`.
+    - [x] Emit `markers_updated` signal.
+  - [x] Implement `clear_end_marker()`:
+    - [x] Set `_end_marker_ms` to `None`.
+    - [x] Emit `markers_updated` signal.
+  - [x] Implement `clear_all_markers()`:
+    - [x] Set both markers to `None`.
+    - [x] Emit `markers_updated` signal.
+- [x] **Filename Generation:**
+  - [x] Implement `_generate_clipped_filename()`:
+    - [x] Use original stem + `_clipped` + original extension.
+    - [x] Increment `x` to find an unused filename.
+- [x] **FFmpeg Integration:**
+  - [x] Implement `_ms_to_ffmpeg_time(ms)` helper function.
+  - [x] Implement `perform_clip()`:
+    - [x] Construct `ffmpeg` command array.
+    - [x] Use `-ss` (if `_begin_marker_ms` set) before `-i <input>`.
+    - [x] Use `-to <timestamp>` (if only `_end_marker_ms` set) or `-t <duration>` (if both set).
+    - [x] Use `-c copy` for no re-encoding.
+    - [x] Execute `ffmpeg` using `subprocess.Popen`.
+    - [x] Add `CREATE_NO_WINDOW` flag on Windows.
+  - [x] **Error Handling:**
+    - [x] Check for `ffmpeg` not found (FileNotFoundError).
+    - [x] Handle command timeout (`subprocess.TimeoutExpired`).
+    - [x] Handle other execution errors (check `process.returncode`).
+  - [x] **Signal Emission:**
+    - [x] Emit `clip_successful(original_path, clipped_path)` on success.
+    - [x] Emit `clip_failed(original_path, error_message)` on failure.
 
 ### Milestone 2: UI Integration - Timeline Visualization
--   [x] **Connect to `ClippingManager`:**
-    -   [x] In `PlayerTimeline` (or relevant UI component), connect to `ClippingManager.instance().markers_updated`.
--   [x] **Visual Markers:**
-    -   [x] On `markers_updated` signal:
-        -   [x] Draw a green marker on the timeline for `_begin_marker_ms`.
-        -   [x] Draw a red marker on the timeline for `_end_marker_ms`.
-        -   [x] Markers should be distinct (e.g., badges).
--   [x] **Marker Interaction:**
-    -   [x] Allow clicking on a timeline marker badge to remove it:
-        -   [x] Clicking green marker calls `ClippingManager.instance().clear_begin_marker()`.
-        -   [x] Clicking red marker calls `ClippingManager.instance().clear_end_marker()`.
--   [x] **Visual Feedback for Regions:**
-    -   [x] Dim or visually differentiate the area *before* the "Beginning" marker.
-    -   [x] Dim or visually differentiate the area *after* the "End" marker.
-    -   [x] Clearly indicate the selected region (between markers, or from start/to end if one is missing) that will be kept.
+
+- [x] **Connect to `ClippingManager`:**
+  - [x] In `PlayerTimeline` (or relevant UI component), connect to `ClippingManager.instance().markers_updated`.
+- [x] **Visual Markers:**
+  - [x] On `markers_updated` signal:
+    - [x] Draw a green marker on the timeline for `_begin_marker_ms`.
+    - [x] Draw a red marker on the timeline for `_end_marker_ms`.
+    - [x] Markers should be distinct (e.g., badges).
+- [x] **Marker Interaction:**
+  - [x] Allow clicking on a timeline marker badge to remove it:
+    - [x] Clicking green marker calls `ClippingManager.instance().clear_begin_marker()`.
+    - [x] Clicking red marker calls `ClippingManager.instance().clear_end_marker()`.
+- [x] **Visual Feedback for Regions:**
+  - [x] Dim or visually differentiate the area _before_ the "Beginning" marker.
+  - [x] Dim or visually differentiate the area _after_ the "End" marker.
+  - [x] Clearly indicate the selected region (between markers, or from start/to end if one is missing) that will be kept.
 
 ### Milestone 3: UI Integration - Hotkeys and Controls
--   [x] **Hotkey Implementation (`HotkeyHandler` or `MainPlayer`):**
-    -   [x] **`b` - Mark Beginning:**
-        -   [x] On 'b' key press, call `ClippingManager.instance().mark_begin(current_playback_time_ms)`.
-        -   [x] `current_playback_time_ms` should be retrieved from `MainPlayer` or `VLCBackend`.
-    -   [x] **`e` - Mark End:**
-        -   [x] On 'e' key press, call `ClippingManager.instance().mark_end(current_playback_time_ms)`.
-    -   [x] **`c` - Clip Media:**
-        -   [x] On 'c' key press, call `ClippingManager.instance().perform_clip()`.
-        -   [x] Ensure 'c' hotkey is only active/effective if `_begin_marker_ms` or `_end_marker_ms` is set in `ClippingManager`.
--   [ ] **(Optional) UI Buttons:**
-    -   [ ] Consider adding "Mark Begin", "Mark End", and "Clip" buttons to the player UI as alternatives to hotkeys.
+
+- [x] **Hotkey Implementation (`HotkeyHandler` or `MainPlayer`):**
+  - [x] **`b` - Mark Beginning:**
+    - [x] On 'b' key press, call `ClippingManager.instance().mark_begin(current_playback_time_ms)`.
+    - [x] `current_playback_time_ms` should be retrieved from `MainPlayer` or `VLCBackend`.
+  - [x] **`e` - Mark End:**
+    - [x] On 'e' key press, call `ClippingManager.instance().mark_end(current_playback_time_ms)`.
+  - [ ] **`Ctrl+s` - Save Clipped Media:** **(NEEDS UPDATE)**
+    - [ ] **UPDATE REQUIRED:** Change from 'c' key to 'Ctrl+s' key combination in `HotkeyHandler`.
+    - [x] On hotkey press, call `ClippingManager.instance().perform_clip()`.
+    - [x] Ensure hotkey is only active/effective if segments are defined in `ClippingManager`.
+- [ ] **(Optional) UI Buttons:**
+  - [ ] Consider adding "Mark Begin", "Mark End", and "Clip" buttons to the player UI as alternatives to hotkeys.
 
 ### Milestone 4: Post-Clipping Behavior
--   [ ] **Handle `clip_successful` Signal (in `MainPlayer` or appropriate controller):**
-    -   [ ] Connect to `ClippingManager.instance().clip_successful`.
-    -   [ ] When signal is received:
-        -   [ ] Automatically load the `clipped_path` into the `MainPlayer`.
-        -   [ ] Start playback of the new clip from its beginning.
-        -   [ ] Call `ClippingManager.instance().clear_all_markers()` to reset markers for the original file.
-        -   [ ] Ensure the player window/widget regains focus.
--   [ ] **Handle `clip_failed` Signal (in `MainPlayer` or appropriate controller):**
-    -   [ ] Connect to `ClippingManager.instance().clip_failed`.
-    -   [ ] When signal is received:
-        -   [ ] Display the `error_message` to the user (e.g., via `QMessageBox` or a status bar notification).
-
-### Milestone 5: Integration and Testing
--   [ ] **`MainPlayer` Integration:**
-    -   [ ] Ensure `ClippingManager.instance().set_media(current_media_path)` is called when a new media file is loaded in `MainPlayer`.
-    -   [ ] Ensure `ClippingManager.instance().set_media("")` (or similar to clear state) is called when no media is loaded or player is stopped/closed.
--   [ ] **Thorough Testing:**
-    -   [ ] Test clipping with only "Beginning" marker set.
-    -   [ ] Test clipping with only "End" marker set.
-    -   [ ] Test clipping with both "Beginning" and "End" markers set.
-    -   [ ] Test clipping different file types (audio and video).
-    -   [ ] Test filename generation with existing clipped files.
-    -   [ ] Test error conditions (ffmpeg not found, invalid markers, file access issues).
-    -   [ ] Test UI responsiveness and visual feedback.
-    -   [ ] Test hotkey functionality.
-    -   [ ] Test post-clipping playback and marker reset.
-
-### Data Structure for Markers
-
-The `ClippingManager` internally stores:
-
-```python
-self._current_media_path: Optional[str] = None
-self._begin_marker_ms: Optional[int] = None
-self._end_marker_ms: Optional[int] = None
-```
-
-*   `_current_media_path`: Stores the absolute path of the media file for which the markers are set. This is crucial for associating markers with a specific file. When a new file is loaded into the player, `ClippingManager.set_media(new_path)` will be called, which will clear markers from any previous file and emit `markers_updated` for the new file (with `None` for markers initially).
-*   `_begin_marker_ms`: An optional integer representing the start of the clip in milliseconds from the beginning of the `_current_media_path`. `None` if not set.
-*   `_end_marker_ms`: An optional integer representing the end of the clip in milliseconds. `None` if not set. It must be greater than `_begin_marker_ms` if both are set.
-
-This structure ensures that clipping markers are always tied to a specific media file and are reset when the media context changes.
-
-# Post-Clipping Behavior
 
 Once `ffmpeg` has successfully processed and created the new clipped media file:
 
-*   **Automatic Playback:** The newly created clipped file will automatically be loaded into the main player.
-*   **Playback State:** Playback of the new clip will commence from the beginning of the clipped segment.
-*   **Timeline Reset:** The "Beginning" and "End" markers on the timeline will be cleared, as they pertained to the original, unclipped file.
-*   **Focus:** The player should ideally regain focus.
+- **Automatic Mode Switch:** If the main player was previously in playlist mode (`_playback_mode = "playlist"`), it will automatically switch to single file mode (`_playback_mode = "single"`).
+- **Automatic Media Loading:** The newly created clipped file will automatically be loaded into the main player via `vlc_backend.py`.
+- **Immediate Playback:** Playback of the new clipped file will start immediately from the beginning of the clipped content.
+- **Timeline and Marker Reset:** All clipping markers on the timeline will be cleared, as they pertained to the original, unclipped file. The timeline will be reset for the new clipped media.
+- **Focus Management:** The player should regain focus to ensure continued hotkey functionality.
+- **State Consistency:** The player's internal state (`current_media_path`) will be updated to reference the new clipped file path.
+
+**Technical Implementation Notes:**
+
+- The `MainPlayer` should connect to the `ClippingManager.clip_successful` signal to handle this automatic loading behavior.
+- The switch from playlist mode to single mode ensures that the user can immediately work with the newly created clip without playlist interference.
+- All clipping-related UI elements (markers, segments) are cleared to provide a clean state for potential further editing of the new clip.
+
+This comprehensive post-clipping process ensures a seamless user experience where the result of the clipping operation is immediately available for playback and further editing.
+
+**Implementation Checklist:**
+
+- [ ] **Handle `clip_successful` Signal (in `MainPlayer`):**
+
+  - [ ] Connect to `ClippingManager.instance().clip_successful` signal in `_connect_signals()` method.
+  - [ ] Create slot method `_on_clip_successful(self, original_path, clipped_path)` to handle the signal.
+  - [ ] **Mode Switch:** Set `self._playback_mode = 'single'` regardless of previous mode.
+  - [ ] **Clear Playlist Reference:** Set `self._current_playlist = None` to ensure clean single mode.
+  - [ ] **Load New Media:** Call `self.backend.load_media(clipped_path)` to load the clipped file.
+  - [ ] **Update Current Path:** Set `self.current_media_path = clipped_path`.
+  - [ ] **Start Playback:** Call `self.backend.play()` to start immediate playback.
+  - [ ] **Clear Clipping State:** Call `self.clipping_manager.clear_all_segments()` to reset markers.
+  - [ ] **Update UI:** Call `self.player_widget.set_next_prev_enabled(False)` to disable playlist controls.
+  - [ ] **Focus Management:** Call `self.setFocus()` to ensure hotkey functionality.
+  - [ ] **Signal Emission:** Emit `self.playback_mode_changed.emit('single')` to notify other components.
+
+- [ ] **Handle `clip_failed` Signal (in `MainPlayer`):**
+  - [ ] Connect to `ClippingManager.instance().clip_failed` signal in `_connect_signals()` method.
+  - [ ] Create slot method `_on_clip_failed(self, original_path, error_message)` to handle failures.
+  - [ ] **Error Display:** Show `error_message` to user via `QMessageBox.critical()` or status notification.
+  - [ ] **State Preservation:** Maintain current playback mode and loaded media on failure.
+  - [ ] **Focus Restoration:** Call `self.setFocus()` to restore hotkey functionality after error dialog.
+
+### Milestone 5: Integration and Testing **(PARTIALLY COMPLETE)**
+
+- [x] **`MainPlayer` Integration:**
+  - [x] Ensure `ClippingManager.instance().set_media(current_media_path)` is called when a new media file is loaded in `MainPlayer`.
+  - [x] Ensure `ClippingManager.instance().set_media("")` (or similar to clear state) is called when no media is loaded or player is stopped/closed.
+- [ ] **Thorough Testing:**
+  - [ ] Test clipping with only "Beginning" marker set.
+  - [ ] Test clipping with only "End" marker set.
+  - [ ] Test clipping with both "Beginning" and "End" markers set.
+  - [ ] Test clipping different file types (audio and video).
+  - [ ] **UPDATE REQUIRED:** Test filename generation with `_clipped` suffix format.
+  - [ ] Test error conditions (ffmpeg not found, invalid markers, file access issues).
+  - [ ] Test UI responsiveness and visual feedback.
+  - [ ] Test hotkey functionality with new `Ctrl+s` combination.
+  - [ ] Test post-clipping playback and marker reset.
+  - [ ] **NEW:** Test post-clipping mode switching from playlist to single mode.
+  - [ ] **NEW:** Test post-clipping automatic loading and immediate playback of clipped file.
+  - [ ] **NEW:** Test post-clipping UI state updates (disabled playlist controls in single mode).
+  - [ ] **NEW:** Test post-clipping focus management and hotkey functionality.
+  - [ ] **NEW:** Test clipping failure handling and error message display.
+  - [ ] **NEW:** Test that original media state is preserved on clipping failure.
+  - [ ] **NEW:** Test multiple successive clipping operations in different modes.
+  - [ ] **NEW:** Test clipping from playlist mode vs single mode behavior consistency.
+
+### Milestone 7: Code Updates for New Specifications **(NEW)**
+
+- [ ] **Update Filename Generation:**
+  - [ ] Modify `_generate_clipped_filename()` method in `ClippingManager` to use `_clipped` suffix instead of `(x)` numbering.
+  - [ ] Implement conflict resolution: `filename_clipped.ext` → `filename_clipped_1.ext` → `filename_clipped_2.ext`, etc.
+- [ ] **Update Hotkey Implementation:**
+  - [ ] **Remove old 'C' key mapping:** Remove `Qt.Key.Key_C: self._perform_clip` from `self.hotkeys` dictionary in `HotkeyHandler.__init__()`.
+  - [ ] **Add Ctrl+S detection:** Update `handle_key_press()` method in `HotkeyHandler` to detect `Ctrl+S` combination.
+  - [ ] **Add modifier key logic:** Implement logic to check for `Qt.KeyboardModifier.ControlModifier` with `Qt.Key.Key_S`.
+  - [ ] **Update method call:** Ensure `self._perform_clip()` is called when `Ctrl+S` is detected.
+  - [ ] **State validation:** Verify that `Ctrl+S` only works when media is loaded and segments are defined.
+  - [ ] Test that `Ctrl+S` doesn't conflict with other system shortcuts or application save operations.
+
+### Data Structure for Markers
+
+**Current Multi-Segment Implementation:**
+
+```python
+self._current_media_path: Optional[str] = None
+self._pending_begin_marker_ms: Optional[int] = None
+self._segments: List[Tuple[int, int]] = []
+```
+
+- `_current_media_path`: Stores the absolute path of the media file for which the markers are set. This is crucial for associating markers with a specific file. When a new file is loaded into the player, `ClippingManager.set_media(new_path)` will be called, which will clear markers from any previous file and emit `markers_updated` for the new file.
+- `_pending_begin_marker_ms`: An optional integer representing a temporary "begin" marker in milliseconds. This is set when the user presses `B` and is used to create a segment when they press `E`.
+- `_segments`: A list of tuples `(start_ms, end_ms)` representing defined clip segments. Each tuple contains the start and end timestamps in milliseconds for a segment that will be included in the final clipped output.
+
+**Signal Structure:**
+
+```python
+markers_updated = pyqtSignal(str, object, list)  # (media_path, pending_begin_ms, segments)
+```
+
+This multi-segment structure allows users to define multiple non-contiguous segments from a single media file, which are then merged into a single output file during the clipping process.
+
+Once `ffmpeg` has successfully processed and created the new clipped media file:
+
+- **Automatic Playback:** The newly created clipped file will automatically be loaded into the main player.
+- **Playback State:** Playback of the new clip will commence from the beginning of the clipped segment.
+- **Timeline Reset:** The "Beginning" and "End" markers on the timeline will be cleared, as they pertained to the original, unclipped file.
+- **Focus:** The player should ideally regain focus.
 
 This comprehensive process ensures a user-friendly way to edit media files directly within the application.
 
@@ -200,110 +261,155 @@ This comprehensive process ensures a user-friendly way to edit media files direc
 This milestone refactors the clipping functionality to support defining and clipping multiple segments from a single media file. The segments will then be merged into a single output file.
 
 **Interaction Model for Multi-Segment Marking:**
-*   Pressing `B` sets a "pending" begin marker.
-*   Pressing `E` (when a "pending" begin marker exists) defines a segment (Begin-End pair) and adds it to a list of segments. The "pending" begin marker is then cleared.
-*   Users can repeat this B-E process to define multiple segments.
-*   Pressing `C` initiates the clipping and merging of all defined segments.
+
+- Pressing `B` sets a "pending" begin marker.
+- Pressing `E` (when a "pending" begin marker exists) defines a segment (Begin-End pair) and adds it to a list of segments. The "pending" begin marker is then cleared.
+- Users can repeat this B-E process to define multiple segments.
+- Pressing `Ctrl+s` initiates the clipping and merging of all defined segments, saving the result to a new file.
 
 **New Hotkeys:**
-*   `Shift + B`: Clear the current "pending" begin marker (if one is set).
-*   `Shift + E`: Clear the last added segment from the list.
-*   `Shift + Delete` (or `Shift + Backspace`): Clear all defined segments and any pending begin marker.
+
+- `Shift + B`: Clear the current "pending" begin marker (if one is set).
+- `Shift + E`: Clear the last added segment from the list.
+- `Shift + Delete` (or `Shift + Backspace`): Clear all defined segments and any pending begin marker.
 
 **A. `ClippingManager` Refactor (`music_player.models.ClippingManager`):**
--   [x] **Data Structure for Segments:**
-    -   [x] Change internal storage from single `_begin_marker_ms` and `_end_marker_ms` to:
-        -   [x] `_pending_begin_marker_ms: Optional[int]` (for the current `B` press).
-        -   [x] `_segments: List[Tuple[int, int]]` (list of (start_ms, end_ms) tuples for defined segments).
--   [x] **Update `markers_updated` Signal:**
-    -   [x] Modify the `markers_updated` signal to emit the `media_path`, the `_pending_begin_marker_ms`, and the full list of `_segments`.
-    -   [x] Example: `markers_updated = pyqtSignal(str, object, list)`
--   [x] **Refactor Marker Management Methods:**
-    -   [x] `mark_begin(timestamp_ms)`:
-        -   [x] Sets `_pending_begin_marker_ms = timestamp_ms`.
-        -   [x] Emits `markers_updated`.
-    -   [x] `mark_end(timestamp_ms)`:
-        -   [x] If `_pending_begin_marker_ms` exists and `timestamp_ms > _pending_begin_marker_ms`:
-            -   [x] Add `(_pending_begin_marker_ms, timestamp_ms)` to `_segments`.
-            -   [x] Clear `_pending_begin_marker_ms` (set to `None`).
-            -   [x] Emits `markers_updated`.
-        -   [x] Else (no pending begin, or end is before begin), do nothing or log a warning.
-    -   [x] `clear_pending_begin_marker()`: (New method for `Shift + B`)
-        -   [x] Sets `_pending_begin_marker_ms` to `None`.
-        -   [x] Emits `markers_updated`.
-    -   [x] `clear_last_segment()`: (New method for `Shift + E`)
-        -   [x] If `_segments` is not empty, remove the last segment.
-        -   [x] Emits `markers_updated`.
-    -   [x] `clear_all_segments()`: (New method for `Shift + Delete`, replaces `clear_all_markers`)
-        -   [x] Clear `_pending_begin_marker_ms` to `None`.
-        -   [x] Clear `_segments` to an empty list.
-        -   [x] Emits `markers_updated`.
--   [x] **Refactor `set_media(media_path)`:**
-    -   [x] When media path changes, clear `_pending_begin_marker_ms` and `_segments` before emitting `markers_updated` for the new media.
--   [x] **Segment Processing for `perform_clip()`:**
-    -   [x] If `_segments` is empty, emit `clip_failed` (or do nothing).
-    -   [x] **Sort Segments:** Sort `_segments` by their start times to ensure correct order.
-    -   [x] **Merge Overlapping/Adjacent Segments (Optional but Recommended):** Implement logic to merge segments that overlap or are directly adjacent to simplify the ffmpeg command.
-        -   [x] Example: `[(0, 10), (5, 15)]` becomes `[(0, 15)]`. `[(0,10), (10,20)]` becomes `[(0,20)]`.
-    -   [x] **Generate FFmpeg Command for Multiple Segments:**
-        -   [x] This is the most complex part. The `-c copy` approach for a single segment is simple. For merging multiple segments without re-encoding, `ffmpeg` typically requires using the `concat` demuxer or complex filtergraphs.
-        -   **Option 1 (Concat Demuxer):**
-            -   [x] For each segment `(start, end)` in the (sorted and merged) `_segments` list, create a temporary intermediate clip file using `ffmpeg -ss <start_time> -i <original_path> -t <duration> -c copy temp_segment_N.ext`.
-            -   [x] Create a text file (e.g., `mylist.txt`) listing these temporary files: `file 'temp_segment_1.ext'`, `file 'temp_segment_2.ext'`, etc.
-            -   [x] Run `ffmpeg -f concat -safe 0 -i mylist.txt -c copy <output_path>`.
-            -   [x] Clean up temporary segment files and `mylist.txt`.
-        -   [ ] **Option 2 (Complex Filtergraph - `select` and `asetpts` filters - might be more performant if re-encoding is acceptable or for specific formats):** This can be very tricky with `-c copy`. Often requires re-encoding if complex timeline editing is done.
-            -   [ ] *Further research needed if pursuing this path, concat demuxer is usually safer for `-c copy`.* 
-        -   [x] Ensure `_generate_clipped_filename()` is still used for the final output file.
-        -   [x] Emit `clip_successful` or `clip_failed` as appropriate.
+
+- [x] **Data Structure for Segments:**
+  - [x] Change internal storage from single `_begin_marker_ms` and `_end_marker_ms` to:
+    - [x] `_pending_begin_marker_ms: Optional[int]` (for the current `B` press).
+    - [x] `_segments: List[Tuple[int, int]]` (list of (start_ms, end_ms) tuples for defined segments).
+- [x] **Update `markers_updated` Signal:**
+  - [x] Modify the `markers_updated` signal to emit the `media_path`, the `_pending_begin_marker_ms`, and the full list of `_segments`.
+  - [x] Example: `markers_updated = pyqtSignal(str, object, list)`
+- [x] **Refactor Marker Management Methods:**
+  - [x] `mark_begin(timestamp_ms)`:
+    - [x] Sets `_pending_begin_marker_ms = timestamp_ms`.
+    - [x] Emits `markers_updated`.
+  - [x] `mark_end(timestamp_ms)`:
+    - [x] If `_pending_begin_marker_ms` exists and `timestamp_ms > _pending_begin_marker_ms`:
+      - [x] Add `(_pending_begin_marker_ms, timestamp_ms)` to `_segments`.
+      - [x] Clear `_pending_begin_marker_ms` (set to `None`).
+      - [x] Emits `markers_updated`.
+    - [x] Else (no pending begin, or end is before begin), do nothing or log a warning.
+  - [x] `clear_pending_begin_marker()`: (New method for `Shift + B`)
+    - [x] Sets `_pending_begin_marker_ms` to `None`.
+    - [x] Emits `markers_updated`.
+  - [x] `clear_last_segment()`: (New method for `Shift + E`)
+    - [x] If `_segments` is not empty, remove the last segment.
+    - [x] Emits `markers_updated`.
+  - [x] `clear_all_segments()`: (New method for `Shift + Delete`, replaces `clear_all_markers`)
+    - [x] Clear `_pending_begin_marker_ms` to `None`.
+    - [x] Clear `_segments` to an empty list.
+    - [x] Emits `markers_updated`.
+- [x] **Refactor `set_media(media_path)`:**
+  - [x] When media path changes, clear `_pending_begin_marker_ms` and `_segments` before emitting `markers_updated` for the new media.
+- [x] **Segment Processing for `perform_clip()`:**
+  - [x] If `_segments` is empty, emit `clip_failed` (or do nothing).
+  - [x] **Sort Segments:** Sort `_segments` by their start times to ensure correct order.
+  - [x] **Merge Overlapping/Adjacent Segments (Optional but Recommended):** Implement logic to merge segments that overlap or are directly adjacent to simplify the ffmpeg command.
+    - [x] Example: `[(0, 10), (5, 15)]` becomes `[(0, 15)]`. `[(0,10), (10,20)]` becomes `[(0,20)]`.
+  - [x] **Generate FFmpeg Command for Multiple Segments:**
+    - [x] This is the most complex part. The `-c copy` approach for a single segment is simple. For merging multiple segments without re-encoding, `ffmpeg` typically requires using the `concat` demuxer or complex filtergraphs.
+    - **Option 1 (Concat Demuxer):**
+      - [x] For each segment `(start, end)` in the (sorted and merged) `_segments` list, create a temporary intermediate clip file using `ffmpeg -ss <start_time> -i <original_path> -t <duration> -c copy temp_segment_N.ext`.
+      - [x] Create a text file (e.g., `mylist.txt`) listing these temporary files: `file 'temp_segment_1.ext'`, `file 'temp_segment_2.ext'`, etc.
+      - [x] Run `ffmpeg -f concat -safe 0 -i mylist.txt -c copy <output_path>`.
+      - [x] Clean up temporary segment files and `mylist.txt`.
+    - [ ] **Option 2 (Complex Filtergraph - `select` and `asetpts` filters - might be more performant if re-encoding is acceptable or for specific formats):** This can be very tricky with `-c copy`. Often requires re-encoding if complex timeline editing is done.
+      - [ ] _Further research needed if pursuing this path, concat demuxer is usually safer for `-c copy`._
+    - [x] Ensure `_generate_clipped_filename()` is still used for the final output file.
+    - [x] Emit `clip_successful` or `clip_failed` as appropriate.
 
 **B. UI - `CustomSlider` and `PlayerTimeline` Updates:**
--   [x] **`CustomSlider` (`custom_slider.py`):**
-    -   [x] Modify `set_clipping_markers` to accept `pending_begin_percent: Optional[float]` and `segments_percent: List[Tuple[float, float]]`.
-    -   [x] Update `paintEvent` to:
-        -   [x] Draw the `pending_begin_percent` marker (e.g., slightly different style or color, or a half-height green marker).
-        -   [x] Draw all defined segments. Each segment `(start_percent, end_percent)` should have:
-            -   [x] A green badge at `start_percent`.
-            -   [x] A red badge at `end_percent`.
-            -   [x] The region *between* its start and end should be highlighted (e.g., slightly lighter or a different tint) to show it *will* be included.
-        -   [x] Shaded regions: The areas *not* covered by any segment (and not part of the pending segment selection process) should be dimmed/excluded.
-    -   [x] Click interaction (`mousePressEvent`):
-        -   [x] Keep existing logic for clicking on red/green badges (now associated with segments) to potentially allow clearing *individual* segments directly from the timeline (this could call a new `ClippingManager.remove_segment_at_index(index)` or similar, which is an advanced feature not covered by `Shift+E` which removes the *last*).
-        -   [ ] Or, simplify so timeline clicks don't remove segments, relying solely on hotkeys.
--   [x] **`PlayerTimeline` (`player_timeline.py`):**
-    -   [x] Update `_on_clipping_markers_updated` slot to receive `media_path, pending_begin_ms, segments_ms_list`.
-    -   [x] Convert `pending_begin_ms` to `pending_begin_percent`.
-    -   [x] Convert `segments_ms_list` to `segments_percent_list` (list of (start_%, end_%) tuples).
-    -   [x] Call `self.position_slider.set_clipping_markers(pending_begin_percent, segments_percent_list)`.
-    -   [x] Modify or remove `_on_begin_marker_badge_clicked` and `_on_end_marker_badge_clicked` if direct timeline click removal is changed/removed.
+
+- [x] **`CustomSlider` (`custom_slider.py`):**
+  - [x] Modify `set_clipping_markers` to accept `pending_begin_percent: Optional[float]` and `segments_percent: List[Tuple[float, float]]`.
+  - [x] Update `paintEvent` to:
+    - [x] Draw the `pending_begin_percent` marker (e.g., slightly different style or color, or a half-height green marker).
+    - [x] Draw all defined segments. Each segment `(start_percent, end_percent)` should have:
+      - [x] A green badge at `start_percent`.
+      - [x] A red badge at `end_percent`.
+      - [x] The region _between_ its start and end should be highlighted (e.g., slightly lighter or a different tint) to show it _will_ be included.
+    - [x] Shaded regions: The areas _not_ covered by any segment (and not part of the pending segment selection process) should be dimmed/excluded.
+  - [x] Click interaction (`mousePressEvent`):
+    - [x] Keep existing logic for clicking on red/green badges (now associated with segments) to potentially allow clearing _individual_ segments directly from the timeline (this could call a new `ClippingManager.remove_segment_at_index(index)` or similar, which is an advanced feature not covered by `Shift+E` which removes the _last_).
+    - [ ] Or, simplify so timeline clicks don't remove segments, relying solely on hotkeys.
+- [x] **`PlayerTimeline` (`player_timeline.py`):**
+  - [x] Update `_on_clipping_markers_updated` slot to receive `media_path, pending_begin_ms, segments_ms_list`.
+  - [x] Convert `pending_begin_ms` to `pending_begin_percent`.
+  - [x] Convert `segments_ms_list` to `segments_percent_list` (list of (start*%, end*%) tuples).
+  - [x] Call `self.position_slider.set_clipping_markers(pending_begin_percent, segments_percent_list)`.
+  - [x] Modify or remove `_on_begin_marker_badge_clicked` and `_on_end_marker_badge_clicked` if direct timeline click removal is changed/removed.
 
 **C. UI - `HotkeyHandler` Updates (`music_player.ui.vlc_player.hotkey_handler.py`):**
--   [x] **Refactor Existing Hotkey Methods:**
-    -   [x] `_mark_clip_begin()`: Calls `self.clipping_manager.mark_begin(current_time_ms)` (as before, but now it sets the pending marker).
-    -   [x] `_mark_clip_end()`: Calls `self.clipping_manager.mark_end(current_time_ms)` (as before, but now it defines a segment with the pending marker).
-    -   [x] `_perform_clip()`: Calls `self.clipping_manager.perform_clip()` (as before, but now it processes multiple segments).
--   [x] **Implement New Hotkey Methods:**
-    -   [x] `_clear_pending_begin_marker()` (for `Shift + B`): Calls `self.clipping_manager.clear_pending_begin_marker()`.
-    -   [x] `_clear_last_segment()` (for `Shift + E`): Calls `self.clipping_manager.clear_last_segment()`.
-    -   [x] `_clear_all_segments()` (for `Shift + Delete`): Calls `self.clipping_manager.clear_all_segments()`.
--   [x] **Update `self.hotkeys` Dictionary:**
-    -   [x] Add entries for `Shift + B`, `Shift + E`, `Shift + Delete` (or `Shift + Backspace`). This requires checking for modifier keys in `handle_key_press`.
--   [x] **Update `handle_key_press(event)`:**
-    -   [x] Add logic to detect `Shift` modifier along with the primary key for the new hotkeys.
+
+- [x] **Refactor Existing Hotkey Methods:**
+  - [x] `_mark_clip_begin()`: Calls `self.clipping_manager.mark_begin(current_time_ms)` (as before, but now it sets the pending marker).
+  - [x] `_mark_clip_end()`: Calls `self.clipping_manager.mark_end(current_time_ms)` (as before, but now it defines a segment with the pending marker).
+  - [x] `_perform_clip()`: Calls `self.clipping_manager.perform_clip()` (as before, but now it processes multiple segments).
+- [x] **Implement New Hotkey Methods:**
+  - [x] `_clear_pending_begin_marker()` (for `Shift + B`): Calls `self.clipping_manager.clear_pending_begin_marker()`.
+  - [x] `_clear_last_segment()` (for `Shift + E`): Calls `self.clipping_manager.clear_last_segment()`.
+  - [x] `_clear_all_segments()` (for `Shift + Delete`): Calls `self.clipping_manager.clear_all_segments()`.
+- [x] **Update `self.hotkeys` Dictionary:**
+  - [x] Add entries for `Shift + B`, `Shift + E`, `Shift + Delete` (or `Shift + Backspace`). This requires checking for modifier keys in `handle_key_press`.
+- [x] **Update `handle_key_press(event)`:**
+  - [x] Add logic to detect `Shift` modifier along with the primary key for the new hotkeys.
 
 **D. Testing:**
--   [ ] Test setting a pending begin marker.
--   [ ] Test clearing a pending begin marker (`Shift + B`).
--   [ ] Test defining multiple, non-overlapping segments.
--   [ ] Test defining overlapping or adjacent segments (verify merging logic if implemented).
--   [ ] Test clearing the last added segment (`Shift + E`).
--   [ ] Test clearing all segments (`Shift + Delete`).
--   [ ] Test `perform_clip` with no segments defined.
--   [ ] Test `perform_clip` with one segment.
--   [ ] Test `perform_clip` with multiple segments (verify correct merging and order in output file).
--   [ ] Test all visual aspects on the timeline slider (pending marker, segment highlights, excluded areas).
-    -   [ ] Test timeline updates when loading new media or clearing segments.
--   [ ] Test all new and existing hotkey functionalities thoroughly.
 
-### Milestone 4: Post-Clipping Behavior
-// ... existing code ...
+- [ ] Test setting a pending begin marker.
+- [ ] Test clearing a pending begin marker (`Shift + B`).
+- [ ] Test defining multiple, non-overlapping segments.
+- [ ] Test defining overlapping or adjacent segments (verify merging logic if implemented).
+- [ ] Test clearing the last added segment (`Shift + E`).
+- [ ] Test clearing all segments (`Shift + Delete`).
+- [ ] Test `perform_clip` with no segments defined.
+- [ ] Test `perform_clip` with one segment.
+- [ ] Test `perform_clip` with multiple segments (verify correct merging and order in output file).
+- [ ] Test all visual aspects on the timeline slider (pending marker, segment highlights, excluded areas).
+  - [ ] Test timeline updates when loading new media or clearing segments.
+- [ ] Test all new and existing hotkey functionalities thoroughly.
+
+### Milestone 8: Hotkey Implementation Details **(IMPLEMENTATION GUIDE)**
+
+**Required Code Changes in `music_player/ui/vlc_player/hotkey_handler.py`:**
+
+1. **Remove from `self.hotkeys` dictionary:**
+
+   ```python
+   # REMOVE THIS LINE:
+   # Qt.Key.Key_C: self._perform_clip,
+   ```
+
+2. **Add to `handle_key_press()` method after existing modifier checks:**
+
+   ```python
+   # Add after existing Shift and Ctrl modifier checks:
+   elif modifiers == Qt.KeyboardModifier.ControlModifier:
+       if key == Qt.Key.Key_S:
+           if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
+               self._perform_clip()
+               return True
+   ```
+
+3. **Update `_perform_clip()` method documentation:**
+   ```python
+   def _perform_clip(self):
+       """Initiates the clipping process using Ctrl+S hotkey combination."""
+   ```
+
+### Data Structure for Markers
+
+```python
+self._current_media_path: Optional[str] = None
+self._begin_marker_ms: Optional[int] = None
+self._end_marker_ms: Optional[int] = None
+```
+
+- `_current_media_path`: Stores the absolute path of the media file for which the markers are set. This is crucial for associating markers with a specific file. When a new file is loaded into the player, `ClippingManager.set_media(new_path)` will be called, which will clear markers from any previous file and emit `markers_updated` for the new file (with `None` for markers initially).
+- `_begin_marker_ms`: An optional integer representing the start of the clip in milliseconds from the beginning of the `_current_media_path`. `None` if not set.
+- `_end_marker_ms`: An optional integer representing the end of the clip in milliseconds. `None` if not set. It must be greater than `_begin_marker_ms` if both are set.
+
+This structure ensures that clipping markers are always tied to a specific media file and are reset when the media context changes.

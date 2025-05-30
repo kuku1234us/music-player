@@ -386,7 +386,7 @@ class MainPlayer(QWidget):
         if not self.current_media_path:
             print("[MainPlayer] No media loaded, cannot seek")
             return
-            
+        
         # Different behavior based on current app state
         if self.app_state == STATE_ENDED:
             # For ended state: Reset to paused and seek
@@ -409,7 +409,7 @@ class MainPlayer(QWidget):
         finally:
             # Always unblock updates when done
             self.block_position_updates = False
-            
+                
         # Update UI timeline immediately after seek
         if seek_successful:
             self.player_widget.timeline.set_position(position_ms)
@@ -483,9 +483,7 @@ class MainPlayer(QWidget):
         
         # Stop playback and clean up
         self.backend.stop()
-        self.cleanup()
-        super().closeEvent(event)
-        
+
     def _on_volume_changed(self, volume):
         """
         Handle volume change from UI.
@@ -585,11 +583,11 @@ class MainPlayer(QWidget):
                 # --- KEEP THIS RESTORE LOGIC ---
                 # This is needed because the media type isn't known until AFTER loading.
                 if self._video_widget: # <-- We need to remove the 'video_was_hidden' check here
-                     if self._is_current_media_video:
-                         print("[MainPlayer] New media is video, restoring video widget visibility.")
-                         self._video_widget.setVisible(True)
-                     else:
-                         print("[MainPlayer] New media is audio, keeping video widget hidden.")
+                    if self._is_current_media_video:
+                        print("[MainPlayer] New media is video, restoring video widget visibility.")
+                        self._video_widget.setVisible(True)
+                    else:
+                        print("[MainPlayer] New media is audio, keeping video widget hidden.")
                 # -------------------------------
                 # --- NEW: Notify PlayerTimeline and ClippingManager about media change ---
                 self.player_widget.timeline.set_current_media_path(self.current_media_path)
@@ -602,15 +600,8 @@ class MainPlayer(QWidget):
             # --- KEEP THIS RESTORE LOGIC TOO ---
             # Restore if dialog was cancelled
             if self._video_widget: # <-- And remove 'video_was_hidden' here
-                 print("[MainPlayer] File dialog cancelled, restoring video widget visibility.")
-                 self._video_widget.setVisible(True)
-            # --------------------------------
-            # --- NEW: Notify PlayerTimeline and ClippingManager if dialog cancelled (media path becomes None effectively) ---
-            # self.player_widget.timeline.set_current_media_path(None) # self.current_media_path would be None
-            # self.clipping_manager.set_media("") # No specific media path was set
-            # Decided against this here, as current_media_path wouldn't have changed to a *new* valid path.
-            # The existing media (if any) remains, so markers for it should persist.
-            # Clearing happens when a *new* media is successfully loaded or explicitly stopped.
+                print("[MainPlayer] File dialog cancelled, restoring video widget visibility.")
+                self._video_widget.setVisible(True)
             # -----------------------------------------------------------------------------------------------------------
             return False
 
