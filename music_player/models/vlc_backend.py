@@ -413,7 +413,8 @@ class VLCBackend(QObject):
         
     def seek(self, position_ms):
         """
-        Seek to a specific position in the current media.
+        Seek to a specific position in the current media with verification for maximum accuracy.
+        Uses retry logic to ensure the seek actually reaches the target position.
         
         Args:
             position_ms (int): Position in milliseconds
@@ -425,60 +426,112 @@ class VLCBackend(QObject):
         try:
             # Get current state
             current_state = self.media_player.get_state()
-            print(f"[VLCBackend] Seeking to {position_ms}ms, current state: {current_state}")
+            print(f"[VLCBackend] Verification-based seeking to {position_ms}ms, current state: {current_state}")
             
-            # Handle different states appropriately
+            # Store the original playing state
+            was_playing = (current_state == vlc.State.Playing)
+            
+            # Handle problematic states first
             if current_state == vlc.State.Ended:
                 print("[VLCBackend] Ended state detected, resetting for seek")
-                # When seeking after end of media, reset the player
                 self.media_player.stop()
                 self.media_player.play()
                 self.media_player.pause()
-                # Brief wait to ensure state change
                 import time
-                time.sleep(0.05)  # Reduced wait time for better responsiveness
+                time.sleep(0.05)  # Reduced from 0.1s - 50ms for state stabilization
+                current_state = vlc.State.Paused
+                was_playing = False
             elif current_state == vlc.State.Error:
                 print("[VLCBackend] Error state detected, attempting recovery")
-                # Try to recover from error state
                 self.media_player.stop()
                 self.media_player.play()
                 self.media_player.pause()
                 import time
-                time.sleep(0.1)
+                time.sleep(0.05)  # Reduced from 0.1s - 50ms for error recovery
+                current_state = vlc.State.Paused
+                was_playing = False
             
             # Ensure position is within valid range
             if self.current_duration > 0:
                 position_ms = max(0, min(position_ms, self.current_duration))
             
-            # With hardware acceleration, prefer time-based seeking
-            seek_result = self.media_player.set_time(position_ms)
-            if seek_result == -1:
-                print(f"[VLCBackend] Time-based seek failed, trying position-based seek")
-                # Try alternative seek method using relative position
-                if self.current_duration > 0:
-                    relative_position = position_ms / self.current_duration
-                    relative_position = max(0.0, min(1.0, relative_position))
-                    position_result = self.media_player.set_position(relative_position)
-                    if position_result == -1:
-                        print(f"[VLCBackend] Both seek methods failed")
-                        return False
-                    else:
-                        print(f"[VLCBackend] Position-based seek successful to {relative_position:.3f}")
-                else:
-                    print(f"[VLCBackend] Cannot calculate relative position (duration unknown)")
-                    return False
-            else:
-                print(f"[VLCBackend] Time-based seek successful")
+            # Verification-based seeking with retry logic
+            max_attempts = 3
+            tolerance_ms = 50  # Accept within 50ms of target
+            successful_seek = False
             
-            # Update our position tracking
-            self.current_position = position_ms
-            print(f"[VLCBackend] Seek completed to {position_ms}ms")
-            return True
+            for attempt in range(max_attempts):
+                print(f"[VLCBackend] Seek attempt {attempt + 1}/{max_attempts}")
+                
+                # For paused state, briefly start playback to ensure frame decode/display
+                if current_state == vlc.State.Paused:
+                    self.media_player.play()
+                    import time
+                    time.sleep(0.005)  # Reduced from 0.01s - 5ms for playback start
+                
+                # Perform the seek operation
+                seek_result = self.media_player.set_time(position_ms)
+                if seek_result == -1:
+                    # Try fallback to position-based seeking
+                    if self.current_duration > 0:
+                        relative_position = position_ms / self.current_duration
+                        relative_position = max(0.0, min(1.0, relative_position))
+                        seek_result = self.media_player.set_position(relative_position)
+                        print(f"[VLCBackend] Using position-based seek: {relative_position:.3f}")
+                
+                if seek_result == -1:
+                    print(f"[VLCBackend] Seek command failed on attempt {attempt + 1}")
+                    continue
+                
+                # Wait for seek to be processed and frame to be decoded
+                import time
+                time.sleep(0.06)  # Increased from 0.04s to 0.06s - 60ms for seek processing and frame decode
+                
+                # Verify the actual position
+                actual_position = self.media_player.get_time()
+                if actual_position != -1:
+                    position_error = abs(actual_position - position_ms)
+                    print(f"[VLCBackend] Target: {position_ms}ms, Actual: {actual_position}ms, Error: {position_error}ms")
+                    
+                    if position_error <= tolerance_ms:
+                        print(f"[VLCBackend] Seek accurate within tolerance ({position_error}ms <= {tolerance_ms}ms)")
+                        successful_seek = True
+                        # Update our position tracking with the actual position
+                        self.current_position = actual_position
+                        break
+                    else:
+                        print(f"[VLCBackend] Seek not accurate enough (error: {position_error}ms), retrying...")
+                else:
+                    print(f"[VLCBackend] Could not verify position, retrying...")
+                
+                # Brief pause before retry
+                time.sleep(0.01)  # Reduced from 0.02s - 10ms between retries
+            
+            # Restore the original playing state
+            if not was_playing and current_state != vlc.State.Ended:
+                self.media_player.pause()
+                # Wait for pause to take effect
+                import time
+                time.sleep(0.02)  # Reduced from 0.05s - 20ms for pause effect
+                print("[VLCBackend] Restored paused state after verification-based seek")
+            
+            if successful_seek:
+                print(f"[VLCBackend] Verification-based seek completed successfully")
+                return True
+            else:
+                print(f"[VLCBackend] Failed to achieve accurate seek after {max_attempts} attempts")
+                # Update position tracking even if not perfectly accurate
+                final_position = self.media_player.get_time()
+                if final_position != -1:
+                    self.current_position = final_position
+                    print(f"[VLCBackend] Using final position: {final_position}ms")
+                else:
+                    self.current_position = position_ms  # Fallback to requested position
+                    print(f"[VLCBackend] Using requested position as fallback: {position_ms}ms")
+                return False
             
         except Exception as e:
-            print(f"[VLCBackend] Error during seek operation: {e}")
-            # Don't emit error signal for seek failures, just log them
-            # self.error_occurred.emit(f"Seek error: {str(e)}")
+            print(f"[VLCBackend] Error during verification-based seek operation: {e}")
             return False
         
     def set_volume(self, volume):

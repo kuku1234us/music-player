@@ -65,7 +65,6 @@ class MainPlayer(QWidget):
         
         # Internal state tracking
         self.app_state = STATE_PAUSED
-        self.current_request_position = None
         self.current_media_path: Optional[str] = None # Store path of current single media or track
         self.block_position_updates = False  # Flag to temporarily block position updates
         self.last_metadata = None  # Store the last received metadata
@@ -248,7 +247,7 @@ class MainPlayer(QWidget):
                     next_track_path = self._current_playlist.get_first_file()
                     
                 print(f"[MainPlayer] Loading track from playlist: {next_track_path}")
-                self.current_request_position = 0  # Start from beginning of track
+                self.current_media_path = next_track_path
                 # Set state to playing BEFORE loading media for responsive UI
                 self._set_app_state(STATE_PLAYING)
                 self.backend.load_media(next_track_path)
@@ -377,94 +376,74 @@ class MainPlayer(QWidget):
     def _on_position_changed(self, position_ms):
         """
         Handle position change from timeline.
-        Only sends position changes to backend when in playing state,
-        otherwise just updates UI and stores position for later.
+        Always performs immediate seeking to VLC backend for accurate frame display,
+        especially important for clipping marker placement accuracy.
         
         Args:
             position_ms (int): New position in milliseconds
         """
-        # Store the position for all states initially
-        self.current_request_position = position_ms
-        
+        # For accurate clipping, we always seek immediately regardless of play state
+        if not self.current_media_path:
+            print("[MainPlayer] No media loaded, cannot seek")
+            return
+            
         # Different behavior based on current app state
         if self.app_state == STATE_ENDED:
-            # For ended state: Only update UI state, no backend operations
-            # Keep current_request_position set for the next play() call
+            # For ended state: Reset to paused and seek
             self.app_state = STATE_PAUSED
             self.player_widget.set_playing_state(False)
             self.playback_state_changed.emit(STATE_PAUSED)
-            # Update UI timeline immediately
-            self.player_widget.timeline.set_position(position_ms)
-        elif self.app_state == STATE_PLAYING:
-            # Only perform backend operations if actually playing
-            # Set blocking flag to prevent position update loop
-            self.block_position_updates = True
-            seek_successful = False
-            try:
-                self.backend.seek(position_ms)
-                # Optional: Check if backend is still playing, restart if stopped unexpectedly
-                if not self.backend.is_playing:
-                    self.backend.play()
-                seek_successful = True # Assume seek was sent
-            finally:
-                # Always unblock updates when done
-                self.block_position_updates = False
+            
+        # Always perform immediate seeking for frame-accurate positioning
+        # Set blocking flag to prevent position update loop
+        self.block_position_updates = True
+        seek_successful = False
+        try:
+            # Perform the seek operation
+            seek_successful = self.backend.seek(position_ms)
+            
+            # If we're in playing state, ensure playback continues
+            if self.app_state == STATE_PLAYING and not self.backend.is_playing:
+                self.backend.play()
                 
-            # If seek was successfully initiated while playing, clear the request
-            if seek_successful:
-                self.current_request_position = None
-                # Update UI timeline immediately after successful seek during playback
-                self.player_widget.timeline.set_position(position_ms)
-
-        else: # STATE_PAUSED or other non-playing states
-            # For paused states: Just update timeline manually, keep current_request_position
+        finally:
+            # Always unblock updates when done
+            self.block_position_updates = False
+            
+        # Update UI timeline immediately after seek
+        if seek_successful:
+            self.player_widget.timeline.set_position(position_ms)
+        else:
+            print(f"[MainPlayer] Seek to {position_ms}ms failed")
+            # Keep the UI in sync even if seek failed
             self.player_widget.timeline.set_position(position_ms)
         
     def play(self):
         """Start or resume playback"""
-        # Check if we have a pending position request, similar to _on_play_requested
-        if self.current_request_position is not None:
-            # Store position before operations
-            position = self.current_request_position
-            self.current_request_position = None
-            
-            # Block position updates during operations to prevent UI jitter
-            self.block_position_updates = True
-            
-            try:
-                # Was the player in ended state?
-                if self.app_state == STATE_ENDED:
-                    # Need to reload media and start playback
-                    if self.current_media_path:
-                        # Set UI state immediately for responsive UI
-                        self._set_app_state(STATE_PLAYING)
-                        
-                        # Load the media first (this triggers on_media_changed for metadata)
-                        self.backend.load_media(self.current_media_path)
-                        
-                        # Explicitly start playback and seek to requested position
-                        result = self.backend.play()
-                        self.backend.seek(position)
-                    else:
-                        # No current media path to reload
-                        result = False
-                else:
-                    # For already playing or paused state, update UI immediately for responsiveness
-                    self._set_app_state(STATE_PLAYING)
-                    # Just seek and continue
-                    self.backend.seek(position)
-                    result = self.backend.play()
-                    
-                # Update timeline directly
-                self.player_widget.timeline.set_position(position)
-            finally:
-                # Always unblock updates when done
-                self.block_position_updates = False
-        else:
-            # For direct play request with no position change, update UI immediately
-            if self.app_state == STATE_PAUSED or self.app_state == STATE_ENDED:
+        # Since we now always seek immediately, no need for deferred position handling
+        
+        # Handle different app states
+        if self.app_state == STATE_ENDED:
+            # Need to reload media and start playback
+            if self.current_media_path:
+                # Set UI state immediately for responsive UI
                 self._set_app_state(STATE_PLAYING)
-            # Normal play
+                
+                # Load the media first (this triggers on_media_changed for metadata)
+                self.backend.load_media(self.current_media_path)
+                
+                # Start playback from beginning
+                result = self.backend.play()
+            else:
+                # No current media path to reload
+                result = False
+        else:
+            # For paused or other states, just resume playback
+            # Set UI state immediately for responsive UI
+            if self.app_state == STATE_PAUSED:
+                self._set_app_state(STATE_PLAYING)
+            
+            # Resume playback
             result = self.backend.play()
             
         return result
