@@ -640,10 +640,10 @@ class ClippingManager(QObject):
             
             ffmpeg_concat_cmd = [
                 "ffmpeg", "-y", "-hide_banner",
-                "-f", "concat",
-                "-safe", "0", 
+                "-f", "concat", "-safe", "0",
                 "-i", str(list_file_path),
                 "-c", "copy",
+                "-movflags", "+faststart",
                 output_path
             ]
             
@@ -653,10 +653,12 @@ class ClippingManager(QObject):
             
             if process.returncode == 0:
                 self._logger.info("ClippingManager", f"Audio clipping successful: {output_path}")
+                self.clip_successful.emit(media_path, output_path)
                 return output_path
             else:
                 error_message = f"Audio concatenation failed. Error: {process.stderr.strip()}"
                 self._logger.error("ClippingManager", error_message)
+                self.clip_failed.emit(media_path, error_message)
                 return None
                 
         except Exception as e:
@@ -1070,6 +1072,7 @@ class ClippingManager(QObject):
                 "-safe", "0",
                 "-i", str(list_file_path),
                 "-c", "copy",
+                "-movflags", "+faststart",
                 output_path
             ]
             
@@ -1171,6 +1174,7 @@ class ClippingManager(QObject):
                 "-f", "concat", "-safe", "0",
                 "-i", str(list_file_path),
                 "-c", "copy",
+                "-movflags", "+faststart",
                 output_path
             ]
             
