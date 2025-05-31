@@ -383,13 +383,296 @@ class ClippingManager(QObject):
             self._logger.error("ClippingManager", f"Failed to check encoder support: {e}")
             return {'supported': False, 'reason': 'ffmpeg command failed'}
 
+    def _detect_media_type(self, media_path: str) -> str:
+        """
+        Detect if the media file is audio, video, or unknown.
+        Returns: 'audio', 'video', or 'unknown'
+        """
+        try:
+            cmd = [
+                'ffprobe',
+                '-v', 'quiet',
+                '-print_format', 'json',
+                '-show_streams',
+                media_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            data = json.loads(result.stdout)
+            
+            if 'streams' in data:
+                has_video = False
+                has_audio = False
+                
+                for stream in data['streams']:
+                    codec_type = stream.get('codec_type', '')
+                    if codec_type == 'video':
+                        has_video = True
+                    elif codec_type == 'audio':
+                        has_audio = True
+                
+                if has_video:
+                    return 'video'
+                elif has_audio:
+                    return 'audio'
+                else:
+                    return 'unknown'
+            else:
+                return 'unknown'
+                
+        except Exception as e:
+            self._logger.error("ClippingManager", f"Media type detection error: {e}")
+            return 'unknown'
+
+    def _get_audio_codec_info(self, audio_path: str) -> dict:
+        """
+        Extract comprehensive codec information from audio file using ffprobe.
+        """
+        self._logger.info("ClippingManager", f"Analyzing audio codec: {audio_path}")
+        
+        try:
+            # Get detailed codec information using ffprobe with JSON output
+            cmd = [
+                'ffprobe',
+                '-v', 'quiet',
+                '-print_format', 'json',
+                '-show_streams',
+                '-select_streams', 'a:0',  # Select first audio stream
+                audio_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            data = json.loads(result.stdout)
+            
+            if 'streams' in data and len(data['streams']) > 0:
+                audio_stream = data['streams'][0]
+                
+                codec_info = {
+                    'codec_name': audio_stream.get('codec_name', 'Unknown'),
+                    'codec_long_name': audio_stream.get('codec_long_name', 'Unknown'),
+                    'bit_rate': audio_stream.get('bit_rate', 'Unknown'),
+                    'sample_rate': audio_stream.get('sample_rate', 'Unknown'),
+                    'channels': audio_stream.get('channels', 'Unknown'),
+                    'channel_layout': audio_stream.get('channel_layout', 'Unknown'),
+                    'duration': audio_stream.get('duration', 'Unknown')
+                }
+                
+                self._logger.info("ClippingManager", f"Detected audio: {codec_info['codec_name']} {codec_info['sample_rate']}Hz {codec_info['channels']}ch")
+                return codec_info
+            else:
+                self._logger.info("ClippingManager", "No audio streams found in file")
+                return {}
+                
+        except subprocess.CalledProcessError as e:
+            self._logger.error("ClippingManager", f"ffprobe failed for audio: {e}")
+            return {}
+        except json.JSONDecodeError as e:
+            self._logger.error("ClippingManager", f"JSON parsing failed for audio: {e}")
+            return {}
+
+    def _check_audio_codec_encoding_support(self, codec_info: dict) -> dict:
+        """
+        Check if ffmpeg can re-encode using the same codec as the source audio.
+        """
+        self._logger.info("ClippingManager", f"Testing audio re-encoding capability for {codec_info.get('codec_name', 'Unknown')}")
+        
+        try:
+            # Check available encoders
+            cmd = ['ffmpeg', '-encoders']
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            
+            codec_name = codec_info.get('codec_name', '').lower()
+            
+            # Map audio codec names to encoder names
+            audio_encoder_mapping = {
+                'mp3': 'libmp3lame',
+                'aac': 'aac',
+                'opus': 'libopus',
+                'vorbis': 'libvorbis',
+                'flac': 'flac',
+                'pcm_s16le': 'pcm_s16le',
+                'pcm_s24le': 'pcm_s24le',
+                'alac': 'alac'
+            }
+            
+            expected_encoder = audio_encoder_mapping.get(codec_name)
+            
+            if expected_encoder and expected_encoder in result.stdout:
+                self._logger.info("ClippingManager", f"✓ Audio encoder '{expected_encoder}' is available")
+                
+                # Build encoding parameters for audio
+                encoding_params = []
+                
+                if codec_name == 'mp3':
+                    encoding_params.extend(['-c:a', 'libmp3lame'])
+                    # Use VBR quality mode for MP3
+                    encoding_params.extend(['-q:a', '2'])  # VBR quality 2 (high quality)
+                    
+                elif codec_name == 'aac':
+                    encoding_params.extend(['-c:a', 'aac'])
+                    encoding_params.extend(['-b:a', '128k'])  # Standard AAC bitrate
+                    
+                elif codec_name == 'opus':
+                    encoding_params.extend(['-c:a', 'libopus'])
+                    encoding_params.extend(['-b:a', '128k'])  # Standard Opus bitrate
+                    
+                elif codec_name == 'vorbis':
+                    encoding_params.extend(['-c:a', 'libvorbis'])
+                    encoding_params.extend(['-q:a', '5'])  # Vorbis quality 5 (good quality)
+                    
+                elif codec_name == 'flac':
+                    encoding_params.extend(['-c:a', 'flac'])
+                    # FLAC is lossless, no quality settings needed
+                    
+                elif codec_name.startswith('pcm_'):
+                    encoding_params.extend(['-c:a', codec_name])
+                    # PCM is uncompressed, no quality settings needed
+                    
+                elif codec_name == 'alac':
+                    encoding_params.extend(['-c:a', 'alac'])
+                    # ALAC is lossless, no quality settings needed
+                
+                # Preserve sample rate and channels if available
+                if codec_info.get('sample_rate') != 'Unknown':
+                    encoding_params.extend(['-ar', str(codec_info['sample_rate'])])
+                if codec_info.get('channels') != 'Unknown':
+                    encoding_params.extend(['-ac', str(codec_info['channels'])])
+                
+                self._logger.info("ClippingManager", f"Using audio encoding parameters: {' '.join(encoding_params)}")
+                
+                return {
+                    'supported': True,
+                    'encoder': expected_encoder,
+                    'encoding_params': encoding_params,
+                    'approach': 'audio_optimized',
+                    'codec_name': codec_name
+                }
+                    
+            else:
+                self._logger.info("ClippingManager", f"✗ Audio encoder not available for {codec_name}")
+                return {'supported': False, 'reason': f'Audio encoder not available'}
+            
+        except subprocess.CalledProcessError as e:
+            self._logger.error("ClippingManager", f"Failed to check audio encoder support: {e}")
+            return {'supported': False, 'reason': 'ffmpeg command failed'}
+
+    def _perform_audio_clip(self, media_path: str, merged_segments: List[Tuple[int, int]], codec_info: dict, encoder_support: dict) -> Optional[str]:
+        """
+        Perform audio clipping using audio-optimized approach.
+        Audio doesn't have keyframes, so we use sample-accurate cutting.
+        """
+        self._logger.info("ClippingManager", f"Processing {len(merged_segments)} audio segment(s)")
+        
+        # Generate output filename
+        output_path = self._generate_clipped_filename()
+        if not output_path:
+            return None
+            
+        original_path_obj = Path(media_path)
+        temp_files: List[str] = []
+        temp_dir = original_path_obj.parent / "temp_clip_segments"
+        os.makedirs(temp_dir, exist_ok=True)
+        list_file_path = temp_dir / "mylist.txt"
+        
+        try:
+            for i, (start_ms, end_ms) in enumerate(merged_segments):
+                segment_duration_ms = end_ms - start_ms
+                if segment_duration_ms <= 0: 
+                    continue
+                
+                start_time_seconds = start_ms / 1000.0
+                duration_seconds = segment_duration_ms / 1000.0
+                
+                self._logger.info("ClippingManager", f"=== Audio Segment {i+1}/{len(merged_segments)} ===")
+                self._logger.info("ClippingManager", f"Segment timing: {start_time_seconds:.3f}s to {(start_ms + segment_duration_ms)/1000.0:.3f}s")
+                
+                temp_output_filename = f"temp_segment_{i}{original_path_obj.suffix}"
+                temp_output_path = str(temp_dir / temp_output_filename)
+                temp_files.append(temp_output_path)
+                
+                # Audio processing strategy
+                if encoder_support['supported']:
+                    self._logger.info("ClippingManager", f"Using audio-optimized encoding with {encoder_support['encoder']}")
+                    
+                    # High-quality audio re-encoding for sample accuracy
+                    ffmpeg_cmd = [
+                        "ffmpeg", "-y", "-hide_banner",
+                        "-ss", str(start_time_seconds),
+                        "-i", media_path,
+                        "-t", str(duration_seconds)
+                    ] + encoder_support['encoding_params'] + [
+                        temp_output_path
+                    ]
+                    
+                else:
+                    self._logger.info("ClippingManager", "Using stream copy fallback for audio")
+                    
+                    # Stream copy fallback (should work for most audio formats)
+                    ffmpeg_cmd = [
+                        "ffmpeg", "-y", "-hide_banner",
+                        "-ss", str(start_time_seconds),
+                        "-i", media_path,
+                        "-t", str(duration_seconds),
+                        "-c", "copy",
+                        "-avoid_negative_ts", "make_zero",
+                        temp_output_path
+                    ]
+                
+                self._logger.info("ClippingManager", f"Audio processing: {' '.join(ffmpeg_cmd)}")
+                
+                # Execute ffmpeg command
+                creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, creationflags=creationflags)
+                
+                if process.returncode != 0:
+                    error_message = f"Audio ffmpeg failed for segment {i}. Error: {process.stderr.strip()}"
+                    self._logger.error("ClippingManager", error_message)
+                    return None
+                else:
+                    self._logger.info("ClippingManager", f"Audio segment {i+1} processed successfully")
+            
+            # Concatenate all audio segments
+            self._logger.info("ClippingManager", f"Concatenating {len(temp_files)} audio segments")
+            
+            with open(list_file_path, 'w') as f:
+                for temp_file in temp_files:
+                    f.write(f"file '{os.path.abspath(temp_file)}'\n")
+            
+            ffmpeg_concat_cmd = [
+                "ffmpeg", "-y", "-hide_banner",
+                "-f", "concat",
+                "-safe", "0", 
+                "-i", str(list_file_path),
+                "-c", "copy",
+                output_path
+            ]
+            
+            self._logger.info("ClippingManager", f"Final audio concatenation: {' '.join(ffmpeg_concat_cmd)}")
+            
+            process = subprocess.run(ffmpeg_concat_cmd, capture_output=True, text=True, creationflags=creationflags)
+            
+            if process.returncode == 0:
+                self._logger.info("ClippingManager", f"Audio clipping successful: {output_path}")
+                return output_path
+            else:
+                error_message = f"Audio concatenation failed. Error: {process.stderr.strip()}"
+                self._logger.error("ClippingManager", error_message)
+                return None
+                
+        except Exception as e:
+            error_message = f"Audio clipping failed: {str(e)}"
+            self._logger.error("ClippingManager", error_message)
+            return None
+        finally:
+            # Clean up temporary files
+            self._cleanup_temp_files(temp_dir, temp_files, list_file_path)
+
     def perform_clip(self) -> Optional[str]:
         """
-        Performs adaptive keyframe-aware clipping operation using ffmpeg.
-        Uses intelligent processing that adapts based on keyframe positions:
-        - Option A: Keyframe snapping (≤ 0.4s from keyframe) for efficiency
-        - Option B: Minimal re-encoding (> 0.4s from keyframe) for precision
-        - Option C: Enhanced keyframe snapping for unsupported codecs
+        Performs adaptive clipping operation using ffmpeg.
+        Automatically detects media type and uses appropriate processing:
+        - Video: Keyframe-aware processing (Option A/B/C) for efficiency and precision
+        - Audio: Sample-accurate processing optimized for audio files
         
         Returns the path to the final clipped file on success, None otherwise.
         """
@@ -428,6 +711,57 @@ class ClippingManager(QObject):
             self.clip_failed.emit(media_path, "Segment processing resulted in no segments.")
             return None
 
+        # 3. Detect media type to choose processing approach
+        media_type = self._detect_media_type(media_path)
+        self._logger.info("ClippingManager", f"Detected media type: {media_type}")
+
+        try:
+            if media_type == 'audio':
+                # Audio processing path - sample-accurate clipping
+                self._logger.info("ClippingManager", "Using audio processing pipeline")
+                
+                # Analyze audio codec
+                audio_codec_info = self._get_audio_codec_info(media_path)
+                if not audio_codec_info:
+                    self._logger.info("ClippingManager", "Could not analyze audio codec, using stream copy")
+                    audio_codec_info = {'codec_name': 'unknown'}
+                
+                # Check audio encoder support
+                audio_encoder_support = self._check_audio_codec_encoding_support(audio_codec_info)
+                
+                # Perform audio clipping
+                result_path = self._perform_audio_clip(media_path, merged_segments, audio_codec_info, audio_encoder_support)
+                
+                if result_path:
+                    self._logger.info("ClippingManager", f"Audio clipping successful: {result_path}")
+                    self.clip_successful.emit(media_path, result_path)
+                    return result_path
+                else:
+                    self._logger.error("ClippingManager", "Audio clipping failed")
+                    self.clip_failed.emit(media_path, "Audio clipping failed")
+                    return None
+                    
+            elif media_type == 'video':
+                # Video processing path - keyframe-aware adaptive processing
+                self._logger.info("ClippingManager", "Using video processing pipeline with keyframe-aware algorithm")
+                return self._perform_video_clip(media_path, merged_segments)
+                
+            else:
+                # Unknown media type - try basic processing
+                self._logger.warning("ClippingManager", f"Unknown media type '{media_type}', attempting basic processing")
+                return self._perform_basic_clip(media_path, merged_segments)
+                
+        except Exception as e:
+            error_message = f"Clipping failed: {str(e)}"
+            self._logger.error("ClippingManager", error_message)
+            self.clip_failed.emit(media_path, error_message)
+            return None
+
+    def _perform_video_clip(self, media_path: str, merged_segments: List[Tuple[int, int]]) -> Optional[str]:
+        """
+        Perform video clipping using keyframe-aware adaptive processing.
+        This is the original video processing logic extracted into a separate method.
+        """
         # 3. Analyze original video codec (once for all segments)
         self._logger.info("ClippingManager", f"Analyzing original video for adaptive processing")
         codec_info = self._get_video_codec_info(media_path)
@@ -467,11 +801,11 @@ class ClippingManager(QObject):
                 
                 # Analyze keyframes around the start time
                 keyframe_info = self._find_nearest_keyframe(media_path, start_time_seconds)
-                
+
                 temp_output_filename = f"temp_segment_{i}{original_path_obj.suffix}"
                 temp_output_path = str(temp_dir / temp_output_filename)
                 temp_files.append(temp_output_path)
-                
+
                 # Adaptive processing decision
                 if keyframe_info and keyframe_info['within_threshold']:
                     # Option A: Keyframe Snapping (≤ 0.4s threshold)
@@ -745,7 +1079,7 @@ class ClippingManager(QObject):
             process = subprocess.run(ffmpeg_final_concat_cmd, capture_output=True, text=True, creationflags=creationflags)
 
             if process.returncode == 0:
-                self._logger.info("ClippingManager", f"Adaptive clipping successful: {output_path}")
+                self._logger.info("ClippingManager", f"Video clipping successful: {output_path}")
                 self.clip_successful.emit(media_path, output_path)
                 return output_path
             else:
@@ -766,7 +1100,7 @@ class ClippingManager(QObject):
             self.clip_failed.emit(media_path, error_message)
             return None
         except Exception as e:
-            error_message = f"An unexpected error occurred during adaptive clipping: {str(e)}"
+            error_message = f"An unexpected error occurred during video clipping: {str(e)}"
             self._logger.error("ClippingManager", error_message)
             self.clip_failed.emit(media_path, error_message)
             return None

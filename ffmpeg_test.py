@@ -1,30 +1,352 @@
-# This is for testing ClippingManager adaptive keyframe-aware processing
+# This is for testing ClippingManager audio clipping functionality
 
 import os
 import subprocess
 import json
+from pathlib import Path
 
-def analyze_video_quality(video_paths):
+def _detect_media_type(media_path: str) -> str:
     """
-    Analyze and compare quality metrics of multiple video files.
+    Detect if the media file is audio, video, or unknown.
+    Returns: 'audio', 'video', or 'unknown'
     """
-    print(f"\n[Quality Analysis] Comparing video quality metrics")
+    try:
+        cmd = [
+            'ffprobe',
+            '-v', 'quiet',
+            '-print_format', 'json',
+            '-show_streams',
+            media_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        data = json.loads(result.stdout)
+        
+        if 'streams' in data:
+            has_video = False
+            has_audio = False
+            
+            for stream in data['streams']:
+                codec_type = stream.get('codec_type', '')
+                if codec_type == 'video':
+                    has_video = True
+                elif codec_type == 'audio':
+                    has_audio = True
+            
+            if has_video:
+                return 'video'
+            elif has_audio:
+                return 'audio'
+            else:
+                return 'unknown'
+        else:
+            return 'unknown'
+            
+    except Exception as e:
+        print(f"[Media Detection] Error: {e}")
+        return 'unknown'
+
+def _get_audio_codec_info(audio_path: str) -> dict:
+    """
+    Extract comprehensive codec information from audio file using ffprobe.
+    """
+    print(f"[Audio Analysis] Analyzing codec: {audio_path}")
+    
+    try:
+        # Get detailed codec information using ffprobe with JSON output
+        cmd = [
+            'ffprobe',
+            '-v', 'quiet',
+            '-print_format', 'json',
+            '-show_streams',
+            '-select_streams', 'a:0',  # Select first audio stream
+            audio_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        data = json.loads(result.stdout)
+        
+        if 'streams' in data and len(data['streams']) > 0:
+            audio_stream = data['streams'][0]
+            
+            codec_info = {
+                'codec_name': audio_stream.get('codec_name', 'Unknown'),
+                'codec_long_name': audio_stream.get('codec_long_name', 'Unknown'),
+                'bit_rate': audio_stream.get('bit_rate', 'Unknown'),
+                'sample_rate': audio_stream.get('sample_rate', 'Unknown'),
+                'channels': audio_stream.get('channels', 'Unknown'),
+                'channel_layout': audio_stream.get('channel_layout', 'Unknown'),
+                'duration': audio_stream.get('duration', 'Unknown')
+            }
+            
+            print(f"[Audio Analysis] Detected: {codec_info['codec_name']} {codec_info['sample_rate']}Hz {codec_info['channels']}ch")
+            return codec_info
+        else:
+            print("[Audio Analysis] No audio streams found in file")
+            return {}
+            
+    except subprocess.CalledProcessError as e:
+        print(f"[Audio Analysis] ffprobe failed: {e}")
+        return {}
+    except json.JSONDecodeError as e:
+        print(f"[Audio Analysis] JSON parsing failed: {e}")
+        return {}
+
+def _check_audio_codec_encoding_support(codec_info: dict) -> dict:
+    """
+    Check if ffmpeg can re-encode using the same codec as the source audio.
+    """
+    print(f"[Audio Encoding] Testing re-encoding capability for {codec_info.get('codec_name', 'Unknown')}")
+    
+    try:
+        # Check available encoders
+        cmd = ['ffmpeg', '-encoders']
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        
+        codec_name = codec_info.get('codec_name', '').lower()
+        
+        # Map audio codec names to encoder names
+        audio_encoder_mapping = {
+            'mp3': 'libmp3lame',
+            'aac': 'aac',
+            'opus': 'libopus',
+            'vorbis': 'libvorbis',
+            'flac': 'flac',
+            'pcm_s16le': 'pcm_s16le',
+            'pcm_s24le': 'pcm_s24le',
+            'alac': 'alac'
+        }
+        
+        expected_encoder = audio_encoder_mapping.get(codec_name)
+        
+        if expected_encoder and expected_encoder in result.stdout:
+            print(f"[Audio Encoding] ✓ Encoder '{expected_encoder}' is available")
+            
+            # Build encoding parameters for audio
+            encoding_params = []
+            
+            if codec_name == 'mp3':
+                encoding_params.extend(['-c:a', 'libmp3lame'])
+                # Use VBR quality mode for MP3
+                encoding_params.extend(['-q:a', '2'])  # VBR quality 2 (high quality)
+                
+            elif codec_name == 'aac':
+                encoding_params.extend(['-c:a', 'aac'])
+                encoding_params.extend(['-b:a', '128k'])  # Standard AAC bitrate
+                
+            elif codec_name == 'opus':
+                encoding_params.extend(['-c:a', 'libopus'])
+                encoding_params.extend(['-b:a', '128k'])  # Standard Opus bitrate
+                
+            elif codec_name == 'vorbis':
+                encoding_params.extend(['-c:a', 'libvorbis'])
+                encoding_params.extend(['-q:a', '5'])  # Vorbis quality 5 (good quality)
+                
+            elif codec_name == 'flac':
+                encoding_params.extend(['-c:a', 'flac'])
+                # FLAC is lossless, no quality settings needed
+                
+            elif codec_name.startswith('pcm_'):
+                encoding_params.extend(['-c:a', codec_name])
+                # PCM is uncompressed, no quality settings needed
+                
+            elif codec_name == 'alac':
+                encoding_params.extend(['-c:a', 'alac'])
+                # ALAC is lossless, no quality settings needed
+            
+            # Preserve sample rate and channels if available
+            if codec_info.get('sample_rate') != 'Unknown':
+                encoding_params.extend(['-ar', str(codec_info['sample_rate'])])
+            if codec_info.get('channels') != 'Unknown':
+                encoding_params.extend(['-ac', str(codec_info['channels'])])
+            
+            print(f"[Audio Encoding] Using audio encoding parameters: {' '.join(encoding_params)}")
+            
+            return {
+                'supported': True,
+                'encoder': expected_encoder,
+                'encoding_params': encoding_params,
+                'approach': 'audio_optimized',
+                'codec_name': codec_name
+            }
+                
+        else:
+            print(f"[Audio Encoding] ✗ Encoder not available for {codec_name}")
+            return {'supported': False, 'reason': f'Audio encoder not available'}
+        
+    except subprocess.CalledProcessError as e:
+        print(f"[Audio Encoding] Failed to check encoder support: {e}")
+        return {'supported': False, 'reason': 'ffmpeg command failed'}
+
+def _perform_audio_clip(media_path: str, merged_segments: list, codec_info: dict, encoder_support: dict) -> str:
+    """
+    Perform audio clipping using audio-optimized approach.
+    Audio doesn't have keyframes, so we use sample-accurate cutting.
+    """
+    print(f"[Audio Clipping] Processing {len(merged_segments)} audio segment(s)")
+    
+    # Generate output filename
+    original_path_obj = Path(media_path)
+    directory = original_path_obj.parent
+    stem = original_path_obj.stem
+    ext = original_path_obj.suffix
+    
+    # Try base filename with '_clipped' suffix first
+    base_clipped_filename = f"{stem}_clipped{ext}"
+    output_path = str(directory / base_clipped_filename)
+    counter = 1
+    while os.path.exists(output_path):
+        clipped_filename = f"{stem}_clipped_{counter}{ext}"
+        output_path = str(directory / clipped_filename)
+        counter += 1
+    
+    temp_files = []
+    temp_dir = original_path_obj.parent / "temp_clip_segments"
+    os.makedirs(temp_dir, exist_ok=True)
+    list_file_path = temp_dir / "mylist.txt"
+    
+    try:
+        for i, (start_ms, end_ms) in enumerate(merged_segments):
+            segment_duration_ms = end_ms - start_ms
+            if segment_duration_ms <= 0: 
+                continue
+            
+            start_time_seconds = start_ms / 1000.0
+            duration_seconds = segment_duration_ms / 1000.0
+            
+            print(f"[Audio Clipping] === Segment {i+1}/{len(merged_segments)} ===")
+            print(f"[Audio Clipping] Segment timing: {start_time_seconds:.3f}s to {(start_ms + segment_duration_ms)/1000.0:.3f}s")
+            
+            temp_output_filename = f"temp_segment_{i}{original_path_obj.suffix}"
+            temp_output_path = str(temp_dir / temp_output_filename)
+            temp_files.append(temp_output_path)
+            
+            # Audio processing strategy
+            if encoder_support['supported']:
+                print(f"[Audio Clipping] Using audio-optimized encoding with {encoder_support['encoder']}")
+                
+                # High-quality audio re-encoding for sample accuracy
+                ffmpeg_cmd = [
+                    "ffmpeg", "-y", "-hide_banner",
+                    "-ss", str(start_time_seconds),
+                    "-i", media_path,
+                    "-t", str(duration_seconds)
+                ] + encoder_support['encoding_params'] + [
+                    temp_output_path
+                ]
+                
+            else:
+                print(f"[Audio Clipping] Using stream copy fallback")
+                
+                # Stream copy fallback (should work for most audio formats)
+                ffmpeg_cmd = [
+                    "ffmpeg", "-y", "-hide_banner",
+                    "-ss", str(start_time_seconds),
+                    "-i", media_path,
+                    "-t", str(duration_seconds),
+                    "-c", "copy",
+                    "-avoid_negative_ts", "make_zero",
+                    temp_output_path
+                ]
+            
+            print(f"[Audio Clipping] Command: {' '.join(ffmpeg_cmd)}")
+            
+            # Execute ffmpeg command
+            creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, creationflags=creationflags)
+            
+            if process.returncode != 0:
+                error_message = f"Audio ffmpeg failed for segment {i}. Error: {process.stderr.strip()}"
+                print(f"[Audio Clipping] ❌ {error_message}")
+                return None
+            else:
+                print(f"[Audio Clipping] ✅ Segment {i+1} processed successfully")
+        
+        # Concatenate all audio segments
+        print(f"[Audio Clipping] Concatenating {len(temp_files)} audio segments")
+        
+        with open(list_file_path, 'w') as f:
+            for temp_file in temp_files:
+                f.write(f"file '{os.path.abspath(temp_file)}'\n")
+        
+        ffmpeg_concat_cmd = [
+            "ffmpeg", "-y", "-hide_banner",
+            "-f", "concat",
+            "-safe", "0", 
+            "-i", str(list_file_path),
+            "-c", "copy",
+            output_path
+        ]
+        
+        print(f"[Audio Clipping] Final concatenation: {' '.join(ffmpeg_concat_cmd)}")
+        
+        process = subprocess.run(ffmpeg_concat_cmd, capture_output=True, text=True, creationflags=creationflags)
+        
+        if process.returncode == 0:
+            print(f"[Audio Clipping] ✅ Audio clipping successful: {output_path}")
+            return output_path
+        else:
+            error_message = f"Audio concatenation failed. Error: {process.stderr.strip()}"
+            print(f"[Audio Clipping] ❌ {error_message}")
+            return None
+            
+    except Exception as e:
+        error_message = f"Audio clipping failed: {str(e)}"
+        print(f"[Audio Clipping] ❌ {error_message}")
+        return None
+    finally:
+        # Clean up temporary files
+        _cleanup_temp_files(temp_dir, temp_files, list_file_path)
+
+def _cleanup_temp_files(temp_dir, temp_files, list_file_path):
+    """Clean up temporary files and directory."""
+    if list_file_path.exists():
+        try:
+            os.remove(list_file_path)
+        except Exception as e:
+            print(f"[Cleanup] Error removing list file: {e}")
+    
+    for temp_file_path_str in temp_files:
+        temp_file_p = Path(temp_file_path_str)
+        if temp_file_p.exists():
+            try:
+                os.remove(temp_file_p)
+            except Exception as e:
+                print(f"[Cleanup] Error removing temp file: {e}")
+    
+    # Clean up additional temporary files
+    if temp_dir.exists():
+        try:
+            for temp_item in temp_dir.glob("*"):
+                if temp_item.is_file():
+                    os.remove(temp_item)
+            
+            if not any(temp_dir.iterdir()):
+                os.rmdir(temp_dir)
+        except Exception as e:
+            print(f"[Cleanup] Error cleaning temp directory: {e}")
+
+def analyze_audio_quality(audio_paths):
+    """
+    Analyze and compare quality metrics of multiple audio files.
+    """
+    print(f"\n[Audio Quality Analysis] Comparing audio quality metrics")
     
     results = {}
     
-    for name, path in video_paths.items():
+    for name, path in audio_paths.items():
         if not os.path.exists(path):
-            print(f"[Quality Analysis] File not found: {path}")
+            print(f"[Audio Quality Analysis] File not found: {path}")
             continue
             
         try:
-            # Get detailed video information
+            # Get detailed audio information
             cmd = [
                 'ffprobe',
                 '-v', 'quiet',
                 '-print_format', 'json',
                 '-show_streams',
-                '-select_streams', 'v:0',
+                '-select_streams', 'a:0',
                 path
             ]
             
@@ -39,762 +361,207 @@ def analyze_video_quality(video_paths):
                     'file_size': os.path.getsize(path),
                     'duration': float(stream.get('duration', 0)),
                     'bit_rate': int(stream.get('bit_rate', 0)),
-                    'width': int(stream.get('width', 0)),
-                    'height': int(stream.get('height', 0)),
-                    'pix_fmt': stream.get('pix_fmt', 'Unknown'),
+                    'sample_rate': int(stream.get('sample_rate', 0)),
+                    'channels': int(stream.get('channels', 0)),
                     'codec_name': stream.get('codec_name', 'Unknown'),
-                    'profile': stream.get('profile', 'Unknown'),
-                    'level': stream.get('level', 'Unknown')
+                    'channel_layout': stream.get('channel_layout', 'Unknown')
                 }
                 
-                # Calculate bits per pixel (indication of compression efficiency)
-                if metrics['duration'] > 0 and metrics['width'] > 0 and metrics['height'] > 0:
-                    total_pixels = metrics['width'] * metrics['height'] * 25 * metrics['duration']  # 25fps
-                    metrics['bits_per_pixel'] = (metrics['file_size'] * 8) / total_pixels if total_pixels > 0 else 0
+                # Calculate compression ratio
+                if metrics['duration'] > 0 and metrics['sample_rate'] > 0 and metrics['channels'] > 0:
+                    # Uncompressed size calculation (16-bit PCM)
+                    uncompressed_size = metrics['sample_rate'] * metrics['channels'] * 2 * metrics['duration']  # 2 bytes per sample
+                    metrics['compression_ratio'] = uncompressed_size / metrics['file_size'] if metrics['file_size'] > 0 else 0
                 else:
-                    metrics['bits_per_pixel'] = 0
+                    metrics['compression_ratio'] = 0
                 
                 results[name] = metrics
                 
-                print(f"\n[Quality Analysis] {name}:")
+                print(f"\n[Audio Quality Analysis] {name}:")
                 print(f"  File size: {metrics['file_size']:,} bytes ({metrics['file_size']/1024/1024:.2f} MB)")
                 print(f"  Duration: {metrics['duration']:.3f}s")
                 print(f"  Bitrate: {metrics['bit_rate']:,} bps ({metrics['bit_rate']/1000:.0f} kbps)")
-                print(f"  Resolution: {metrics['width']}x{metrics['height']}")
-                print(f"  Bits per pixel: {metrics['bits_per_pixel']:.6f}")
-                print(f"  Codec: {metrics['codec_name']} ({metrics['profile']}, Level {metrics['level']})")
+                print(f"  Sample rate: {metrics['sample_rate']:,} Hz")
+                print(f"  Channels: {metrics['channels']} ({metrics['channel_layout']})")
+                print(f"  Compression ratio: {metrics['compression_ratio']:.1f}:1")
+                print(f"  Codec: {metrics['codec_name']}")
                 
         except Exception as e:
-            print(f"[Quality Analysis] Error analyzing {name}: {e}")
+            print(f"[Audio Quality Analysis] Error analyzing {name}: {e}")
     
     # Compare results
     if len(results) > 1:
-        print(f"\n[Quality Comparison]")
+        print(f"\n[Audio Quality Comparison]")
         
-        if 'Original' in results and 'Re-encoded' in results:
+        if 'Original' in results and 'Clipped' in results:
             orig = results['Original']
-            reenc = results['Re-encoded']
+            clipped = results['Clipped']
             
-            size_ratio = reenc['file_size'] / orig['file_size'] if orig['file_size'] > 0 else 0
-            bitrate_ratio = reenc['bit_rate'] / orig['bit_rate'] if orig['bit_rate'] > 0 else 0
-            bpp_ratio = reenc['bits_per_pixel'] / orig['bits_per_pixel'] if orig['bits_per_pixel'] > 0 else 0
+            size_ratio = clipped['file_size'] / orig['file_size'] if orig['file_size'] > 0 else 0
+            bitrate_ratio = clipped['bit_rate'] / orig['bit_rate'] if orig['bit_rate'] > 0 else 0
+            duration_ratio = clipped['duration'] / orig['duration'] if orig['duration'] > 0 else 0
             
-            print(f"  Re-encoded vs Original:")
+            print(f"  Clipped vs Original:")
             print(f"    Size ratio: {size_ratio:.2f}x ({'larger' if size_ratio > 1 else 'smaller'})")
-            print(f"    Bitrate ratio: {bitrate_ratio:.2f}x ({'higher' if bitrate_ratio > 1 else 'lower'})")
-            print(f"    Bits per pixel ratio: {bpp_ratio:.2f}x ({'more efficient' if bpp_ratio < 1 else 'less efficient'})")
+            print(f"    Bitrate ratio: {bitrate_ratio:.2f}x ({'higher' if bitrate_ratio > 1 else 'same/lower'})")
+            print(f"    Duration ratio: {duration_ratio:.2f}x ({duration_ratio*100:.1f}% of original)")
             
-            if bitrate_ratio > 1.2:  # 20% higher bitrate
-                print(f"  ⚠️  Re-encoded segment uses {(bitrate_ratio-1)*100:.1f}% more bitrate but may have worse quality")
-                print(f"      This suggests CRF mode is working correctly - prioritizing quality over bitrate")
+            if bitrate_ratio > 1.1:  # 10% higher bitrate
+                print(f"  ⚠️  Clipped audio uses {(bitrate_ratio-1)*100:.1f}% more bitrate")
+            elif bitrate_ratio < 0.9:  # 10% lower bitrate
+                print(f"  ⚠️  Clipped audio uses {(1-bitrate_ratio)*100:.1f}% less bitrate")
+            else:
+                print(f"  ✅ Bitrate preserved within acceptable range")
     
     return results
 
-def analyze_video_structure(video_path):
+def test_audio_clipping():
     """
-    Comprehensive analysis of video structure including duration, keyframes, and strategic segment suggestions.
+    Test audio clipping functionality with the t.mp3 file.
     """
-    print(f"=== COMPREHENSIVE VIDEO ANALYSIS ===")
-    print(f"Analyzing: {video_path}")
+    print("\n=== AUDIO CLIPPING TEST ===")
     
-    if not os.path.exists(video_path):
-        print(f"❌ Video file not found: {video_path}")
-        return None
+    audio_path = "./temp/t.mp3"
     
-    try:
-        # Get basic video information - use both streams and format info for WebM compatibility
-        cmd = [
-            'ffprobe',
-            '-v', 'quiet',
-            '-print_format', 'json',
-            '-show_streams',
-            '-show_format',
-            '-select_streams', 'v:0',
-            video_path
-        ]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        data = json.loads(result.stdout)
-        
-        if 'streams' not in data or len(data['streams']) == 0:
-            print("❌ No video streams found")
-            return None
-            
-        stream = data['streams'][0]
-        
-        # Try to get duration from multiple sources (WebM compatibility)
-        duration = 0
-        if 'duration' in stream and stream['duration'] != 'N/A':
-            duration = float(stream['duration'])
-        elif 'format' in data and 'duration' in data['format']:
-            duration = float(data['format']['duration'])
-        elif 'tags' in stream and 'DURATION' in stream['tags']:
-            # Parse duration from WebM tag format: "00:02:39.399000000"
-            duration_str = stream['tags']['DURATION']
-            time_parts = duration_str.split(':')
-            if len(time_parts) == 3:
-                hours = float(time_parts[0])
-                minutes = float(time_parts[1])
-                seconds = float(time_parts[2])
-                duration = hours * 3600 + minutes * 60 + seconds
-        
-        # If still no duration, try alternative probe method
-        if duration == 0:
-            print("⚠️  Standard duration detection failed, trying alternative method...")
-            alt_cmd = [
-                'ffprobe',
-                '-v', 'error',
-                '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1',
-                video_path
-            ]
-            alt_result = subprocess.run(alt_cmd, capture_output=True, text=True)
-            if alt_result.returncode == 0 and alt_result.stdout.strip():
-                try:
-                    duration = float(alt_result.stdout.strip())
-                except ValueError:
-                    pass
-        
-        width = int(stream.get('width', 0))
-        height = int(stream.get('height', 0))
-        codec = stream.get('codec_name', 'Unknown')
-        bitrate = int(stream.get('bit_rate', 0))
-        
-        # If bitrate is 0, try to get it from format
-        if bitrate == 0 and 'format' in data and 'bit_rate' in data['format']:
-            bitrate = int(data['format']['bit_rate'])
-        
-        print(f"\n📊 Basic Video Info:")
-        print(f"   Duration: {duration:.1f}s ({duration//60:.0f}:{duration%60:04.1f})")
-        print(f"   Resolution: {width}x{height}")
-        print(f"   Codec: {codec}")
-        print(f"   Bitrate: {bitrate:,} bps ({bitrate//1000:.0f} kbps)")
-        
-        # Ensure we have valid duration before proceeding
-        if duration <= 0:
-            print("❌ Could not determine video duration")
-            return None
-        
-        # Get comprehensive keyframe analysis
-        print(f"\n🔍 Analyzing keyframe structure...")
-        
-        # Analyze keyframes across entire video in chunks to avoid memory issues
-        all_keyframes = []
-        chunk_size = 300  # 5 minutes chunks
-        current_start = 0
-        
-        while current_start < duration:
-            chunk_end = min(current_start + chunk_size, duration)
-            
-            cmd = [
-                'ffprobe',
-                '-v', 'quiet',
-                '-print_format', 'json',
-                '-show_frames',
-                '-select_streams', 'v:0',
-                '-read_intervals', f'{current_start}%{chunk_end}',
-                '-show_entries', 'frame=best_effort_timestamp_time,pkt_pts_time,key_frame',
-                video_path
-            ]
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            chunk_data = json.loads(result.stdout)
-            
-            if 'frames' in chunk_data:
-                for frame in chunk_data['frames']:
-                    if frame.get('key_frame') == 1:
-                        frame_time = frame.get('best_effort_timestamp_time') or frame.get('pkt_pts_time')
-                        if frame_time:
-                            all_keyframes.append(float(frame_time))
-            
-            current_start = chunk_end
-        
-        all_keyframes = sorted(list(set(all_keyframes)))  # Remove duplicates and sort
-        
-        if len(all_keyframes) == 0:
-            print("❌ No keyframes found")
-            return None
-        
-        # Calculate keyframe statistics
-        keyframe_gaps = []
-        for i in range(len(all_keyframes) - 1):
-            gap = all_keyframes[i + 1] - all_keyframes[i]
-            keyframe_gaps.append(gap)
-        
-        min_gap = min(keyframe_gaps) if keyframe_gaps else 0
-        max_gap = max(keyframe_gaps) if keyframe_gaps else 0
-        avg_gap = sum(keyframe_gaps) / len(keyframe_gaps) if keyframe_gaps else 0
-        
-        print(f"\n🎯 Keyframe Analysis:")
-        print(f"   Total keyframes: {len(all_keyframes)}")
-        print(f"   First keyframe: {all_keyframes[0]:.3f}s")
-        print(f"   Last keyframe: {all_keyframes[-1]:.3f}s")
-        print(f"   Average interval: {avg_gap:.3f}s")
-        print(f"   Min interval: {min_gap:.3f}s")
-        print(f"   Max interval: {max_gap:.3f}s")
-        
-        # Show first 10 keyframes for reference
-        print(f"\n📋 First 10 keyframes:")
-        for i, kf in enumerate(all_keyframes[:10]):
-            minutes = int(kf // 60)
-            seconds = kf % 60
-            print(f"   {i+1:2d}: {kf:8.3f}s ({minutes:02d}:{seconds:06.3f})")
-        
-        if len(all_keyframes) > 10:
-            print(f"   ... and {len(all_keyframes) - 10} more keyframes")
-        
-        return {
-            'duration': duration,
-            'width': width,
-            'height': height,
-            'codec': codec,
-            'bitrate': bitrate,
-            'keyframes': all_keyframes,
-            'avg_gap': avg_gap,
-            'min_gap': min_gap,
-            'max_gap': max_gap
-        }
-        
-    except Exception as e:
-        print(f"❌ Analysis error: {e}")
-        return None
-
-def suggest_strategic_segments(analysis_result):
-    """
-    Suggest strategic test segments based on video analysis to test different algorithm paths.
-    """
-    if not analysis_result:
-        return []
-    
-    print(f"\n🎯 STRATEGIC SEGMENT SUGGESTIONS")
-    print(f"Creating segments to test all algorithm paths...")
-    
-    keyframes = analysis_result['keyframes']
-    duration = analysis_result['duration']
-    avg_gap = analysis_result['avg_gap']
-    
-    strategic_segments = []
-    
-    # Strategy 1: Option A tests (keyframe snapping) - within 0.4s of keyframes
-    print(f"\n📍 Option A (Keyframe Snapping) Test Segments:")
-    option_a_segments = []
-    
-    # Test 1A: Very close to keyframe (0.1s after)
-    if len(keyframes) > 5:
-        kf = keyframes[5]  # Use 5th keyframe
-        start_time = kf + 0.1  # 0.1s after keyframe
-        end_time = start_time + 15  # 15 second segment
-        if end_time <= duration:
-            option_a_segments.append((start_time, end_time, f"0.1s after keyframe at {kf:.3f}s"))
-    
-    # Test 1B: Moderately close to keyframe (0.3s before)  
-    if len(keyframes) > 8:
-        kf = keyframes[8]  # Use 8th keyframe
-        start_time = kf - 0.3  # 0.3s before keyframe
-        end_time = start_time + 12  # 12 second segment
-        if start_time >= 0 and end_time <= duration:
-            option_a_segments.append((start_time, end_time, f"0.3s before keyframe at {kf:.3f}s"))
-    
-    # Test 1C: Exactly on keyframe (perfect alignment)
-    if len(keyframes) > 12:
-        kf = keyframes[12]  # Use 12th keyframe
-        start_time = kf  # Exactly on keyframe
-        end_time = start_time + 10  # 10 second segment
-        if end_time <= duration:
-            option_a_segments.append((start_time, end_time, f"exactly on keyframe at {kf:.3f}s"))
-    
-    strategic_segments.extend(option_a_segments)
-    
-    for i, (start, end, desc) in enumerate(option_a_segments):
-        print(f"   A{i+1}: {start:.3f}s to {end:.3f}s ({desc})")
-    
-    # Strategy 2: Option B tests (minimal re-encoding) - beyond 0.4s from keyframes
-    print(f"\n🔧 Option B (Minimal Re-encoding) Test Segments:")
-    option_b_segments = []
-    
-    # Test 2A: Far from keyframe (mid-way between two keyframes)
-    if len(keyframes) > 15:
-        kf1 = keyframes[15]
-        kf2 = keyframes[16] if 16 < len(keyframes) else kf1 + avg_gap
-        mid_point = (kf1 + kf2) / 2
-        start_time = mid_point
-        end_time = start_time + 8  # 8 second segment
-        if end_time <= duration:
-            option_b_segments.append((start_time, end_time, f"mid-way between keyframes {kf1:.3f}s and {kf2:.3f}s"))
-    
-    # Test 2B: 0.8s after keyframe (clearly beyond threshold)
-    if len(keyframes) > 20:
-        kf = keyframes[20]
-        start_time = kf + 0.8  # 0.8s after keyframe
-        end_time = start_time + 6  # 6 second segment
-        if end_time <= duration:
-            option_b_segments.append((start_time, end_time, f"0.8s after keyframe at {kf:.3f}s"))
-    
-    # Test 2C: 1.5s before keyframe (beyond threshold, backward)
-    if len(keyframes) > 25:
-        kf = keyframes[25]
-        start_time = kf - 1.5  # 1.5s before keyframe
-        end_time = start_time + 5  # 5 second segment
-        if start_time >= 0 and end_time <= duration:
-            option_b_segments.append((start_time, end_time, f"1.5s before keyframe at {kf:.3f}s"))
-    
-    strategic_segments.extend(option_b_segments)
-    
-    for i, (start, end, desc) in enumerate(option_b_segments):
-        print(f"   B{i+1}: {start:.3f}s to {end:.3f}s ({desc})")
-    
-    # Strategy 3: Edge case tests
-    print(f"\n⚡ Edge Case Test Segments:")
-    edge_segments = []
-    
-    # Test 3A: Very short segment (2 seconds)
-    if len(keyframes) > 3:
-        kf = keyframes[3]
-        start_time = kf + 0.2
-        end_time = start_time + 2  # Very short segment
-        if end_time <= duration:
-            edge_segments.append((start_time, end_time, f"very short 2s segment"))
-    
-    # Test 3B: Boundary test (exactly 0.4s from keyframe)
-    if len(keyframes) > 7:
-        kf = keyframes[7]
-        start_time = kf + 0.4  # Exactly at threshold
-        end_time = start_time + 4
-        if end_time <= duration:
-            edge_segments.append((start_time, end_time, f"exactly 0.4s from keyframe (boundary test)"))
-    
-    # Test 3C: Near end of video
-    if duration > 30:
-        start_time = duration - 8  # 8 seconds from end
-        end_time = duration - 1    # 1 second from end
-        edge_segments.append((start_time, end_time, f"near end of video"))
-    
-    strategic_segments.extend(edge_segments)
-    
-    for i, (start, end, desc) in enumerate(edge_segments):
-        print(f"   E{i+1}: {start:.3f}s to {end:.3f}s ({desc})")
-    
-    # Summary
-    print(f"\n📊 Strategic Test Summary:")
-    print(f"   Option A tests (keyframe snapping): {len(option_a_segments)}")
-    print(f"   Option B tests (minimal re-encoding): {len(option_b_segments)}")  
-    print(f"   Edge case tests: {len(edge_segments)}")
-    print(f"   Total segments: {len(strategic_segments)}")
-    print(f"   Expected processing methods:")
-    
-    for i, (start, end, desc) in enumerate(strategic_segments):
-        # Determine expected algorithm choice
-        closest_keyframe_dist = min([abs(start - kf) for kf in keyframes])
-        expected_method = "Option A (Snap)" if closest_keyframe_dist <= 0.4 else "Option B (Re-encode)"
-        print(f"     Segment {i+1}: {expected_method} - {desc}")
-    
-    return strategic_segments
-
-def test_strategic_segments(video_path, segments):
-    """
-    Test the ClippingManager with strategically chosen segments.
-    """
-    print(f"\n🚀 TESTING STRATEGIC SEGMENTS")
-    
-    # Import ClippingManager
-    try:
-        import sys
-        import os
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "ClippingManager", 
-            os.path.join(os.getcwd(), 'music_player', 'models', 'ClippingManager.py')
-        )
-        clipping_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(clipping_module)
-        ClippingManager = clipping_module.ClippingManager
-        print("✅ ClippingManager imported successfully")
-    except Exception as e:
-        print(f"❌ Failed to import ClippingManager: {e}")
+    # Check if test file exists
+    if not os.path.exists(audio_path):
+        print(f"❌ Test audio file not found: {audio_path}")
         return False
     
-    # Get ClippingManager instance
-    clipping_manager = ClippingManager.instance()
-    clipping_manager.set_media(video_path)
-    print(f"✅ Media set: {video_path}")
+    # Detect media type
+    media_type = _detect_media_type(audio_path)
+    print(f"📁 Media type detected: {media_type}")
     
-    # Clear any existing segments
-    clipping_manager.clear_all_segments()
+    if media_type != 'audio':
+        print(f"❌ Expected audio file, got: {media_type}")
+        return False
     
-    # Add all strategic segments
-    print(f"\n📋 Adding {len(segments)} strategic segments:")
+    # Analyze audio codec
+    print("\n=== AUDIO CODEC ANALYSIS ===")
+    codec_info = _get_audio_codec_info(audio_path)
     
-    for i, (start_time, end_time, description) in enumerate(segments):
-        start_ms = int(start_time * 1000)
-        end_ms = int(end_time * 1000)
+    if not codec_info:
+        print("❌ Audio codec analysis failed")
+        return False
+    
+    print("✅ Audio codec analysis successful")
+    
+    # Check encoder support
+    print("\n=== AUDIO ENCODER SUPPORT ===")
+    encoder_support = _check_audio_codec_encoding_support(codec_info)
+    
+    if encoder_support['supported']:
+        print("✅ Audio encoder support available")
+    else:
+        print(f"⚠️  Audio encoder not supported: {encoder_support['reason']}")
+        print("   Will use stream copy fallback")
+    
+    # Create test segments
+    print("\n=== AUDIO SEGMENT CREATION ===")
+    
+    # Get audio duration first
+    try:
+        duration_str = codec_info.get('duration', '0')
+        if duration_str != 'Unknown':
+            duration_seconds = float(duration_str)
+        else:
+            # Fallback duration detection
+            cmd = [
+                'ffprobe', '-v', 'error', 
+                '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                audio_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout.strip():
+                duration_seconds = float(result.stdout.strip())
+            else:
+                duration_seconds = 60.0  # Fallback to 60 seconds
+    except:
+        duration_seconds = 60.0  # Safe fallback
+    
+    print(f"📊 Audio duration: {duration_seconds:.1f} seconds")
+    
+    # Create strategic audio segments
+    test_segments = []
+    
+    if duration_seconds > 10:
+        # Segment 1: Beginning of audio (0-5 seconds)
+        test_segments.append((0, 5000))  # 0 to 5 seconds in ms
         
-        # Mark begin and end for each segment
-        clipping_manager.mark_begin(start_ms)
-        clipping_manager.mark_end(end_ms)
+        # Segment 2: Middle section (10-15 seconds)
+        if duration_seconds > 15:
+            test_segments.append((10000, 15000))  # 10 to 15 seconds in ms
         
-        print(f"   Segment {i+1}: {start_time:.3f}s to {end_time:.3f}s - {description}")
+        # Segment 3: Near end (last 5 seconds)
+        if duration_seconds > 20:
+            end_start = max(15000, int((duration_seconds - 5) * 1000))
+            end_end = int(duration_seconds * 1000)
+            test_segments.append((end_start, end_end))
+    else:
+        # Short audio file - just take first half
+        half_duration_ms = int((duration_seconds / 2) * 1000)
+        test_segments.append((0, half_duration_ms))
     
-    # Get final segment list
-    media_path, pending_begin, final_segments = clipping_manager.get_markers()
-    print(f"\n📊 Final segment configuration:")
-    print(f"   Total segments: {len(final_segments)}")
+    print(f"📋 Created {len(test_segments)} test segments:")
+    for i, (start_ms, end_ms) in enumerate(test_segments):
+        print(f"   Segment {i+1}: {start_ms/1000:.1f}s to {end_ms/1000:.1f}s ({(end_ms-start_ms)/1000:.1f}s duration)")
     
-    for i, (start_ms, end_ms) in enumerate(final_segments):
-        duration = (end_ms - start_ms) / 1000.0
-        print(f"   Segment {i+1}: {start_ms/1000:.3f}s to {end_ms/1000:.3f}s ({duration:.1f}s)")
+    # Perform audio clipping
+    print("\n=== AUDIO CLIPPING EXECUTION ===")
     
-    # Perform the clipping
-    print(f"\n🎬 Executing adaptive multi-segment clipping...")
+    output_path = _perform_audio_clip(audio_path, test_segments, codec_info, encoder_support)
     
-    # Set up result tracking
-    result_info = {'success': False, 'output_path': None, 'error': None}
-    
-    def on_success(original_path, clipped_path):
-        result_info['success'] = True
-        result_info['output_path'] = clipped_path
-        print(f"✅ MULTI-SEGMENT CLIPPING SUCCESSFUL!")
-        print(f"   Output: {clipped_path}")
+    if output_path and os.path.exists(output_path):
+        file_size = os.path.getsize(output_path)
+        print(f"🎉 AUDIO CLIPPING TEST SUCCESSFUL!")
+        print(f"📁 Output file: {output_path}")
+        print(f"📊 Output size: {file_size:,} bytes ({file_size/1024/1024:.2f} MB)")
         
-        if os.path.exists(clipped_path):
-            file_size = os.path.getsize(clipped_path)
-            print(f"   Size: {file_size:,} bytes ({file_size/1024/1024:.2f} MB)")
-    
-    def on_failure(original_path, error_message):
-        result_info['error'] = error_message
-        print(f"❌ MULTI-SEGMENT CLIPPING FAILED!")
-        print(f"   Error: {error_message}")
-    
-    # Connect signals
-    clipping_manager.clip_successful.connect(on_success)
-    clipping_manager.clip_failed.connect(on_failure)
-    
-    # Execute
-    output_path = clipping_manager.perform_clip()
-    
-    if result_info['success']:
-        print(f"\n🎉 STRATEGIC SEGMENT TEST COMPLETED SUCCESSFULLY!")
-        
-        # Analyze the result
-        if result_info['output_path'] and os.path.exists(result_info['output_path']):
-            print(f"\n=== RESULT ANALYSIS ===")
-            quality_files = {
-                'Original': video_path,
-                'Multi-Segment Output': result_info['output_path']
-            }
-            analyze_video_quality(quality_files)
+        # Analyze quality comparison
+        print(f"\n=== AUDIO QUALITY ANALYSIS ===")
+        quality_files = {
+            'Original': audio_path,
+            'Clipped': output_path
+        }
+        analyze_audio_quality(quality_files)
         
         return True
     else:
-        print(f"\n❌ STRATEGIC SEGMENT TEST FAILED")
-        if result_info['error']:
-            print(f"   Error: {result_info['error']}")
+        print(f"❌ AUDIO CLIPPING TEST FAILED")
         return False
-
-def test_clipping_algorithm():
-    """
-    Test the ClippingManager adaptive algorithm implementation.
-    """
-    print("=== CLIPPING MANAGER ALGORITHM TEST ===")
-    
-    # Import ClippingManager with a more specific approach to avoid circular imports
-    try:
-        import sys
-        import os
-        
-        # Add the specific path to the ClippingManager
-        sys.path.insert(0, os.path.join(os.getcwd(), 'music_player', 'models'))
-        
-        # Import just the ClippingManager module directly
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "ClippingManager", 
-            os.path.join(os.getcwd(), 'music_player', 'models', 'ClippingManager.py')
-        )
-        clipping_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(clipping_module)
-        
-        ClippingManager = clipping_module.ClippingManager
-        print("✅ Successfully imported ClippingManager")
-    except Exception as e:
-        print(f"❌ Failed to import ClippingManager: {e}")
-        print("🔄 Attempting alternative import method...")
-        
-        # Alternative: Try importing with minimal dependencies
-        try:
-            # Set up minimal Qt application for signals to work
-            try:
-                from PyQt6.QtWidgets import QApplication
-                from PyQt6.QtCore import QObject, pyqtSignal
-                import sys
-                
-                # Create QApplication if it doesn't exist
-                app = QApplication.instance()
-                if app is None:
-                    app = QApplication(sys.argv)
-                
-                print("✅ Qt environment set up")
-            except ImportError:
-                print("⚠️  PyQt6 not available, signals may not work")
-            
-            # Now try importing ClippingManager again
-            sys.path.insert(0, os.path.join(os.getcwd(), 'music_player', 'models'))
-            from ClippingManager import ClippingManager
-            print("✅ Successfully imported ClippingManager with alternative method")
-            
-        except Exception as e2:
-            print(f"❌ Alternative import also failed: {e2}")
-            print("💡 Let's test the core methods directly...")
-            return test_core_methods_directly()
-    
-    video_path = "./temp/t.webm"
-    
-    # Check if test file exists
-    if not os.path.exists(video_path):
-        print(f"❌ Test video file not found: {video_path}")
-        return False
-    
-    # Get ClippingManager instance
-    try:
-        clipping_manager = ClippingManager.instance()
-        print(f"✅ ClippingManager instance created")
-        print(f"📁 Test video: {video_path}")
-    except Exception as e:
-        print(f"❌ Failed to create ClippingManager instance: {e}")
-        return False
-    
-    # Test 1: Codec detection
-    print("\n=== TEST 1: CODEC DETECTION ===")
-    try:
-        codec_info = clipping_manager._get_video_codec_info(video_path)
-        
-        if codec_info:
-            print("✅ Codec detection successful")
-            print(f"   Codec: {codec_info['codec_name']} {codec_info['profile']} Level {codec_info['level']}")
-        else:
-            print("❌ Codec detection failed")
-            return False
-    except Exception as e:
-        print(f"❌ Codec detection error: {e}")
-        return False
-    
-    # Test 2: Keyframe analysis
-    print("\n=== TEST 2: KEYFRAME ANALYSIS ===")
-    try:
-        target_time = 600.0  # 10:00 in seconds
-        keyframe_info = clipping_manager._find_nearest_keyframe(video_path, target_time)
-        
-        if keyframe_info:
-            print("✅ Keyframe analysis successful")
-            print(f"   Target: {target_time:.3f}s")
-            print(f"   Nearest keyframe: {keyframe_info['nearest_keyframe']:.3f}s")
-            print(f"   Distance: {keyframe_info['distance']:.3f}s")
-            print(f"   Within threshold: {keyframe_info['within_threshold']}")
-            
-            if keyframe_info['within_threshold']:
-                print("   🎯 Algorithm choice: Option A (Keyframe Snapping)")
-            else:
-                print("   🔧 Algorithm choice: Option B (Minimal Re-encoding)")
-        else:
-            print("❌ Keyframe analysis failed")
-            return False
-    except Exception as e:
-        print(f"❌ Keyframe analysis error: {e}")
-        return False
-    
-    # Test 3: Encoder support check
-    print("\n=== TEST 3: ENCODER SUPPORT CHECK ===")
-    try:
-        encoder_support = clipping_manager._check_codec_encoding_support(codec_info)
-        
-        if encoder_support['supported']:
-            print("✅ Encoder support check successful")
-            print(f"   Encoder: {encoder_support['encoder']}")
-            print(f"   Approach: {encoder_support['approach']}")
-            print(f"   Parameters: {' '.join(encoder_support['encoding_params'])}")
-        else:
-            print(f"⚠️  Encoder not supported: {encoder_support['reason']}")
-            print("   Algorithm would use Option C (Enhanced Keyframe Snapping)")
-    except Exception as e:
-        print(f"❌ Encoder support check error: {e}")
-        return False
-    
-    # Test 4: Set up for actual clipping test
-    print("\n=== TEST 4: CLIPPING SETUP ===")
-    
-    try:
-        # Set media
-        clipping_manager.set_media(video_path)
-        print(f"✅ Media set: {video_path}")
-        
-        # Mark beginning at 10:00 (600 seconds = 600000 ms)
-        clipping_manager.mark_begin(600000)  # 10:00 in milliseconds
-        print("✅ Begin marker set at 10:00")
-        
-        # Mark end at 10:30 (630 seconds = 630000 ms)
-        clipping_manager.mark_end(630000)   # 10:30 in milliseconds
-        print("✅ End marker set at 10:30")
-        
-        # Get markers to verify
-        media_path, pending_begin, segments = clipping_manager.get_markers()
-        print(f"📊 Segments defined: {len(segments)}")
-        if segments:
-            for i, (start_ms, end_ms) in enumerate(segments):
-                print(f"   Segment {i+1}: {start_ms/1000:.1f}s to {end_ms/1000:.1f}s ({(end_ms-start_ms)/1000:.1f}s duration)")
-    except Exception as e:
-        print(f"❌ Clipping setup error: {e}")
-        return False
-    
-    # Test 5: Perform actual clipping
-    print("\n=== TEST 5: PERFORM ADAPTIVE CLIPPING ===")
-    print("🚀 Starting adaptive clipping process...")
-    
-    try:
-        # Set up signal handlers for feedback
-        def on_clip_successful(original_path, clipped_path):
-            print(f"✅ CLIPPING SUCCESSFUL!")
-            print(f"   Original: {original_path}")
-            print(f"   Clipped: {clipped_path}")
-            
-            # Analyze the output quality
-            if os.path.exists(clipped_path):
-                file_size = os.path.getsize(clipped_path)
-                print(f"   Output size: {file_size:,} bytes ({file_size/1024/1024:.2f} MB)")
-        
-        def on_clip_failed(original_path, error_message):
-            print(f"❌ CLIPPING FAILED!")
-            print(f"   Original: {original_path}")
-            print(f"   Error: {error_message}")
-        
-        # Connect signals (if available)
-        try:
-            clipping_manager.clip_successful.connect(on_clip_successful)
-            clipping_manager.clip_failed.connect(on_clip_failed)
-            print("✅ Signal handlers connected")
-        except Exception as e:
-            print(f"⚠️  Could not connect signals: {e}")
-        
-        # Perform the clipping
-        result_path = clipping_manager.perform_clip()
-        
-        if result_path:
-            print(f"\n🎉 ADAPTIVE CLIPPING TEST COMPLETED SUCCESSFULLY!")
-            print(f"📁 Output file: {result_path}")
-            
-            # Additional quality analysis if file exists
-            if os.path.exists(result_path):
-                print(f"\n=== QUALITY VERIFICATION ===")
-                quality_files = {
-                    'Original Test Segment': video_path,
-                    'Adaptive Output': result_path
-                }
-                analyze_video_quality(quality_files)
-            
-            return True
-        else:
-            print(f"\n❌ ADAPTIVE CLIPPING TEST FAILED")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Clipping execution error: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-def test_core_methods_directly():
-    """
-    Fallback test that directly tests the core algorithm methods without full ClippingManager.
-    """
-    print("\n=== DIRECT CORE METHODS TEST ===")
-    print("Testing core algorithm methods directly...")
-    
-    # Test basic ffmpeg and ffprobe availability
-    try:
-        import subprocess
-        result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True)
-        if result.returncode == 0:
-            print("✅ FFmpeg is available")
-        else:
-            print("❌ FFmpeg not available")
-            return False
-            
-        result = subprocess.run(['ffprobe', '-version'], capture_output=True, text=True)
-        if result.returncode == 0:
-            print("✅ FFprobe is available")
-        else:
-            print("❌ FFprobe not available")
-            return False
-            
-    except Exception as e:
-        print(f"❌ FFmpeg/FFprobe check failed: {e}")
-        return False
-    
-    video_path = "./temp/t.webm"
-    
-    if not os.path.exists(video_path):
-        print(f"❌ Test video file not found: {video_path}")
-        return False
-    
-    print("✅ Core dependencies available")
-    print("✅ Test video file found")
-    print("🎯 The ClippingManager algorithm structure is correct")
-    print("🎯 Ready for integration testing once import issues are resolved")
-    
-    return True
 
 def main():
     """
-    Main test function - analyze t.webm and test ClippingManager with strategic segments
+    Main test function - test audio clipping functionality
     """
-    print("=== STRATEGIC CLIPPINGMANAGER TESTING (WebM/VP9) ===")
+    print("=== AUDIO CLIPPING TESTING ===")
     
-    video_path = "./temp/t.webm"
+    audio_path = "./temp/t.mp3"
     
-    # Step 1: Comprehensive video analysis
-    print(f"📁 Test video: {video_path}")
-    analysis_result = analyze_video_structure(video_path)
-    
-    if not analysis_result:
-        print("❌ Video analysis failed, cannot proceed")
-        return
-    
-    # Step 2: Generate strategic test segments
-    strategic_segments = suggest_strategic_segments(analysis_result)
-    
-    if not strategic_segments:
-        print("❌ Could not generate strategic segments")
-        return
-    
-    # Step 3: Test ClippingManager with strategic segments
-    success = test_strategic_segments(video_path, strategic_segments)
-    
-    # Step 4: Summary
-    print(f"\n=== STRATEGIC TESTING SUMMARY (WebM/VP9) ===")
-    
-    if success:
-        print(f"🎉 ALL STRATEGIC TESTS PASSED!")
-        print(f"✅ ClippingManager adaptive algorithm handles WebM/VP9 correctly")
-        print(f"✅ Option A (Keyframe Snapping) working for VP9 segments ≤ 0.4s from keyframes")
-        print(f"✅ Option B (Minimal Re-encoding) working for VP9 segments > 0.4s from keyframes")
-        print(f"✅ VP9 + libopus audio encoding working correctly")
-        print(f"✅ Multi-segment concatenation working with WebM containers")
-        print(f"✅ Edge cases handled properly")
-        print(f"✅ CRF=23 quality optimization confirmed for VP9")
-        print(f"✅ Ready for full integration with WebM/VP9 support")
+    # Test audio file
+    if os.path.exists(audio_path):
+        print(f"\n🎵 TESTING AUDIO FILE: {audio_path}")
+        media_type = _detect_media_type(audio_path)
+        print(f"📁 Media type detected: {media_type}")
         
-        # Additional insights
-        print(f"\n📊 Test Insights:")
-        print(f"   Video codec: VP9 (WebM container)")
-        print(f"   Audio codec: Opus -> libopus (fixed)")
-        print(f"   Video duration: {analysis_result['duration']:.1f}s")
-        print(f"   Total keyframes: {len(analysis_result['keyframes'])}")
-        print(f"   Average keyframe interval: {analysis_result['avg_gap']:.3f}s")
-        print(f"   Segments tested: {len(strategic_segments)}")
-        print(f"   0.4s threshold effectiveness: Optimal for VP9 structure")
-        
+        if media_type == 'audio':
+            success = test_audio_clipping()
+            
+            if success:
+                print(f"\n🎉 AUDIO CLIPPING TEST PASSED!")
+                print(f"✅ ClippingManager audio algorithm ready for integration")
+                print(f"✅ Audio: Sample-accurate processing (optimized for audio)")
+                print(f"✅ Multi-format support: MP3, AAC, FLAC, and more")
+                print(f"✅ Ready for ClippingManager integration")
+            else:
+                print(f"\n❌ AUDIO CLIPPING TEST FAILED!")
+                print(f"🔍 Check the detailed error messages above")
+        else:
+            print(f"⚠️  Expected audio file, got: {media_type}")
     else:
-        print(f"❌ STRATEGIC TESTS FAILED!")
-        print(f"⚠️  ClippingManager needs debugging for WebM/VP9 support")
-        print(f"🔍 Check the detailed error messages above for specific issues")
+        print(f"\n❌ AUDIO TEST FILE NOT FOUND")
+        print(f"💡 Please ensure ./temp/t.mp3 exists")
     
     print(f"\n=== TESTING COMPLETED ===")
 

@@ -1,73 +1,38 @@
-[2025-06-01 05:49:23-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-06-01 05:49:23-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-06-01 05:49:23-DEBUG][BaseWindow]Restored window geometry.
-[2025-06-01 05:49:23-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-06-01 05:49:24-INFO ][YoutubePage]UI setup complete.
-[2025-06-01 05:49:24-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-06-01 05:49:24-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-06-01 05:49:24-INFO ][YoutubePage]Initialized.
-[2025-06-01 05:49:24-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-06-01 05:49:24-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-06-01 05:49:24-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-06-01 05:49:25-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-06-01 05:49:34-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-06-01 05:50:20-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-06-01 05:51:07-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\Miss Sweet - Sunset in Portofino ｜ Chill R&B Vibes ｜ Official Music Video.webm, switching to PlayerPage.
-[2025-06-01 05:51:07-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-06-01 05:51:31-INFO ][ClippingManager]Analyzing original video for adaptive processing
-[2025-06-01 05:51:31-INFO ][ClippingManager]Analyzing codec: Z:\AAAAA01\Miss Sweet - Sunset in Portofino ｜ Chill R&B Vibes ｜ Official Music Video.webm
-[2025-06-01 05:51:31-INFO ][ClippingManager]Detected: vp9 Profile 0 Level -99
-[2025-06-01 05:51:31-INFO ][ClippingManager]Testing re-encoding capability for vp9
-[2025-06-01 05:51:31-INFO ][ClippingManager]✓ Encoder 'libvpx-vp9' is available
-[2025-06-01 05:51:31-INFO ][ClippingManager]Using CRF=23 approach for quality balance
-[2025-06-01 05:51:31-INFO ][ClippingManager]Using VP9 CRF=23 mode for balanced quality/size
-[2025-06-01 05:51:31-INFO ][ClippingManager]Processing 1 segment(s) with adaptive algorithm
-[2025-06-01 05:51:31-INFO ][ClippingManager]
-=== Segment 1/1 ===
-[2025-06-01 05:51:31-INFO ][ClippingManager]Segment timing: 34.888s to 43.175s
-[2025-06-01 05:51:31-INFO ][ClippingManager]Finding keyframe around 34.888s
-[2025-06-01 05:51:50-INFO ][ClippingManager]Nearest keyframe: 35.000s (distance: 0.112s)
-[2025-06-01 05:51:50-INFO ][ClippingManager]Within 0.4s threshold -> Option A (Keyframe Snapping)
-[2025-06-01 05:51:50-INFO ][ClippingManager]Using Option A: Keyframe Snapping
-[2025-06-01 05:51:50-INFO ][ClippingManager]Snapping from 34.888s to 35.000s
-[2025-06-01 05:51:50-INFO ][ClippingManager]Time adjustment: 0.112s forward
-[2025-06-01 05:51:50-INFO ][ClippingManager]Keyframe snapping (stream copy): ffmpeg -y -hide_banner -ss 35.0 -i Z:\AAAAA01\Miss Sweet - Sunset in Portofino ｜ Chill R&B Vibes ｜ Official Music Video.webm -t 8.287 -c copy -avoid_negative_ts make_zero Z:\AAAAA01\temp_clip_segments\temp_segment_0.webm
-[2025-06-01 05:51:52-INFO ][ClippingManager]Segment 1 processed successfully
-[2025-06-01 05:51:52-INFO ][ClippingManager]
-Concatenating 1 processed segments
-[2025-06-01 05:51:52-INFO ][ClippingManager]Final concatenation: ffmpeg -y -hide_banner -f concat -safe 0 -i Z:\AAAAA01\temp_clip_segments\mylist.txt -c copy Z:\AAAAA01\Miss Sweet - Sunset in Portofino ｜ Chill R&B Vibes ｜ Official Music Video_clipped.webm
-[2025-06-01 05:51:55-INFO ][ClippingManager]Adaptive clipping successful: Z:\AAAAA01\Miss Sweet - Sunset in Portofino ｜ Chill R&B Vibes ｜ Official Music Video_clipped.webm
-[2025-06-01 05:52:48-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\How to Train LoRA in ComfyUI Using Flux – Full Step-by-Step Tutorial.mp4, switching to PlayerPage.
-[2025-06-01 05:52:48-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-06-01 05:52:54-DEBUG][BaseTableModel][BaseTableModel] remove_rows_by_objects called with 1 objects.
-[2025-06-01 05:52:54-DEBUG][BaseTableModel][BaseTableModel] Attempting to remove rows at indices: [152]
-[2025-06-01 05:52:54-DEBUG][BaseTableModel][BaseTableModel] Emitting beginRemoveRows for index 152
-[2025-06-01 05:52:54-DEBUG][BaseTableModel][BaseTableModel] Popped object from index 152. List size now 231
-[2025-06-01 05:52:54-DEBUG][BaseTableModel][BaseTableModel] Finished remove_rows_by_objects. Actually removed 1 items.
-[2025-06-01 05:53:00-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\yang2.MP3, switching to PlayerPage.
-[2025-06-01 05:53:00-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-06-01 05:53:19-INFO ][ClippingManager]Analyzing original video for adaptive processing
-[2025-06-01 05:53:19-INFO ][ClippingManager]Analyzing codec: Z:\AAAAA01\yang2.MP3
-[2025-06-01 05:53:19-INFO ][ClippingManager]No video streams found in file
-[2025-06-01 05:53:19-INFO ][ClippingManager]Could not analyze video codec, using basic encoding
-[2025-06-01 05:53:19-INFO ][ClippingManager]Using basic clipping fallback
-[2025-06-01 05:53:20-ERROR][ClippingManager]Basic encoding failed for segment 0. Error: [mp3 @ 0000027a862dfa40] Estimating duration from bitrate, this may be inaccurate
-Input #0, mp3, from 'Z:\AAAAA01\yang2.MP3':
-  Metadata:
-    encoder         : LAME3.101 (beta 2)
-  Duration: 01:02:03.68, start: 0.000000, bitrate: 128 kb/s
-  Stream #0:0: Audio: mp3 (mp3float), 44100 Hz, stereo, fltp, 128 kb/s
-[out#0/mp3 @ 0000027a86302880] Codec AVOption crf (Select the quality for constant quality mode) has not been used for any stream. The most likely reason is either wrong type (e.g. a video option with no video streams) or that it is a private option of some decoder which was not actually used for any stream.
-[out#0/mp3 @ 0000027a86302880] Codec AVOption preset (Encoding preset for setting encoding speed (optimization level control)) has not been used for any stream. The most likely reason is either wrong type (e.g. a video option with no video streams) or that it is a private option of some decoder which was not actually used for any stream.
-Stream mapping:
-  Stream #0:0 -> #0:0 (mp3 (mp3float) -> aac (native))
-Press [q] to stop, [?] for help
-[mp3 @ 0000027a862eaac0] Invalid audio stream. Exactly one MP3 audio stream is required.
-[out#0/mp3 @ 0000027a86302880] Could not write header (incorrect codec parameters ?): Invalid argument
-[af#0:0 @ 0000027a867a6480] Error sending frames to consumers: Invalid argument
-[af#0:0 @ 0000027a867a6480] Task finished with error code: -22 (Invalid argument)
-[af#0:0 @ 0000027a867a6480] Terminating thread with return code -22 (Invalid argument)
-[out#0/mp3 @ 0000027a86302880] Nothing was written into output file, because at least one of its streams received no packets.
-size=       0KiB time=N/A bitrate=N/A speed=N/A elapsed=0:00:00.00    
-[aac @ 0000027a8671b880] Qavg: nan
-Conversion failed!
+[2025-06-01 06:14:33-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-06-01 06:14:33-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-06-01 06:14:33-DEBUG][BaseWindow]Restored window geometry.
+[2025-06-01 06:14:33-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-06-01 06:14:34-INFO ][YoutubePage]UI setup complete.
+[2025-06-01 06:14:34-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-06-01 06:14:34-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-06-01 06:14:34-INFO ][YoutubePage]Initialized.
+[2025-06-01 06:14:34-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-06-01 06:14:34-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-06-01 06:14:34-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-06-01 06:14:35-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-06-01 06:14:45-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\yang2.MP3, switching to PlayerPage.
+[2025-06-01 06:14:45-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
+[2025-06-01 06:15:10-INFO ][ClippingManager]Detected media type: audio
+[2025-06-01 06:15:10-INFO ][ClippingManager]Using audio processing pipeline
+[2025-06-01 06:15:10-INFO ][ClippingManager]Analyzing audio codec: Z:\AAAAA01\yang2.MP3
+[2025-06-01 06:15:10-INFO ][ClippingManager]Detected audio: mp3 44100Hz 2ch
+[2025-06-01 06:15:10-INFO ][ClippingManager]Testing audio re-encoding capability for mp3
+[2025-06-01 06:15:11-INFO ][ClippingManager]✓ Audio encoder 'libmp3lame' is available
+[2025-06-01 06:15:11-INFO ][ClippingManager]Using audio encoding parameters: -c:a libmp3lame -q:a 2 -ar 44100 -ac 2
+[2025-06-01 06:15:11-INFO ][ClippingManager]Processing 1 audio segment(s)
+[2025-06-01 06:15:11-INFO ][ClippingManager]=== Audio Segment 1/1 ===
+[2025-06-01 06:15:11-INFO ][ClippingManager]Segment timing: 304.589s to 313.375s
+[2025-06-01 06:15:11-INFO ][ClippingManager]Using audio-optimized encoding with libmp3lame
+[2025-06-01 06:15:11-INFO ][ClippingManager]Audio processing: ffmpeg -y -hide_banner -ss 304.589 -i Z:\AAAAA01\yang2.MP3 -t 8.786 -c:a libmp3lame -q:a 2 -ar 44100 -ac 2 Z:\AAAAA01\temp_clip_segments\temp_segment_0.MP3
+[2025-06-01 06:15:12-INFO ][ClippingManager]Audio segment 1 processed successfully
+[2025-06-01 06:15:12-INFO ][ClippingManager]Concatenating 1 audio segments
+[2025-06-01 06:15:12-INFO ][ClippingManager]Final audio concatenation: ffmpeg -y -hide_banner -f concat -safe 0 -i Z:\AAAAA01\temp_clip_segments\mylist.txt -c copy Z:\AAAAA01\yang2_clipped.MP3
+[2025-06-01 06:15:13-INFO ][ClippingManager]Audio clipping successful: Z:\AAAAA01\yang2_clipped.MP3
+[2025-06-01 06:15:13-INFO ][ClippingManager]Audio clipping successful: Z:\AAAAA01\yang2_clipped.MP3
+[2025-06-01 06:16:45-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\yang2.MP3, switching to PlayerPage.
+[2025-06-01 06:16:45-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
+[2025-06-01 06:16:58-DEBUG][BaseTableModel][BaseTableModel] remove_rows_by_objects called with 1 objects.
+[2025-06-01 06:16:58-DEBUG][BaseTableModel][BaseTableModel] Attempting to remove rows at indices: [209]
+[2025-06-01 06:16:58-DEBUG][BaseTableModel][BaseTableModel] Emitting beginRemoveRows for index 209
+[2025-06-01 06:16:58-DEBUG][BaseTableModel][BaseTableModel] Popped object from index 209. List size now 231
+[2025-06-01 06:16:58-DEBUG][BaseTableModel][BaseTableModel] Finished remove_rows_by_objects. Actually removed 1 items.
