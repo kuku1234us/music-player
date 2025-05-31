@@ -57,7 +57,6 @@ class HotkeyHandler(QObject):
             Qt.Key.Key_F12: self._request_toggle_full_screen,
             Qt.Key.Key_B: self._mark_clip_begin,
             Qt.Key.Key_E: self._mark_clip_end,
-            Qt.Key.Key_C: self._perform_clip,
             Qt.Key.Key_A: self._frame_backward,   # A key for one frame backward
             Qt.Key.Key_F: self._frame_forward,    # F key for one frame forward
             # Add more hotkeys as needed
@@ -106,6 +105,11 @@ class HotkeyHandler(QObject):
             elif key == Qt.Key.Key_Right:
                 if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
                     self._seek_forward_4x()
+                    return True
+            # --- NEW: Handle Ctrl+S for clipping ---
+            elif key == Qt.Key.Key_S:
+                if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
+                    self._perform_clip()
                     return True
         # -----------------------------------------------------------------
         
@@ -239,7 +243,7 @@ class HotkeyHandler(QObject):
                 # print(f"[HotkeyHandler] Could not get current position to mark end.")
 
     def _perform_clip(self):
-        """Initiates the clipping process using the currently set markers."""
+        """Initiates the clipping process using Ctrl+S hotkey combination."""
         if self.main_player.current_media_path: # Basic check: media must be loaded
             # print(f"[HotkeyHandler] Perform clip requested.") # For debugging
             self.clipping_manager.perform_clip()

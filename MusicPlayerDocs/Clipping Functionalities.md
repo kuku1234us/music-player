@@ -53,12 +53,108 @@ The actual clipping of the media file is handled by the `ClippingManager` model 
     - The original file extension is preserved.
     - Example: If the original file is `MySong.mp3`, clipping it will create `MySong_clipped.mp3`. If that already exists, it will create `MySong_clipped_1.mp3`.
 - **FFmpeg Process:**
+
   - The `perform_clip()` method orchestrates the clipping.
   - It uses the `ffmpeg` command-line interface (CLI) tool.
-  - **No Re-encoding:** To ensure speed and preserve quality, `ffmpeg` is instructed to perform the clip without re-encoding the audio or video streams (using `-c copy`).
+  - **Multi-Segment Processing:** The system supports multiple non-contiguous segments selected by the user. Each segment is processed individually using the adaptive keyframe-aware approach described below.
+  - **Adaptive Keyframe-Aware Processing:** To ensure both speed and video quality, the system uses an intelligent approach that adapts based on keyframe positions for each segment:
+
+    **Step 1: Segment Iteration and Keyframe Analysis**
+
+    - Iterates through each segment in the `_segments` list: `[(start_ms, end_ms), ...]`
+    - For each segment, uses `ffprobe` to detect keyframe positions around that segment's start time
+    - Analyzes if the segment's start point is within 0.4 seconds of an existing keyframe (backward or forward)
+
+    **Step 2: Per-Segment Processing Strategy Selection**
+
+    - **Option A - Keyframe Snapping (Fast):** If segment start point is within 0.4 seconds of a keyframe:
+
+      - Snaps the start time to the nearest keyframe position for this segment
+      - Uses pure stream copy (`-c copy`) for maximum speed and quality preservation
+      - Reports the time adjustment for this specific segment to the user in terminal output
+      - Results in slightly adjusted timing but instantaneous processing for this segment
+
+    - **Option B - Minimal Re-encoding (Precise):** If segment start point is far from keyframes:
+
+      - **Phase 1:** Re-encodes only from segment start time to the first keyframe after start (~1-3 seconds typically)
+        - Uses the same codec and bitrate as the original video for consistency
+        - Forces a keyframe at the exact start position to eliminate black screens
+      - **Phase 2:** Stream copies from the first keyframe to the segment end time (bulk of the segment)
+      - **Phase 3:** Concatenates the re-encoded beginning with the stream-copied remainder for this segment
+      - Results in frame-accurate timing with minimal quality impact for this segment
+
+    - **Option C - Unsupported Codec Fallback:**
+      - **Trigger Condition:** When original video codec is not supported by available FFmpeg encoders
+      - **Enhanced Keyframe Snapping Strategy:**
+        - **Extended Search Range:** Unlike Option A, search beyond the 0.4s threshold if necessary
+        - **Backward Preference:** Prefer snapping to the nearest keyframe BEFORE the selection point
+          - **This ensures no content loss from the user's intended selection**
+          - **Maintains the user's desired starting content while achieving clean video start**
+        - **Time Adjustment Reporting:** Inform user of the larger time adjustment made due to codec limitations
+        - **Pure Stream Copy:** Use `-c copy` for the entire segment (no re-encoding required)
+      - **Fallback Hierarchy:**
+        - **1st Priority:** Nearest keyframe before selection point (regardless of distance)
+        - **2nd Priority:** Nearest keyframe after selection point (if no prior keyframe exists)
+        - **3rd Priority:** If no keyframes found, fall back to full re-encoding with supported codec
+      - **User Communication:**
+        - **Log clear message:** "Original codec [codec_name] not supported for re-encoding"
+        - **Report:** "Using enhanced keyframe snapping, adjusted start time by [X.X] seconds"
+        - **Explain:** "This ensures fast processing while maintaining video quality"
+
+    **Step 3: Multi-Segment Concatenation**
+
+    - After all segments are processed individually, concatenates all segment files into a single output
+    - Uses FFmpeg's concat demuxer for seamless joining of multiple segments
+    - Each segment maintains its individual processing quality (keyframe-snapped or minimally re-encoded)
+
+    **Step 4: User Feedback Per Segment**
+
+    - Logs the chosen processing method (Option A, B, or C) for each segment in terminal output
+    - Reports any timing adjustments made for keyframe snapping scenarios per segment
+    - Indicates the amount of content that was re-encoded vs stream-copied for each segment
+    - Provides overall summary of processing efficiency across all segments
+
+  - **Original Video Analysis:** Before processing any segments, the system analyzes the original video to determine:
+
+    - Codec type (H.264, H.265, etc.)
+    - Bitrate and quality settings
+    - Keyframe interval (GOP size)
+    - These parameters are used to match encoding settings when re-encoding is necessary for any segment
+
+  - **Critical Codec Consistency Requirement:** When using minimal re-encoding (Option B), the system must ensure perfect codec matching to prevent playback failures:
+
+    **Why Codec Matching is Essential:**
+
+    - **Playback Compatibility:** Mixed codecs within a single file cause player confusion, decoding errors, or complete playback failure
+    - **Container Limitations:** MP4/MKV containers expect consistent codec parameters throughout the video stream
+    - **Metadata Integrity:** File metadata becomes inconsistent with mixed codecs, confusing media analyzers and players
+
+    **Codec Detection Process:**
+
+    - Uses `ffprobe` to extract detailed codec information: `codec_name`, `profile`, `level`, `bitrate`
+    - Identifies specific encoder parameters like H.264 profile (`high`, `main`, `baseline`) or H.265 tier/level
+    - Detects quality settings, frame rate, and other encoding parameters from original video
+
+    **Codec Matching Implementation:**
+
+    - **H.264 Videos:** Re-encode using `libx264` with identical profile, level, and bitrate settings
+    - **H.265/HEVC Videos:** Re-encode using `libx265` with matching profile, tier, level, and quality parameters
+    - **Other Codecs:** Match VP9 (`libvpx-vp9`), AV1, or other codecs with their respective encoders and settings
+    - **Quality Preservation:** Use same or equivalent quality settings (CRF, bitrate, preset) to maintain consistency
+
+    **Example Codec Matching:**
+
+    ```
+    Original: H.264 High Profile, Level 4.0, 2000kbps
+    Re-encoding: libx264 -profile:v high -level 4.0 -b:v 2000k
+
+    Original: H.265 Main Profile, Level 5.1, CRF 23
+    Re-encoding: libx265 -profile:v main -level 5.1 -crf 23
+    ```
+
   - **Timestamp Conversion:** Timestamps (begin and end markers) are converted from milliseconds to `HH:MM:SS.mmm` format required by `ffmpeg` using an internal helper `_ms_to_ffmpeg_time()`.
-  - **Command Execution:** `subprocess.Popen` is used to run `ffmpeg` in a non-blocking way, with `CREATE_NO_WINDOW` on Windows to hide the console.
-  - **Error Handling:** Includes checks for `ffmpeg` not found, command timeout, and other execution errors.
+  - **Command Execution:** `subprocess.Popen` is used to run `ffmpeg` and `ffprobe` in a non-blocking way, with `CREATE_NO_WINDOW` on Windows to hide the console.
+  - **Error Handling:** Includes checks for `ffmpeg`/`ffprobe` not found, command timeout, and other execution errors. Falls back to full re-encoding if hybrid approach fails for any segment.
   - **Success/Failure Signals:** Emits `clip_successful(original_path, clipped_path)` or `clip_failed(original_path, error_message)` signals.
 
 ## Milestone and Checklist
@@ -146,7 +242,7 @@ This section outlines the key milestones and a checklist for implementing the me
 - [ ] **(Optional) UI Buttons:**
   - [ ] Consider adding "Mark Begin", "Mark End", and "Clip" buttons to the player UI as alternatives to hotkeys.
 
-### Milestone 4: Post-Clipping Behavior
+### Milestone 4: Post-Clipping Behavior **(COMPLETED)**
 
 Once `ffmpeg` has successfully processed and created the new clipped media file:
 
@@ -167,28 +263,28 @@ This comprehensive post-clipping process ensures a seamless user experience wher
 
 **Implementation Checklist:**
 
-- [ ] **Handle `clip_successful` Signal (in `MainPlayer`):**
+- [x] **Handle `clip_successful` Signal (in `MainPlayer`):**
 
-  - [ ] Connect to `ClippingManager.instance().clip_successful` signal in `_connect_signals()` method.
-  - [ ] Create slot method `_on_clip_successful(self, original_path, clipped_path)` to handle the signal.
-  - [ ] **Mode Switch:** Set `self._playback_mode = 'single'` regardless of previous mode.
-  - [ ] **Clear Playlist Reference:** Set `self._current_playlist = None` to ensure clean single mode.
-  - [ ] **Load New Media:** Call `self.backend.load_media(clipped_path)` to load the clipped file.
-  - [ ] **Update Current Path:** Set `self.current_media_path = clipped_path`.
-  - [ ] **Start Playback:** Call `self.backend.play()` to start immediate playback.
-  - [ ] **Clear Clipping State:** Call `self.clipping_manager.clear_all_segments()` to reset markers.
-  - [ ] **Update UI:** Call `self.player_widget.set_next_prev_enabled(False)` to disable playlist controls.
-  - [ ] **Focus Management:** Call `self.setFocus()` to ensure hotkey functionality.
-  - [ ] **Signal Emission:** Emit `self.playback_mode_changed.emit('single')` to notify other components.
+  - [x] Connect to `ClippingManager.instance().clip_successful` signal in `_connect_signals()` method.
+  - [x] Create slot method `_on_clip_successful(self, original_path, clipped_path)` to handle the signal.
+  - [x] **Mode Switch:** Set `self._playback_mode = 'single'` regardless of previous mode.
+  - [x] **Clear Playlist Reference:** Set `self._current_playlist = None` to ensure clean single mode.
+  - [x] **Load New Media:** Call `self.backend.load_media(clipped_path)` to load the clipped file.
+  - [x] **Update Current Path:** Set `self.current_media_path = clipped_path`.
+  - [x] **Start Playback:** Call `self.backend.play()` to start immediate playback.
+  - [x] **Clear Clipping State:** Call `self.clipping_manager.clear_all_segments()` to reset markers.
+  - [x] **Update UI:** Call `self.player_widget.set_next_prev_enabled(False)` to disable playlist controls.
+  - [x] **Focus Management:** Call `self.setFocus()` to ensure hotkey functionality.
+  - [x] **Signal Emission:** Emit `self.playback_mode_changed.emit('single')` to notify other components.
 
-- [ ] **Handle `clip_failed` Signal (in `MainPlayer`):**
-  - [ ] Connect to `ClippingManager.instance().clip_failed` signal in `_connect_signals()` method.
-  - [ ] Create slot method `_on_clip_failed(self, original_path, error_message)` to handle failures.
-  - [ ] **Error Display:** Show `error_message` to user via `QMessageBox.critical()` or status notification.
-  - [ ] **State Preservation:** Maintain current playback mode and loaded media on failure.
-  - [ ] **Focus Restoration:** Call `self.setFocus()` to restore hotkey functionality after error dialog.
+- [x] **Handle `clip_failed` Signal (in `MainPlayer`):**
+  - [x] Connect to `ClippingManager.instance().clip_failed` signal in `_connect_signals()` method.
+  - [x] Create slot method `_on_clip_failed(self, original_path, error_message)` to handle failures.
+  - [x] **Error Display:** Show `error_message` to user via `QMessageBox.critical()` or status notification.
+  - [x] **State Preservation:** Maintain current playback mode and loaded media on failure.
+  - [x] **Focus Restoration:** Call `self.setFocus()` to restore hotkey functionality after error dialog.
 
-### Milestone 5: Integration and Testing **(PARTIALLY COMPLETE)**
+### Milestone 5: Integration and Testing **(UPDATED)**
 
 - [x] **`MainPlayer` Integration:**
   - [x] Ensure `ClippingManager.instance().set_media(current_media_path)` is called when a new media file is loaded in `MainPlayer`.
@@ -211,19 +307,274 @@ This comprehensive post-clipping process ensures a seamless user experience wher
   - [ ] **NEW:** Test that original media state is preserved on clipping failure.
   - [ ] **NEW:** Test multiple successive clipping operations in different modes.
   - [ ] **NEW:** Test clipping from playlist mode vs single mode behavior consistency.
+  - [ ] **ADAPTIVE PROCESSING TESTS:**
+    - [ ] **Keyframe Snapping Scenarios:**
+      - [ ] Test start point exactly on a keyframe (should snap with 0ms adjustment)
+      - [ ] Test start point 0.1s before keyframe (should snap backward)
+      - [ ] Test start point 0.3s after keyframe (should snap forward)
+      - [ ] Test start point exactly 0.4s from keyframe (boundary condition)
+      - [ ] Verify snapped clips start immediately without black screens
+      - [ ] Verify reported time adjustments match actual snapping
+      - [ ] Test that file sizes remain small (stream copy efficiency)
+    - [ ] **Minimal Re-encoding Scenarios:**
+      - [ ] Test start point 0.5s+ from any keyframe (should trigger re-encoding)
+      - [ ] Test start point mid-way between keyframes (worst-case scenario)
+      - [ ] Verify only beginning portion is re-encoded (check file analysis)
+      - [ ] Verify re-encoded portion matches original codec/bitrate
+      - [ ] Verify seamless concatenation without sync issues
+      - [ ] Test that resulting file starts immediately without black screens
+      - [ ] Verify processing time is reasonable (much faster than full re-encode)
+    - [ ] **Multi-Segment Specific Tests:**
+      - [ ] Test single segment (baseline functionality)
+      - [ ] Test two non-overlapping segments with different keyframe scenarios
+      - [ ] Test three+ segments with mixed processing methods (some snapped, some re-encoded)
+      - [ ] Test segments where first uses keyframe snapping, second uses minimal re-encoding
+      - [ ] Test segments with varying gaps between them (1s, 10s, 60s apart)
+      - [ ] Verify final output plays seamlessly across all segment boundaries
+      - [ ] Verify total duration matches sum of all segment durations (accounting for adjustments)
+      - [ ] Test segments with different characteristics (near keyframes vs far from keyframes)
+      - [ ] Verify per-segment logging reports correctly for each individual segment
+      - [ ] Test processing efficiency reporting across multiple segments
+    - [ ] **Multi-Segment Error Scenarios:**
+      - [ ] Test one segment failing while others succeed (partial processing)
+      - [ ] Test keyframe detection failing for one segment but working for others
+      - [ ] Test concatenation of successfully processed segments when one fails
+      - [ ] Verify user gets appropriate feedback about which segments failed
+      - [ ] Test recovery when individual segment re-encoding fails
+    - [ ] **Mixed Format Testing:**
+      - [ ] Test with H.264 videos (most common)
+      - [ ] Test with H.265/HEVC videos (newer codec)
+      - [ ] Test with different GOP sizes (1s, 2s, 5s intervals)
+      - [ ] Test with variable vs constant frame rate videos
+      - [ ] Test with different bitrates (low, medium, high quality)
+    - [ ] **Codec Matching and Compatibility Tests:**
+      - [ ] **H.264 Specific Tests:**
+        - [ ] Test H.264 High Profile videos (most common)
+        - [ ] Test H.264 Main Profile videos
+        - [ ] Test H.264 Baseline Profile videos
+        - [ ] Verify re-encoded portions match original profile exactly
+        - [ ] Test different H.264 levels (3.1, 4.0, 4.1, 5.1)
+        - [ ] Verify CABAC/CAVLC entropy coding preservation
+      - [ ] **H.265/HEVC Specific Tests:**
+        - [ ] Test H.265 Main Profile videos
+        - [ ] Test H.265 Main10 Profile (10-bit) videos
+        - [ ] Verify tier and level matching in re-encoded portions
+        - [ ] Test different bit depths (8-bit vs 10-bit)
+        - [ ] Verify pixel format preservation (yuv420p vs yuv420p10le)
+      - [ ] **Quality Consistency Tests:**
+        - [ ] Verify re-encoded portions have same bitrate as original
+        - [ ] Test CRF mode preservation vs bitrate mode preservation
+        - [ ] Verify frame rate consistency across re-encoded and stream-copied portions
+        - [ ] Test color space and color range preservation
+      - [ ] **Concatenation Compatibility Tests:**
+        - [ ] Verify no codec warnings during concatenation of mixed processing
+        - [ ] Test seamless playback across re-encoded/stream-copied boundaries
+        - [ ] Verify metadata consistency in final output file
+        - [ ] Test that media players correctly identify final file codec
+      - [ ] **Error Scenarios:**
+        - [ ] Test with unsupported or exotic codecs (verify graceful fallback)
+        - [ ] Test codec detection failure scenarios
+        - [ ] Test missing encoder scenarios (libx264/libx265 not available)
+        - [ ] Verify appropriate error messages for codec compatibility issues
+        - [ ] **Unsupported Codec Fallback Tests:**
+          - [ ] Test with rare/proprietary codecs not supported by FFmpeg for re-encoding
+          - [ ] Verify automatic fallback to Option C (Enhanced Keyframe Snapping)
+          - [ ] Test that all segments in multi-segment operation use consistent Option C approach
+          - [ ] Verify extended keyframe search beyond 0.4s threshold
+          - [ ] Test backward preference (keyframe before selection point)
+          - [ ] Verify user receives clear messaging about codec limitations and time adjustments
+          - [ ] Test processing speed remains fast with pure stream copy
+          - [ ] Verify no quality loss occurs during unsupported codec handling
+    - [ ] **Error Recovery Testing:**
+      - [ ] Test with videos where `ffprobe` fails
+      - [ ] Test with corrupted keyframe information
+      - [ ] Test with videos that have no clear keyframes
+      - [ ] Verify graceful fallback to full re-encoding
+      - [ ] Test concatenation failures and recovery
+    - [ ] **Performance Testing:**
+      - [ ] Measure processing time for keyframe snapping vs minimal re-encoding
+      - [ ] Compare output file sizes between methods
+      - [ ] Test with short clips (1-5 seconds) vs long clips (30+ seconds)
+      - [ ] Verify memory usage remains reasonable during processing
+      - [ ] **Multi-Segment Performance:**
+        - [ ] Measure processing time scaling with number of segments (1, 2, 5, 10 segments)
+        - [ ] Compare efficiency of multiple small segments vs few large segments
+        - [ ] Test memory usage with many segments being processed
+        - [ ] Verify temporary file cleanup works correctly with multiple segments
 
-### Milestone 7: Code Updates for New Specifications **(NEW)**
+### Milestone 7: Code Updates for New Specifications **(COMPLETED)**
 
-- [ ] **Update Filename Generation:**
-  - [ ] Modify `_generate_clipped_filename()` method in `ClippingManager` to use `_clipped` suffix instead of `(x)` numbering.
-  - [ ] Implement conflict resolution: `filename_clipped.ext` → `filename_clipped_1.ext` → `filename_clipped_2.ext`, etc.
-- [ ] **Update Hotkey Implementation:**
-  - [ ] **Remove old 'C' key mapping:** Remove `Qt.Key.Key_C: self._perform_clip` from `self.hotkeys` dictionary in `HotkeyHandler.__init__()`.
-  - [ ] **Add Ctrl+S detection:** Update `handle_key_press()` method in `HotkeyHandler` to detect `Ctrl+S` combination.
-  - [ ] **Add modifier key logic:** Implement logic to check for `Qt.KeyboardModifier.ControlModifier` with `Qt.Key.Key_S`.
-  - [ ] **Update method call:** Ensure `self._perform_clip()` is called when `Ctrl+S` is detected.
-  - [ ] **State validation:** Verify that `Ctrl+S` only works when media is loaded and segments are defined.
-  - [ ] Test that `Ctrl+S` doesn't conflict with other system shortcuts or application save operations.
+- [x] **Update Filename Generation:**
+  - [x] Modify `_generate_clipped_filename()` method in `ClippingManager` to use `_clipped` suffix instead of `(x)` numbering.
+  - [x] Implement conflict resolution: `filename_clipped.ext` → `filename_clipped_1.ext` → `filename_clipped_2.ext`, etc.
+- [x] **Update Hotkey Implementation:**
+  - [x] **Remove old 'C' key mapping:** Remove `Qt.Key.Key_C: self._perform_clip` from `self.hotkeys` dictionary in `HotkeyHandler.__init__()`.
+  - [x] **Add Ctrl+S detection:** Update `handle_key_press()` method in `HotkeyHandler` to detect `Ctrl+S` combination.
+  - [x] **Add modifier key logic:** Implement logic to check for `Qt.KeyboardModifier.ControlModifier` with `Qt.Key.Key_S`.
+  - [x] **Update method call:** Ensure `self._perform_clip()` is called when `Ctrl+S` is detected.
+  - [x] **State validation:** Verify that `Ctrl+S` only works when media is loaded and segments are defined.
+  - [x] Test that `Ctrl+S` doesn't conflict with other system shortcuts or application save operations.
+
+### Milestone 8: Adaptive Keyframe-Aware Processing **(NEW)**
+
+This milestone implements intelligent processing that adapts to keyframe positions to optimize both speed and quality for each segment individually.
+
+- [ ] **Multi-Segment Iteration Framework:**
+
+  - [ ] Implement loop to process each segment in `_segments` list individually
+  - [ ] Maintain processing state and results for each segment
+  - [ ] Handle empty segments list gracefully
+  - [ ] Collect processing statistics across all segments
+
+- [ ] **Per-Segment Keyframe Analysis Implementation:**
+
+  - [ ] Add `ffprobe` integration to detect keyframe positions for each segment
+  - [ ] Implement keyframe detection around each segment's start time selection
+  - [ ] Create method to find nearest keyframe within 0.4 second threshold per segment
+  - [ ] Handle `ffprobe` errors and missing keyframe data gracefully for individual segments
+
+- [ ] **Original Video Analysis (Once Per Operation):**
+
+  - [ ] **Single-Pass Codec Detection for All Segments:**
+
+    - [ ] Perform comprehensive video analysis once at the start of the clipping process
+    - [ ] Cache detected codec information for use across all segments in the operation
+    - [ ] Avoid redundant codec detection calls for each individual segment
+    - [ ] Store analysis results in memory for efficient access during multi-segment processing
+
+  - [ ] **Basic Video Information Extraction:**
+
+    - [ ] Extract codec information from source video (analyze once, use for all segments)
+    - [ ] Detect bitrate and quality settings of original
+    - [ ] Identify GOP (Group of Pictures) structure and keyframe interval
+    - [ ] Store these parameters for consistent re-encoding when needed across segments
+
+  - [ ] **Detailed Codec Analysis for Matching:**
+
+    - [ ] Use `ffprobe` to extract comprehensive codec data: `codec_name`, `profile`, `level`, `pix_fmt`
+    - [ ] **H.264 Specific Detection:**
+      - [ ] Identify H.264 profile (`high`, `main`, `baseline`, `constrained_baseline`)
+      - [ ] Extract level information (3.1, 4.0, 4.1, 5.1, etc.)
+      - [ ] Detect entropy coding method (CABAC/CAVLC)
+    - [ ] **H.265/HEVC Specific Detection:**
+      - [ ] Identify HEVC profile (`main`, `main10`, `main_still_picture`)
+      - [ ] Extract tier and level information (`main` tier, level 5.1, etc.)
+      - [ ] Detect bit depth (8-bit, 10-bit, 12-bit)
+    - [ ] **Quality Settings Detection:**
+      - [ ] Extract original bitrate (for constant bitrate mode)
+      - [ ] Determine quality method used (CRF, CQP, or bitrate)
+      - [ ] Identify frame rate and pixel format
+    - [ ] **Advanced Parameters:**
+      - [ ] Detect color space and color range information
+      - [ ] Extract aspect ratio and resolution details
+      - [ ] Identify B-frame patterns and reference frame count
+
+  - [ ] **Codec Compatibility Verification:**
+    - [ ] Verify that detected codec has corresponding FFmpeg encoder available
+    - [ ] Create encoder parameter mapping for re-encoding consistency
+    - [ ] **Unsupported Codec Detection:** Identify codecs that cannot be re-encoded by available FFmpeg encoders
+    - [ ] **Fallback Strategy Preparation:** When codec is unsupported, prepare alternative processing approach
+    - [ ] Validate that all detected parameters can be replicated in re-encoding (for supported codecs)
+
+- [ ] **Per-Segment Processing Strategy Selection:**
+
+  - [ ] **Option A Implementation (Keyframe Snapping) - Per Segment:**
+
+    - [ ] Snap each segment's start time to nearest keyframe within 0.4s threshold
+    - [ ] Use pure stream copy for entire segment operation
+    - [ ] Calculate and report time adjustment to user for each segment
+    - [ ] Ensure segment end time is also adjusted relative to new start time
+
+  - [ ] **Option B Implementation (Minimal Re-encoding) - Per Segment:**
+
+    - [ ] Find first keyframe at or after each segment's start time
+    - [ ] **Phase 1:** Re-encode from segment start to first keyframe with perfect codec matching
+      - [ ] **Codec Matching Implementation:**
+        - [ ] Use detected codec parameters from original video analysis
+        - [ ] **H.264 Re-encoding:** Configure `libx264` with identical profile, level, and entropy coding
+          - [ ] Apply detected profile: `-profile:v high/main/baseline`
+          - [ ] Match level constraint: `-level 4.0` (or detected level)
+          - [ ] Preserve entropy coding: auto-detected through profile
+        - [ ] **H.265/HEVC Re-encoding:** Configure `libx265` with identical profile, tier, and level
+          - [ ] Apply detected profile: `-profile:v main/main10`
+          - [ ] Match tier and level: `-level 5.1` (or detected values)
+          - [ ] Preserve bit depth: `-pix_fmt yuv420p/yuv420p10le`
+        - [ ] **Quality Parameter Matching:**
+          - [ ] For bitrate mode: Use `-b:v` with detected original bitrate
+          - [ ] For CRF mode: Use `-crf` with equivalent quality level
+          - [ ] Preserve frame rate: `-r` with original fps
+        - [ ] **Advanced Parameter Preservation:**
+          - [ ] Match color space: `-colorspace` and `-color_primaries`
+          - [ ] Preserve aspect ratio and pixel format
+          - [ ] Apply same GOP settings when possible
+      - [ ] Force keyframe at exact start position: `-force_key_frames expr:gte(t,0)`
+      - [ ] Use high-speed preset for quick processing: `-preset fast/ultrafast`
+      - [ ] **Verification:** Ensure re-encoded output matches original codec signature
+    - [ ] **Phase 2:** Stream copy from first keyframe to segment end
+      - [ ] Use pure stream copy (`-c copy`) for remainder of segment
+      - [ ] Verify keyframe alignment for seamless concatenation
+    - [ ] **Phase 3:** Concatenate re-encoded beginning with stream-copied remainder for this segment
+      - [ ] Use FFmpeg concat demuxer with identical codec parameters
+      - [ ] Verify no codec mismatches in concatenation list
+      - [ ] Ensure seamless joining without sync issues or codec conflicts
+      - [ ] Verify segment output duration matches expected
+      - [ ] **Quality Verification:** Confirm re-encoded portion is indistinguishable from original
+
+  - [ ] **Option C Implementation (Unsupported Codec Fallback) - Per Segment:**
+    - [ ] **Trigger Condition:** When original video codec is not supported by available FFmpeg encoders
+    - [ ] **Enhanced Keyframe Snapping Strategy:**
+      - [ ] Find nearest keyframe to the user's selected start time (both backward and forward)
+      - [ ] **Extended Search Range:** Unlike Option A, search beyond the 0.4s threshold if necessary
+      - [ ] **Backward Preference:** Prefer snapping to the nearest keyframe BEFORE the selection point
+        - [ ] This ensures no content loss from the user's intended selection
+        - [ ] Maintains the user's desired starting content while achieving clean video start
+      - [ ] **Time Adjustment Reporting:** Inform user of the larger time adjustment made due to codec limitations
+      - [ ] **Pure Stream Copy:** Use `-c copy` for the entire segment (no re-encoding required)
+    - [ ] **Fallback Hierarchy:**
+      - [ ] 1st Priority: Nearest keyframe before selection point (regardless of distance)
+      - [ ] 2nd Priority: Nearest keyframe after selection point (if no prior keyframe exists)
+      - [ ] 3rd Priority: If no keyframes found, fall back to full re-encoding with supported codec
+    - [ ] **User Communication:**
+      - [ ] Log clear message: "Original codec [codec_name] not supported for re-encoding"
+      - [ ] Report: "Using enhanced keyframe snapping, adjusted start time by [X.X] seconds"
+      - [ ] Explain: "This ensures fast processing while maintaining video quality"
+
+- [ ] **Multi-Segment Concatenation:**
+
+  - [ ] Collect all processed segment files into concatenation list
+  - [ ] Use FFmpeg's concat demuxer to join all segments into final output
+  - [ ] Handle mixed processing types (some snapped, some re-encoded) seamlessly
+  - [ ] Clean up individual segment temporary files after successful concatenation
+
+- [ ] **Per-Segment User Feedback and Logging:**
+
+  - [ ] Log selected processing method (Option A, B, or C) for each individual segment
+  - [ ] Report time adjustments for keyframe snapping scenarios per segment
+  - [ ] Display amount of content re-encoded vs stream-copied for each segment
+  - [ ] Show processing speed and quality metrics per segment
+  - [ ] Provide overall summary: total segments, methods used, efficiency across operation
+  - [ ] Report any fallback to full re-encoding if hybrid approach fails for specific segments
+
+- [ ] **Error Handling and Fallbacks (Per Segment):**
+
+  - [ ] Handle `ffprobe` failures gracefully for individual segments
+  - [ ] **Unsupported Codec Handling:**
+    - [ ] Detect when original codec has no corresponding FFmpeg encoder available
+    - [ ] Automatically switch to Option C (Enhanced Keyframe Snapping) for ALL segments
+    - [ ] Log codec compatibility issue and chosen fallback method for user awareness
+    - [ ] Continue processing all segments using consistent fallback approach
+  - [ ] Fallback to full re-encoding for specific segments if keyframe detection fails
+  - [ ] Fallback to full re-encoding for specific segments if concatenation fails
+  - [ ] Continue processing remaining segments if one segment fails (with user notification)
+  - [ ] **Multi-Segment Consistency:** When one segment requires Option C due to unsupported codec, apply Option C to ALL segments for consistency
+  - [ ] Maintain existing error reporting through signals
+
+- [ ] **Quality Assurance (Across All Segments):**
+  - [ ] Verify output video starts immediately without black screens
+  - [ ] Ensure audio/video sync is maintained across all segments
+  - [ ] Validate that re-encoded portions match original quality for each segment
+  - [ ] Confirm file sizes are reasonable across all processing methods used
+  - [ ] Test seamless playback across segment boundaries in final output
 
 ### Data Structure for Markers
 
@@ -247,169 +598,4 @@ markers_updated = pyqtSignal(str, object, list)  # (media_path, pending_begin_ms
 
 This multi-segment structure allows users to define multiple non-contiguous segments from a single media file, which are then merged into a single output file during the clipping process.
 
-Once `ffmpeg` has successfully processed and created the new clipped media file:
-
-- **Automatic Playback:** The newly created clipped file will automatically be loaded into the main player.
-- **Playback State:** Playback of the new clip will commence from the beginning of the clipped segment.
-- **Timeline Reset:** The "Beginning" and "End" markers on the timeline will be cleared, as they pertained to the original, unclipped file.
-- **Focus:** The player should ideally regain focus.
-
-This comprehensive process ensures a user-friendly way to edit media files directly within the application.
-
-### Milestone 6: Multi-Segment Clipping Refactor
-
-This milestone refactors the clipping functionality to support defining and clipping multiple segments from a single media file. The segments will then be merged into a single output file.
-
-**Interaction Model for Multi-Segment Marking:**
-
-- Pressing `B` sets a "pending" begin marker.
-- Pressing `E` (when a "pending" begin marker exists) defines a segment (Begin-End pair) and adds it to a list of segments. The "pending" begin marker is then cleared.
-- Users can repeat this B-E process to define multiple segments.
-- Pressing `Ctrl+s` initiates the clipping and merging of all defined segments, saving the result to a new file.
-
-**New Hotkeys:**
-
-- `Shift + B`: Clear the current "pending" begin marker (if one is set).
-- `Shift + E`: Clear the last added segment from the list.
-- `Shift + Delete` (or `Shift + Backspace`): Clear all defined segments and any pending begin marker.
-
-**A. `ClippingManager` Refactor (`music_player.models.ClippingManager`):**
-
-- [x] **Data Structure for Segments:**
-  - [x] Change internal storage from single `_begin_marker_ms` and `_end_marker_ms` to:
-    - [x] `_pending_begin_marker_ms: Optional[int]` (for the current `B` press).
-    - [x] `_segments: List[Tuple[int, int]]` (list of (start_ms, end_ms) tuples for defined segments).
-- [x] **Update `markers_updated` Signal:**
-  - [x] Modify the `markers_updated` signal to emit the `media_path`, the `_pending_begin_marker_ms`, and the full list of `_segments`.
-  - [x] Example: `markers_updated = pyqtSignal(str, object, list)`
-- [x] **Refactor Marker Management Methods:**
-  - [x] `mark_begin(timestamp_ms)`:
-    - [x] Sets `_pending_begin_marker_ms = timestamp_ms`.
-    - [x] Emits `markers_updated`.
-  - [x] `mark_end(timestamp_ms)`:
-    - [x] If `_pending_begin_marker_ms` exists and `timestamp_ms > _pending_begin_marker_ms`:
-      - [x] Add `(_pending_begin_marker_ms, timestamp_ms)` to `_segments`.
-      - [x] Clear `_pending_begin_marker_ms` (set to `None`).
-      - [x] Emits `markers_updated`.
-    - [x] Else (no pending begin, or end is before begin), do nothing or log a warning.
-  - [x] `clear_pending_begin_marker()`: (New method for `Shift + B`)
-    - [x] Sets `_pending_begin_marker_ms` to `None`.
-    - [x] Emits `markers_updated`.
-  - [x] `clear_last_segment()`: (New method for `Shift + E`)
-    - [x] If `_segments` is not empty, remove the last segment.
-    - [x] Emits `markers_updated`.
-  - [x] `clear_all_segments()`: (New method for `Shift + Delete`, replaces `clear_all_markers`)
-    - [x] Clear `_pending_begin_marker_ms` to `None`.
-    - [x] Clear `_segments` to an empty list.
-    - [x] Emits `markers_updated`.
-- [x] **Refactor `set_media(media_path)`:**
-  - [x] When media path changes, clear `_pending_begin_marker_ms` and `_segments` before emitting `markers_updated` for the new media.
-- [x] **Segment Processing for `perform_clip()`:**
-  - [x] If `_segments` is empty, emit `clip_failed` (or do nothing).
-  - [x] **Sort Segments:** Sort `_segments` by their start times to ensure correct order.
-  - [x] **Merge Overlapping/Adjacent Segments (Optional but Recommended):** Implement logic to merge segments that overlap or are directly adjacent to simplify the ffmpeg command.
-    - [x] Example: `[(0, 10), (5, 15)]` becomes `[(0, 15)]`. `[(0,10), (10,20)]` becomes `[(0,20)]`.
-  - [x] **Generate FFmpeg Command for Multiple Segments:**
-    - [x] This is the most complex part. The `-c copy` approach for a single segment is simple. For merging multiple segments without re-encoding, `ffmpeg` typically requires using the `concat` demuxer or complex filtergraphs.
-    - **Option 1 (Concat Demuxer):**
-      - [x] For each segment `(start, end)` in the (sorted and merged) `_segments` list, create a temporary intermediate clip file using `ffmpeg -ss <start_time> -i <original_path> -t <duration> -c copy temp_segment_N.ext`.
-      - [x] Create a text file (e.g., `mylist.txt`) listing these temporary files: `file 'temp_segment_1.ext'`, `file 'temp_segment_2.ext'`, etc.
-      - [x] Run `ffmpeg -f concat -safe 0 -i mylist.txt -c copy <output_path>`.
-      - [x] Clean up temporary segment files and `mylist.txt`.
-    - [ ] **Option 2 (Complex Filtergraph - `select` and `asetpts` filters - might be more performant if re-encoding is acceptable or for specific formats):** This can be very tricky with `-c copy`. Often requires re-encoding if complex timeline editing is done.
-      - [ ] _Further research needed if pursuing this path, concat demuxer is usually safer for `-c copy`._
-    - [x] Ensure `_generate_clipped_filename()` is still used for the final output file.
-    - [x] Emit `clip_successful` or `clip_failed` as appropriate.
-
-**B. UI - `CustomSlider` and `PlayerTimeline` Updates:**
-
-- [x] **`CustomSlider` (`custom_slider.py`):**
-  - [x] Modify `set_clipping_markers` to accept `pending_begin_percent: Optional[float]` and `segments_percent: List[Tuple[float, float]]`.
-  - [x] Update `paintEvent` to:
-    - [x] Draw the `pending_begin_percent` marker (e.g., slightly different style or color, or a half-height green marker).
-    - [x] Draw all defined segments. Each segment `(start_percent, end_percent)` should have:
-      - [x] A green badge at `start_percent`.
-      - [x] A red badge at `end_percent`.
-      - [x] The region _between_ its start and end should be highlighted (e.g., slightly lighter or a different tint) to show it _will_ be included.
-    - [x] Shaded regions: The areas _not_ covered by any segment (and not part of the pending segment selection process) should be dimmed/excluded.
-  - [x] Click interaction (`mousePressEvent`):
-    - [x] Keep existing logic for clicking on red/green badges (now associated with segments) to potentially allow clearing _individual_ segments directly from the timeline (this could call a new `ClippingManager.remove_segment_at_index(index)` or similar, which is an advanced feature not covered by `Shift+E` which removes the _last_).
-    - [ ] Or, simplify so timeline clicks don't remove segments, relying solely on hotkeys.
-- [x] **`PlayerTimeline` (`player_timeline.py`):**
-  - [x] Update `_on_clipping_markers_updated` slot to receive `media_path, pending_begin_ms, segments_ms_list`.
-  - [x] Convert `pending_begin_ms` to `pending_begin_percent`.
-  - [x] Convert `segments_ms_list` to `segments_percent_list` (list of (start*%, end*%) tuples).
-  - [x] Call `self.position_slider.set_clipping_markers(pending_begin_percent, segments_percent_list)`.
-  - [x] Modify or remove `_on_begin_marker_badge_clicked` and `_on_end_marker_badge_clicked` if direct timeline click removal is changed/removed.
-
-**C. UI - `HotkeyHandler` Updates (`music_player.ui.vlc_player.hotkey_handler.py`):**
-
-- [x] **Refactor Existing Hotkey Methods:**
-  - [x] `_mark_clip_begin()`: Calls `self.clipping_manager.mark_begin(current_time_ms)` (as before, but now it sets the pending marker).
-  - [x] `_mark_clip_end()`: Calls `self.clipping_manager.mark_end(current_time_ms)` (as before, but now it defines a segment with the pending marker).
-  - [x] `_perform_clip()`: Calls `self.clipping_manager.perform_clip()` (as before, but now it processes multiple segments).
-- [x] **Implement New Hotkey Methods:**
-  - [x] `_clear_pending_begin_marker()` (for `Shift + B`): Calls `self.clipping_manager.clear_pending_begin_marker()`.
-  - [x] `_clear_last_segment()` (for `Shift + E`): Calls `self.clipping_manager.clear_last_segment()`.
-  - [x] `_clear_all_segments()` (for `Shift + Delete`): Calls `self.clipping_manager.clear_all_segments()`.
-- [x] **Update `self.hotkeys` Dictionary:**
-  - [x] Add entries for `Shift + B`, `Shift + E`, `Shift + Delete` (or `Shift + Backspace`). This requires checking for modifier keys in `handle_key_press`.
-- [x] **Update `handle_key_press(event)`:**
-  - [x] Add logic to detect `Shift` modifier along with the primary key for the new hotkeys.
-
-**D. Testing:**
-
-- [ ] Test setting a pending begin marker.
-- [ ] Test clearing a pending begin marker (`Shift + B`).
-- [ ] Test defining multiple, non-overlapping segments.
-- [ ] Test defining overlapping or adjacent segments (verify merging logic if implemented).
-- [ ] Test clearing the last added segment (`Shift + E`).
-- [ ] Test clearing all segments (`Shift + Delete`).
-- [ ] Test `perform_clip` with no segments defined.
-- [ ] Test `perform_clip` with one segment.
-- [ ] Test `perform_clip` with multiple segments (verify correct merging and order in output file).
-- [ ] Test all visual aspects on the timeline slider (pending marker, segment highlights, excluded areas).
-  - [ ] Test timeline updates when loading new media or clearing segments.
-- [ ] Test all new and existing hotkey functionalities thoroughly.
-
-### Milestone 8: Hotkey Implementation Details **(IMPLEMENTATION GUIDE)**
-
-**Required Code Changes in `music_player/ui/vlc_player/hotkey_handler.py`:**
-
-1. **Remove from `self.hotkeys` dictionary:**
-
-   ```python
-   # REMOVE THIS LINE:
-   # Qt.Key.Key_C: self._perform_clip,
-   ```
-
-2. **Add to `handle_key_press()` method after existing modifier checks:**
-
-   ```python
-   # Add after existing Shift and Ctrl modifier checks:
-   elif modifiers == Qt.KeyboardModifier.ControlModifier:
-       if key == Qt.Key.Key_S:
-           if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
-               self._perform_clip()
-               return True
-   ```
-
-3. **Update `_perform_clip()` method documentation:**
-   ```python
-   def _perform_clip(self):
-       """Initiates the clipping process using Ctrl+S hotkey combination."""
-   ```
-
-### Data Structure for Markers
-
-```python
-self._current_media_path: Optional[str] = None
-self._begin_marker_ms: Optional[int] = None
-self._end_marker_ms: Optional[int] = None
-```
-
-- `_current_media_path`: Stores the absolute path of the media file for which the markers are set. This is crucial for associating markers with a specific file. When a new file is loaded into the player, `ClippingManager.set_media(new_path)` will be called, which will clear markers from any previous file and emit `markers_updated` for the new file (with `None` for markers initially).
-- `_begin_marker_ms`: An optional integer representing the start of the clip in milliseconds from the beginning of the `_current_media_path`. `None` if not set.
-- `_end_marker_ms`: An optional integer representing the end of the clip in milliseconds. `None` if not set. It must be greater than `_begin_marker_ms` if both are set.
-
-This structure ensures that clipping markers are always tied to a specific media file and are reset when the media context changes.
+Once `ffmpeg`

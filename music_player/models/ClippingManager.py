@@ -3,7 +3,13 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from typing import Optional, Tuple, List
 import subprocess
 import os
+import json
 from pathlib import Path
+
+# Import Logger for proper logging
+import sys
+sys.path.append(str(Path(__file__).parent.parent.parent))
+from qt_base_app.models.logger import Logger
 
 class ClippingManager(QObject):
     """
@@ -13,12 +19,9 @@ class ClippingManager(QObject):
     """
 
     # Signals
-    # Emits (media_path, begin_ms, end_ms) when markers or associated media change
-    markers_updated = pyqtSignal(str, object, list) # pending_begin_ms (Optional[int]), segments (List[Tuple[int, int]])
-    # Emits (original_path, clipped_path) on successful clip
-    clip_successful = pyqtSignal(str, str)
-    # Emits (original_path, error_message) on failed clip
-    clip_failed = pyqtSignal(str, str)
+    markers_updated = pyqtSignal(str, object, list) # (media_path, pending_begin_ms, segments)
+    clip_successful = pyqtSignal(str, str) # (original_path, clipped_path)
+    clip_failed = pyqtSignal(str, str) # (original_path, error_message)
 
     _instance: Optional['ClippingManager'] = None
 
@@ -34,64 +37,47 @@ class ClippingManager(QObject):
             raise Exception("ClippingManager is a singleton, use instance() to get it.")
         super().__init__()
         self._current_media_path: Optional[str] = None
-        # self._begin_marker_ms: Optional[int] = None # OLD
-        # self._end_marker_ms: Optional[int] = None   # OLD
-
-        # --- NEW Data Structures for Multi-Segment ---
         self._pending_begin_marker_ms: Optional[int] = None
         self._segments: List[Tuple[int, int]] = [] # List of (start_ms, end_ms) tuples
-        # ---------------------------------------------
-
-        # Consider adding from qt_base_app.models.logger import Logger
-        # self.logger = Logger.instance()
+        self._logger = Logger.instance()
 
     def set_media(self, media_path: str):
         """
         Sets the current media file for clipping.
         - If the media path changes, existing markers are cleared.
-        - Emits markers_updated(new_media_path_or_empty, None, None)
-          for the new state (new media or no media).
+        - Emits markers_updated signal for the new state.
         """
-        # Normalize media_path: treat None as empty string for consistency
         effective_media_path = media_path if media_path is not None else ""
 
         if self._current_media_path != effective_media_path:
-            # print(f"[ClippingManager] Media changing from '{self._current_media_path}' to '{effective_media_path}'")
             self._current_media_path = effective_media_path
-            # self._begin_marker_ms = None # OLD
-            # self._end_marker_ms = None   # OLD
-            self._pending_begin_marker_ms = None # NEW
-            self._segments = []                  # NEW
+            self._pending_begin_marker_ms = None
+            self._segments = []
             
             # Always emit for the new state (new media or no media)
-            # This ensures the UI is updated to reflect the (cleared) markers for the new context.
-            # self.markers_updated.emit(self._current_media_path, self._begin_marker_ms, self._end_marker_ms) # OLD
-            self.markers_updated.emit(self._current_media_path, self._pending_begin_marker_ms, self._segments) # NEW
+            self.markers_updated.emit(self._current_media_path, self._pending_begin_marker_ms, self._segments)
 
     def mark_begin(self, timestamp_ms: int):
         """Sets the pending beginning marker for a new segment."""
-        print(f"[ClippingManager DEBUG] mark_begin: _current_media_path='{self._current_media_path}', received timestamp_ms={timestamp_ms}") # DEBUG
         if not self._current_media_path:
-            print("[ClippingManager] No media set, cannot mark pending begin.")
+            self._logger.warning("ClippingManager", "No media set, cannot mark pending begin.")
             return
         self._pending_begin_marker_ms = timestamp_ms
         if self._current_media_path:
-            print(f"[ClippingManager DEBUG] mark_begin: Emitting markers_updated with pending_ms={self._pending_begin_marker_ms}") # DEBUG
             self.markers_updated.emit(self._current_media_path, self._pending_begin_marker_ms, self._segments)
 
     def mark_end(self, timestamp_ms: int):
         """Finalizes a segment using the pending begin marker and the given end timestamp."""
-        print(f"[ClippingManager DEBUG] mark_end: _current_media_path='{self._current_media_path}', timestamp_ms={timestamp_ms}, _pending_begin_marker_ms BEFORE check = {self._pending_begin_marker_ms}") # DEBUG
         if not self._current_media_path:
-            print("[ClippingManager] No media set, cannot mark end to define a segment.")
+            self._logger.warning("ClippingManager", "No media set, cannot mark end to define a segment.")
             return
 
         if self._pending_begin_marker_ms is None:
-            print("[ClippingManager] No pending begin marker set. Press 'B' first to mark the start of a segment.")
+            self._logger.warning("ClippingManager", "No pending begin marker set. Press 'B' first to mark the start of a segment.")
             return
 
         if timestamp_ms <= self._pending_begin_marker_ms:
-            print("[ClippingManager] End marker must be after pending begin marker.")
+            self._logger.warning("ClippingManager", "End marker must be after pending begin marker.")
             return
 
         # Add the new segment
@@ -99,48 +85,13 @@ class ClippingManager(QObject):
         self._segments.append(new_segment)
         self._pending_begin_marker_ms = None # Clear pending marker after defining a segment
         
-        # Optional: Sort segments? Or sort only before clipping.
-        # self._segments.sort(key=lambda x: x[0]) 
-
-        # self.logger.debug(f"Segment {new_segment} added for {self._current_media_path}. Total segments: {len(self._segments)}")
         if self._current_media_path:
-            print(f"[ClippingManager DEBUG] mark_end: Emitting markers_updated. Pending_ms is now {self._pending_begin_marker_ms}, segments: {self._segments}") # DEBUG
             self.markers_updated.emit(self._current_media_path, self._pending_begin_marker_ms, self._segments)
 
-    # def clear_begin_marker(self): # OLD - Replaced by clear_pending_begin_marker
-    #     """Clears the beginning marker."""
-    #     if self._begin_marker_ms is not None:
-    #         self._begin_marker_ms = None
-    #         # self.logger.debug(f"Begin marker cleared for {self._current_media_path}")
-    #         if self._current_media_path: # ensure media_path is not None
-    #             self.markers_updated.emit(self._current_media_path, self._begin_marker_ms, self._end_marker_ms)
-
-    # def clear_end_marker(self): # OLD - Not directly replaced, segment removal is different
-    #     """Clears the end marker."""
-    #     if self._end_marker_ms is not None:
-    #         self._end_marker_ms = None
-    #         # self.logger.debug(f"End marker cleared for {self._current_media_path}")
-    #         if self._current_media_path: # ensure media_path is not None
-    #             self.markers_updated.emit(self._current_media_path, self._begin_marker_ms, self._end_marker_ms)
-
-    # def clear_all_markers(self): # OLD - Replaced by clear_all_segments
-    #     """Clears both begin and end markers for the current active media, if any markers were set."""
-    #     if not self._current_media_path: # Cannot clear markers if no media is active
-    #         # print("[ClippingManager] No current media, cannot clear markers.")
-    #         return
-    #     # Check if markers were actually set before clearing and emitting
-    #     if self._begin_marker_ms is not None or self._end_marker_ms is not None:
-    #         self._begin_marker_ms = None
-    #         self._end_marker_ms = None
-    #         # print(f"[ClippingManager] All markers cleared for {self._current_media_path}")
-    #         self.markers_updated.emit(self._current_media_path, self._begin_marker_ms, self._end_marker_ms)
-
-    # --- NEW Methods for Multi-Segment Management ---
     def clear_pending_begin_marker(self):
         """Clears the currently pending begin marker."""
         if self._pending_begin_marker_ms is not None:
             self._pending_begin_marker_ms = None
-            # print("[ClippingManager] Pending begin marker cleared.")
             if self._current_media_path:
                 self.markers_updated.emit(self._current_media_path, self._pending_begin_marker_ms, self._segments)
 
@@ -148,11 +99,8 @@ class ClippingManager(QObject):
         """Removes the last added segment from the list."""
         if self._segments:
             removed_segment = self._segments.pop()
-            # print(f"[ClippingManager] Last segment {removed_segment} removed.")
             if self._current_media_path:
                 self.markers_updated.emit(self._current_media_path, self._pending_begin_marker_ms, self._segments)
-        # else:
-            # print("[ClippingManager] No segments to remove.")
 
     def clear_all_segments(self):
         """Clears all defined segments and any pending begin marker."""
@@ -165,18 +113,14 @@ class ClippingManager(QObject):
             changed = True
         
         if changed and self._current_media_path:
-            # print("[ClippingManager] All segments and pending markers cleared.")
             self.markers_updated.emit(self._current_media_path, self._pending_begin_marker_ms, self._segments)
-        elif not self._current_media_path and changed: # Should not happen if logic is correct elsewhere
-            # This case implies markers were cleared but no media path associated, potentially after media was set to None
-            # To be safe, ensure UI gets an update for no media and no markers.
+        elif not self._current_media_path and changed:
+            # Handle edge case: markers cleared but no media path
             self.markers_updated.emit("", None, [])
-    # ----------------------------------------------
 
-    def get_markers(self) -> Tuple[Optional[str], Optional[int], List[Tuple[int, int]]]: # Updated return type
+    def get_markers(self) -> Tuple[Optional[str], Optional[int], List[Tuple[int, int]]]:
         """Returns the current media path, pending begin marker, and list of segments."""
-        # return self._current_media_path, self._begin_marker_ms, self._end_marker_ms # OLD
-        return self._current_media_path, self._pending_begin_marker_ms, self._segments # NEW
+        return self._current_media_path, self._pending_begin_marker_ms, self._segments
 
     def _ms_to_ffmpeg_time(self, ms: Optional[int]) -> str:
         """Converts milliseconds to HH:MM:SS.mmm format for ffmpeg."""
@@ -190,9 +134,8 @@ class ClippingManager(QObject):
         return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
 
     def _generate_clipped_filename(self) -> Optional[str]:
-        """Generates a unique filename for the clipped media."""
+        """Generates a unique filename for the clipped media using '_clipped' suffix."""
         if not self._current_media_path:
-            # self.logger.error("ClippingManager: Cannot generate filename, no current media path.")
             return None
 
         original_path = Path(self._current_media_path)
@@ -200,74 +143,275 @@ class ClippingManager(QObject):
         stem = original_path.stem
         ext = original_path.suffix # Includes the dot, e.g., ".mp3"
 
+        # Try base filename with '_clipped' suffix first
+        base_clipped_filename = f"{stem}_clipped{ext}"
+        potential_path = directory / base_clipped_filename
+        if not potential_path.exists():
+            return str(potential_path)
+
+        # If base filename exists, try numbered variants
         counter = 1
         while True:
-            # Ensure stem doesn't accidentally create hidden files if it starts with "."
-            # though original_path.stem usually handles this.
-            clipped_filename = f"{stem}({counter}){ext}"
+            clipped_filename = f"{stem}_clipped_{counter}{ext}"
             potential_path = directory / clipped_filename
             if not potential_path.exists():
-                # self.logger.info(f"Generated clipped filename: {potential_path}")
                 return str(potential_path)
             counter += 1
 
+    def _get_video_codec_info(self, video_path: str) -> Optional[dict]:
+        """
+        Extract comprehensive codec information from video file using ffprobe.
+        """
+        self._logger.info("ClippingManager", f"Analyzing codec: {video_path}")
+        
+        try:
+            # Get detailed codec information using ffprobe with JSON output
+            cmd = [
+                'ffprobe',
+                '-v', 'quiet',
+                '-print_format', 'json',
+                '-show_streams',
+                '-select_streams', 'v:0',  # Select first video stream
+                video_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            data = json.loads(result.stdout)
+            
+            if 'streams' in data and len(data['streams']) > 0:
+                video_stream = data['streams'][0]
+                
+                codec_info = {
+                    'codec_name': video_stream.get('codec_name', 'Unknown'),
+                    'codec_long_name': video_stream.get('codec_long_name', 'Unknown'),
+                    'profile': video_stream.get('profile', 'Unknown'),
+                    'level': video_stream.get('level', 'Unknown'),
+                    'pix_fmt': video_stream.get('pix_fmt', 'Unknown'),
+                    'bit_rate': video_stream.get('bit_rate', 'Unknown'),
+                    'width': video_stream.get('width', 'Unknown'),
+                    'height': video_stream.get('height', 'Unknown')
+                }
+                
+                self._logger.info("ClippingManager", f"Detected: {codec_info['codec_name']} {codec_info['profile']} Level {codec_info['level']}")
+                return codec_info
+            else:
+                self._logger.info("ClippingManager", "No video streams found in file")
+                return None
+                
+        except subprocess.CalledProcessError as e:
+            self._logger.error("ClippingManager", f"ffprobe failed: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            self._logger.error("ClippingManager", f"JSON parsing failed: {e}")
+            return None
+
+    def _find_nearest_keyframe(self, video_path: str, target_time_seconds: float) -> Optional[dict]:
+        """
+        Find the nearest keyframe around the specified time (in seconds).
+        """
+        self._logger.info("ClippingManager", f"Finding keyframe around {target_time_seconds:.3f}s")
+        
+        try:
+            # Search for keyframes in a window around the target time
+            search_start = max(0, target_time_seconds - 10)  # 10 seconds before
+            search_end = target_time_seconds + 10  # 10 seconds after
+            
+            cmd = [
+                'ffprobe',
+                '-v', 'quiet',
+                '-print_format', 'json',
+                '-show_frames',
+                '-select_streams', 'v:0',
+                '-read_intervals', f'{search_start}%{search_end}',
+                '-show_entries', 'frame=best_effort_timestamp_time,pkt_pts_time,key_frame',
+                video_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            data = json.loads(result.stdout)
+            
+            if 'frames' in data:
+                keyframes = []
+                for frame in data['frames']:
+                    if frame.get('key_frame') == 1:
+                        # Try multiple time fields as different versions of ffprobe may use different fields
+                        frame_time = frame.get('best_effort_timestamp_time') or frame.get('pkt_pts_time')
+                        if frame_time:
+                            keyframes.append(float(frame_time))
+                
+                if keyframes:
+                    # Find the nearest keyframe to target time
+                    nearest_keyframe = min(keyframes, key=lambda x: abs(x - target_time_seconds))
+                    distance = nearest_keyframe - target_time_seconds
+                    adjustment_needed = abs(distance)
+                    
+                    self._logger.info("ClippingManager", f"Nearest keyframe: {nearest_keyframe:.3f}s (distance: {distance:.3f}s)")
+                    
+                    # Check if within our 0.4s threshold for keyframe snapping
+                    within_threshold = adjustment_needed <= 0.4
+                    if within_threshold:
+                        self._logger.info("ClippingManager", "Within 0.4s threshold -> Option A (Keyframe Snapping)")
+                    else:
+                        self._logger.info("ClippingManager", "Beyond 0.4s threshold -> Option B (Minimal Re-encoding)")
+                    
+                    return {
+                        'target_time': target_time_seconds,
+                        'nearest_keyframe': nearest_keyframe,
+                        'distance': distance,
+                        'adjustment_needed': adjustment_needed,
+                        'within_threshold': within_threshold,
+                        'all_keyframes': sorted(keyframes)
+                    }
+                else:
+                    self._logger.info("ClippingManager", "No keyframes found in search window")
+                    return None
+            else:
+                self._logger.info("ClippingManager", "No frames data found")
+                return None
+                
+        except subprocess.CalledProcessError as e:
+            self._logger.error("ClippingManager", f"ffprobe keyframe detection failed: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            self._logger.error("ClippingManager", f"JSON parsing failed for keyframe data: {e}")
+            return None
+
+    def _check_codec_encoding_support(self, codec_info: dict) -> dict:
+        """
+        Check if ffmpeg can re-encode using the same codec as the source video.
+        Uses CRF=23 approach for balanced quality and file size.
+        """
+        self._logger.info("ClippingManager", f"Testing re-encoding capability for {codec_info['codec_name']}")
+        
+        try:
+            # Check available encoders
+            cmd = ['ffmpeg', '-encoders']
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            
+            codec_name = codec_info['codec_name'].lower()
+            
+            # Map codec names to encoder names
+            encoder_mapping = {
+                'h264': 'libx264',
+                'hevc': 'libx265', 
+                'h265': 'libx265',
+                'vp9': 'libvpx-vp9',
+                'vp8': 'libvpx',
+                'av1': 'libaom-av1'
+            }
+            
+            expected_encoder = encoder_mapping.get(codec_name)
+            
+            if expected_encoder and expected_encoder in result.stdout:
+                self._logger.info("ClippingManager", f"✓ Encoder '{expected_encoder}' is available")
+                
+                original_bitrate_bps = int(codec_info['bit_rate']) if codec_info['bit_rate'] != 'Unknown' else 1000000
+                original_bitrate_kbps = original_bitrate_bps // 1000
+                
+                self._logger.info("ClippingManager", "Using CRF=23 approach for quality balance")
+                
+                # Build encoding parameters for CRF
+                encoding_params = []
+                
+                if codec_name == 'h264':
+                    encoding_params.extend(['-c:v', 'libx264'])
+                    encoding_params.extend(['-crf', '23'])  # Good quality CRF
+                    
+                    if codec_info['profile'] != 'Unknown':
+                        encoding_params.extend(['-profile:v', codec_info['profile'].lower()])
+                    if codec_info['level'] != 'Unknown':
+                        level_str = str(codec_info['level'])
+                        if len(level_str) == 2:
+                            level_formatted = f"{level_str[0]}.{level_str[1]}"
+                            encoding_params.extend(['-level', level_formatted])
+                    if codec_info['pix_fmt'] != 'Unknown':
+                        encoding_params.extend(['-pix_fmt', codec_info['pix_fmt']])
+                    
+                    encoding_params.extend([
+                        '-preset', 'slow',         # Better quality
+                        '-tune', 'film',           # Optimize for film content
+                    ])
+                    
+                    self._logger.info("ClippingManager", "Using CRF=23 mode for balanced quality/size")
+                
+                return {
+                    'supported': True,
+                    'encoder': expected_encoder,
+                    'encoding_params': encoding_params,
+                    'approach': 'crf'
+                }
+                    
+            else:
+                self._logger.info("ClippingManager", f"✗ Encoder not available for {codec_name}")
+                return {'supported': False, 'reason': f'Encoder not available'}
+            
+        except subprocess.CalledProcessError as e:
+            self._logger.error("ClippingManager", f"Failed to check encoder support: {e}")
+            return {'supported': False, 'reason': 'ffmpeg command failed'}
+
     def perform_clip(self) -> Optional[str]:
         """
-        Performs the clipping operation using ffmpeg based on the current_media_path and _segments.
-        Segments are merged using ffmpeg's concat demuxer.
+        Performs adaptive keyframe-aware clipping operation using ffmpeg.
+        Uses intelligent processing that adapts based on keyframe positions:
+        - Option A: Keyframe snapping (≤ 0.4s from keyframe) for efficiency
+        - Option B: Minimal re-encoding (> 0.4s from keyframe) for precision
+        - Option C: Enhanced keyframe snapping for unsupported codecs
+        
         Returns the path to the final clipped file on success, None otherwise.
         """
         media_path, pending_begin_ms, segments = self.get_markers()
 
         if not media_path:
-            print("[ClippingManager] No media file specified for clipping.")
+            self._logger.warning("ClippingManager", "No media file specified for clipping.")
             self.clip_failed.emit("", "No media file specified for clipping.")
             return None
 
         if not segments:
-            print("[ClippingManager] No segments defined for clipping.")
+            self._logger.warning("ClippingManager", "No segments defined for clipping.")
             self.clip_failed.emit(media_path, "No segments defined for clipping. Press 'B' then 'E' to define segments.")
             return None
 
-        # 1. Sort Segments (and filter out any invalid ones that might have slipped through)
+        # 1. Sort Segments and filter out invalid ones
         valid_segments = sorted([s for s in segments if s[0] < s[1]], key=lambda x: x[0])
         if not valid_segments:
-            print("[ClippingManager] No valid segments after sorting/filtering.")
+            self._logger.warning("ClippingManager", "No valid segments after sorting/filtering.")
             self.clip_failed.emit(media_path, "No valid segments to clip.")
             return None
 
         # 2. Merge Overlapping/Adjacent Segments
         merged_segments: List[Tuple[int, int]] = []
-        if not valid_segments: # Should be caught above, but defensive check
-            # This path should ideally not be reached if valid_segments check is robust
-            self.clip_failed.emit(media_path, "No segments to process after initial validation.")
-            return None
-
         current_start, current_end = valid_segments[0]
         for i in range(1, len(valid_segments)):
             next_start, next_end = valid_segments[i]
             if next_start <= current_end: # Overlap or adjacent
                 current_end = max(current_end, next_end)
-            else: # Gap, so finalize current_merged_segment and start a new one
+            else: # Gap, so finalize current segment and start a new one
                 merged_segments.append((current_start, current_end))
                 current_start, current_end = next_start, next_end
         merged_segments.append((current_start, current_end)) # Add the last processed segment
-        
-        # print(f"[ClippingManager] Original segments: {segments}")
-        # print(f"[ClippingManager] Valid sorted segments: {valid_segments}")
-        # print(f"[ClippingManager] Merged segments: {merged_segments}")
 
         if not merged_segments:
-            # This case should not be reached if valid_segments had items
             self.clip_failed.emit(media_path, "Segment processing resulted in no segments.")
             return None
 
+        # 3. Analyze original video codec (once for all segments)
+        self._logger.info("ClippingManager", f"Analyzing original video for adaptive processing")
+        codec_info = self._get_video_codec_info(media_path)
+        if not codec_info:
+            self._logger.info("ClippingManager", "Could not analyze video codec, using basic encoding")
+            # Fallback to basic encoding if codec analysis fails
+            return self._perform_basic_clip(media_path, merged_segments)
+        
+        # 4. Check codec encoding support
+        encoder_support = self._check_codec_encoding_support(codec_info)
+        
         output_path = self._generate_clipped_filename()
         if not output_path:
-            print("[ClippingManager] Could not generate an output filename.")
+            self._logger.error("ClippingManager", "Could not generate an output filename.")
             self.clip_failed.emit(media_path, "Could not generate an output filename for the clip.")
             return None
 
+        # 5. Process each segment with adaptive algorithm
         temp_files: List[str] = []
         original_path_obj = Path(media_path)
         temp_dir = original_path_obj.parent / "temp_clip_segments"
@@ -275,113 +419,379 @@ class ClippingManager(QObject):
         list_file_path = temp_dir / "mylist.txt"
 
         try:
-            # 3. Create Intermediate Clips for each merged segment
+            self._logger.info("ClippingManager", f"Processing {len(merged_segments)} segment(s) with adaptive algorithm")
+            
             for i, (start_ms, end_ms) in enumerate(merged_segments):
                 segment_duration_ms = end_ms - start_ms
-                if segment_duration_ms <= 0: continue # Should not happen after merge logic
+                if segment_duration_ms <= 0: continue
+                
+                start_time_seconds = start_ms / 1000.0
+                end_time_seconds = end_ms / 1000.0
+                
+                self._logger.info("ClippingManager", f"\n=== Segment {i+1}/{len(merged_segments)} ===")
+                self._logger.info("ClippingManager", f"Segment timing: {start_time_seconds:.3f}s to {end_time_seconds:.3f}s")
+                
+                # Analyze keyframes around the start time
+                keyframe_info = self._find_nearest_keyframe(media_path, start_time_seconds)
+                
+                temp_output_filename = f"temp_segment_{i}{original_path_obj.suffix}"
+                temp_output_path = str(temp_dir / temp_output_filename)
+                temp_files.append(temp_output_path)
+                
+                # Adaptive processing decision
+                if keyframe_info and keyframe_info['within_threshold']:
+                    # Option A: Keyframe Snapping (≤ 0.4s threshold)
+                    self._logger.info("ClippingManager", "Using Option A: Keyframe Snapping")
+                    snapped_start_time = keyframe_info['nearest_keyframe']
+                    adjustment = keyframe_info['distance']
+                    
+                    self._logger.info("ClippingManager", f"Snapping from {start_time_seconds:.3f}s to {snapped_start_time:.3f}s")
+                    self._logger.info("ClippingManager", f"Time adjustment: {abs(adjustment):.3f}s {'forward' if adjustment > 0 else 'backward'}")
+                    
+                    # Adjust end time relative to the snapped start time
+                    adjusted_duration = (end_ms - start_ms) / 1000.0
+                    
+                    # Use pure stream copy for maximum efficiency
+                    ffmpeg_cmd = [
+                        "ffmpeg", "-y", "-hide_banner",
+                        "-ss", str(snapped_start_time),
+                        "-i", media_path,
+                        "-t", str(adjusted_duration),
+                        "-c", "copy",  # Pure stream copy
+                        "-avoid_negative_ts", "make_zero",
+                        temp_output_path
+                    ]
+                    
+                    self._logger.info("ClippingManager", f"Keyframe snapping (stream copy): {' '.join(ffmpeg_cmd)}")
+                    
+                else:
+                    # Option B: Minimal Re-encoding (> 0.4s threshold) or Option C: Unsupported codec fallback
+                    if not encoder_support['supported']:
+                        # Option C: Enhanced keyframe snapping for unsupported codecs
+                        self._logger.info("ClippingManager", "Using Option C: Enhanced Keyframe Snapping (unsupported codec)")
+                        
+                        if keyframe_info:
+                            # Find nearest keyframe with backward preference
+                            all_keyframes = keyframe_info['all_keyframes']
+                            backward_keyframes = [kf for kf in all_keyframes if kf <= start_time_seconds]
+                            
+                            if backward_keyframes:
+                                snapped_start_time = max(backward_keyframes)  # Nearest before
+                                self._logger.info("ClippingManager", f"Enhanced snapping: {start_time_seconds:.3f}s -> {snapped_start_time:.3f}s (backward preference)")
+                            else:
+                                # Fall back to forward keyframe if no backward available
+                                forward_keyframes = [kf for kf in all_keyframes if kf > start_time_seconds]
+                                if forward_keyframes:
+                                    snapped_start_time = min(forward_keyframes)
+                                    self._logger.info("ClippingManager", f"Enhanced snapping: {start_time_seconds:.3f}s -> {snapped_start_time:.3f}s (forward fallback)")
+                                else:
+                                    snapped_start_time = start_time_seconds
+                                    self._logger.info("ClippingManager", "No keyframes found, using original time")
+                            
+                            adjusted_duration = (end_ms - start_ms) / 1000.0
+                            
+                            # Use pure stream copy
+                            ffmpeg_cmd = [
+                                "ffmpeg", "-y", "-hide_banner",
+                                "-ss", str(snapped_start_time),
+                                "-i", media_path,
+                                "-t", str(adjusted_duration),
+                                "-c", "copy",  # Pure stream copy
+                                "-avoid_negative_ts", "make_zero",
+                                temp_output_path
+                            ]
+                            
+                            self._logger.info("ClippingManager", f"Enhanced keyframe snapping: {' '.join(ffmpeg_cmd)}")
+                        else:
+                            self._logger.info("ClippingManager", "No keyframe data, falling back to basic re-encoding")
+                            return self._perform_basic_clip(media_path, merged_segments)
+                            
+                    else:
+                        # Option B: Minimal Re-encoding for precision
+                        self._logger.info("ClippingManager", "Using Option B: Minimal Re-encoding")
+                        
+                        if keyframe_info:
+                            # Find first keyframe at or after start time
+                            first_keyframe_after = None
+                            for kf_time in keyframe_info['all_keyframes']:
+                                if kf_time >= start_time_seconds:
+                                    first_keyframe_after = kf_time
+                                    break
+                            
+                            if first_keyframe_after:
+                                reencoding_duration = first_keyframe_after - start_time_seconds
+                                self._logger.info("ClippingManager", f"Re-encoding {reencoding_duration:.3f}s from {start_time_seconds:.3f}s to {first_keyframe_after:.3f}s")
+                                
+                                # Phase 1: Re-encode from start to first keyframe
+                                temp_reencoded = str(temp_dir / f"reencoded_{i}.mp4")
+                                
+                                ffmpeg_reencode_cmd = [
+                                    "ffmpeg", "-y", "-hide_banner",
+                                    "-ss", str(start_time_seconds),
+                                    "-i", media_path,
+                                    "-t", str(reencoding_duration),
+                                    "-force_key_frames", "expr:gte(t,0)"
+                                ] + encoder_support['encoding_params'] + [
+                                    "-c:a", "aac", "-b:a", "128k",
+                                    temp_reencoded
+                                ]
+                                
+                                self._logger.info("ClippingManager", f"Phase 1 (re-encode): {' '.join(ffmpeg_reencode_cmd)}")
+                                
+                                creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                                process = subprocess.run(ffmpeg_reencode_cmd, capture_output=True, text=True, creationflags=creationflags)
+                                
+                                if process.returncode != 0:
+                                    self._logger.error("ClippingManager", f"Phase 1 failed: {process.stderr}")
+                                    return None
+                                
+                                # Phase 2: Stream copy from first keyframe to end
+                                temp_streamcopy = str(temp_dir / f"streamcopy_{i}.mp4")
+                                remaining_duration = end_time_seconds - first_keyframe_after
+                                
+                                if remaining_duration > 0:
+                                    ffmpeg_streamcopy_cmd = [
+                                        "ffmpeg", "-y", "-hide_banner",
+                                        "-ss", str(first_keyframe_after),
+                                        "-i", media_path,
+                                        "-t", str(remaining_duration),
+                                        "-c", "copy",
+                                        temp_streamcopy
+                                    ]
+                                    
+                                    self._logger.info("ClippingManager", f"Phase 2 (stream copy): {' '.join(ffmpeg_streamcopy_cmd)}")
+                                    
+                                    process = subprocess.run(ffmpeg_streamcopy_cmd, capture_output=True, text=True, creationflags=creationflags)
+                                    
+                                    if process.returncode != 0:
+                                        self._logger.error("ClippingManager", f"Phase 2 failed: {process.stderr}")
+                                        return None
+                                    
+                                    # Phase 3: Concatenate the two parts
+                                    concat_list = str(temp_dir / f"concat_{i}.txt")
+                                    with open(concat_list, 'w') as f:
+                                        f.write(f"file '{os.path.abspath(temp_reencoded)}'\n")
+                                        f.write(f"file '{os.path.abspath(temp_streamcopy)}'\n")
+                                    
+                                    ffmpeg_concat_cmd = [
+                                        "ffmpeg", "-y", "-hide_banner",
+                                        "-f", "concat", "-safe", "0",
+                                        "-i", concat_list,
+                                        "-c", "copy",
+                                        temp_output_path
+                                    ]
+                                    
+                                    self._logger.info("ClippingManager", f"Phase 3 (concat): {' '.join(ffmpeg_concat_cmd)}")
+                                    
+                                    process = subprocess.run(ffmpeg_concat_cmd, capture_output=True, text=True, creationflags=creationflags)
+                                    
+                                    if process.returncode != 0:
+                                        self._logger.error("ClippingManager", f"Phase 3 failed: {process.stderr}")
+                                        return None
+                                else:
+                                    # Only re-encoded portion needed
+                                    import shutil
+                                    shutil.move(temp_reencoded, temp_output_path)
+                            else:
+                                self._logger.info("ClippingManager", "No keyframe found after start time, using full re-encoding")
+                                # Fall back to single-phase re-encoding
+                                ffmpeg_cmd = [
+                                    "ffmpeg", "-y", "-hide_banner",
+                                    "-ss", str(start_time_seconds),
+                                    "-i", media_path,
+                                    "-t", str((end_ms - start_ms) / 1000.0),
+                                    "-force_key_frames", "expr:gte(t,0)"
+                                ] + encoder_support['encoding_params'] + [
+                                    "-c:a", "aac", "-b:a", "128k",
+                                    temp_output_path
+                                ]
+                        else:
+                            # No keyframe info, use basic re-encoding
+                            ffmpeg_cmd = [
+                                "ffmpeg", "-y", "-hide_banner",
+                                "-ss", str(start_time_seconds),
+                                "-i", media_path,
+                                "-t", str((end_ms - start_ms) / 1000.0),
+                                "-force_key_frames", "expr:gte(t,0)"
+                            ] + encoder_support['encoding_params'] + [
+                                "-c:a", "aac", "-b:a", "128k",
+                                temp_output_path
+                            ]
+                
+                # Execute the chosen ffmpeg command (for Options A, C, and basic re-encoding)
+                if 'ffmpeg_cmd' in locals():
+                    creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                    process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, creationflags=creationflags)
+                    
+                    if process.returncode != 0:
+                        error_message = f"ffmpeg failed for segment {i}. Error: {process.stderr.strip()}"
+                        self._logger.error("ClippingManager", error_message)
+                        self.clip_failed.emit(media_path, error_message)
+                        return None
+                    else:
+                        self._logger.info("ClippingManager", f"Segment {i+1} processed successfully")
+
+            # 6. Concatenate all processed segments into final output
+            self._logger.info("ClippingManager", f"\nConcatenating {len(temp_files)} processed segments")
+            
+            with open(list_file_path, 'w') as f:
+                for temp_file in temp_files:
+                    f.write(f"file '{os.path.abspath(temp_file)}'\n")
+
+            ffmpeg_final_concat_cmd = [
+                "ffmpeg", "-y", "-hide_banner",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(list_file_path),
+                "-c", "copy",
+                output_path
+            ]
+            
+            self._logger.info("ClippingManager", f"Final concatenation: {' '.join(ffmpeg_final_concat_cmd)}")
+            
+            creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            process = subprocess.run(ffmpeg_final_concat_cmd, capture_output=True, text=True, creationflags=creationflags)
+
+            if process.returncode == 0:
+                self._logger.info("ClippingManager", f"Adaptive clipping successful: {output_path}")
+                self.clip_successful.emit(media_path, output_path)
+                return output_path
+            else:
+                error_message = f"ffmpeg failed concatenating segments. Error: {process.stderr.strip()}"
+                self._logger.error("ClippingManager", error_message)
+                self.clip_failed.emit(media_path, error_message)
+                return None
+
+        except subprocess.TimeoutExpired:
+            if 'process' in locals() and hasattr(process, 'kill'): process.kill() # type: ignore
+            error_message = "ffmpeg command timed out during adaptive processing"
+            self._logger.error("ClippingManager", error_message)
+            self.clip_failed.emit(media_path, error_message)
+            return None
+        except FileNotFoundError:
+            error_message = "ffmpeg not found. Please ensure it's installed and in your system's PATH."
+            self._logger.error("ClippingManager", error_message)
+            self.clip_failed.emit(media_path, error_message)
+            return None
+        except Exception as e:
+            error_message = f"An unexpected error occurred during adaptive clipping: {str(e)}"
+            self._logger.error("ClippingManager", error_message)
+            self.clip_failed.emit(media_path, error_message)
+            return None
+        finally:
+            # Clean up temporary files
+            self._cleanup_temp_files(temp_dir, temp_files, list_file_path)
+
+    def _perform_basic_clip(self, media_path: str, merged_segments: List[Tuple[int, int]]) -> Optional[str]:
+        """
+        Fallback method using basic encoding when codec analysis fails.
+        """
+        self._logger.info("ClippingManager", "Using basic clipping fallback")
+        
+        output_path = self._generate_clipped_filename()
+        if not output_path:
+            return None
+            
+        temp_files: List[str] = []
+        original_path_obj = Path(media_path)
+        temp_dir = original_path_obj.parent / "temp_clip_segments"
+        os.makedirs(temp_dir, exist_ok=True)
+        list_file_path = temp_dir / "mylist.txt"
+
+        try:
+            for i, (start_ms, end_ms) in enumerate(merged_segments):
+                segment_duration_ms = end_ms - start_ms
+                if segment_duration_ms <= 0: continue
 
                 temp_output_filename = f"temp_segment_{i}{original_path_obj.suffix}"
                 temp_output_path = str(temp_dir / temp_output_filename)
                 temp_files.append(temp_output_path)
 
-                ffmpeg_segment_cmd = [
+                start_time_str = self._ms_to_ffmpeg_time(start_ms)
+                duration_str = self._ms_to_ffmpeg_time(segment_duration_ms)
+                
+                # Basic encoding with CRF=23
+                ffmpeg_cmd = [
                     "ffmpeg", "-y", "-hide_banner",
-                    "-ss", self._ms_to_ffmpeg_time(start_ms),
+                    "-ss", start_time_str,
                     "-i", media_path,
-                    "-t", self._ms_to_ffmpeg_time(segment_duration_ms),
-                    "-c", "copy",
-                    # "-avoid_negative_ts", "make_zero", # May help with some concat issues
-                    # "-fflags", "+genpts", # Generate new PTS if issues occur
+                    "-t", duration_str,
+                    "-c:v", "libx264",
+                    "-crf", "23",
+                    "-preset", "fast",
+                    "-force_key_frames", "expr:gte(t,0)",
+                    "-c:a", "aac",
+                    "-b:a", "128k",
+                    "-avoid_negative_ts", "make_zero",
                     temp_output_path
                 ]
-                # print(f"[ClippingManager] Executing segment command: {' '.join(ffmpeg_segment_cmd)}")
+                
                 creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-                process = subprocess.Popen(ffmpeg_segment_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=creationflags)
-                stdout, stderr = process.communicate(timeout=120) # Timeout per segment
+                process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, creationflags=creationflags)
+                
                 if process.returncode != 0:
-                    error_message = f"ffmpeg failed creating segment {i}. Error: {stderr.strip()}"
-                    print(f"[ClippingManager] {error_message}")
+                    error_message = f"Basic encoding failed for segment {i}. Error: {process.stderr.strip()}"
+                    self._logger.error("ClippingManager", error_message)
                     self.clip_failed.emit(media_path, error_message)
-                    return None # Early exit on segment creation failure
+                    return None
 
-            # 4. Create list file for concat demuxer
+            # Concatenate segments
             with open(list_file_path, 'w') as f:
                 for temp_file in temp_files:
-                    # FFmpeg concat demuxer needs relative paths from the list file, or absolute paths.
-                    # Using absolute paths is safer if the list file isn't in the same dir as segments.
-                    # However, if temp_dir is cwd for ffmpeg, relative is fine.
-                    # For simplicity and robustness with _generate_clipped_filename, use cleaned absolute paths.
-                    f.write(f"file '{Path(temp_file).as_posix()}'\n") # Use as_posix for cross-platform path compatibility in file list
+                    f.write(f"file '{os.path.abspath(temp_file)}'\n")
 
-            # 5. Concatenate intermediate clips
             ffmpeg_concat_cmd = [
                 "ffmpeg", "-y", "-hide_banner",
-                "-f", "concat",
-                "-safe", "0", # Allow unsafe file paths (though we use absolute here)
+                "-f", "concat", "-safe", "0",
                 "-i", str(list_file_path),
                 "-c", "copy",
                 output_path
             ]
-            # print(f"[ClippingManager] Executing concat command: {' '.join(ffmpeg_concat_cmd)}")
-            creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-            process = subprocess.Popen(ffmpeg_concat_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=creationflags)
-            stdout, stderr = process.communicate(timeout=120) # Timeout for concat
+            
+            process = subprocess.run(ffmpeg_concat_cmd, capture_output=True, text=True, creationflags=creationflags)
 
             if process.returncode == 0:
-                print(f"[ClippingManager] Multi-segment clipping successful: {output_path}")
+                self._logger.info("ClippingManager", f"Basic clipping successful: {output_path}")
                 self.clip_successful.emit(media_path, output_path)
                 return output_path
             else:
-                error_message = f"ffmpeg failed concatenating segments. Error: {stderr.strip()}"
-                print(f"[ClippingManager] {error_message}")
+                error_message = f"Basic concatenation failed. Error: {process.stderr.strip()}"
+                self._logger.error("ClippingManager", error_message)
                 self.clip_failed.emit(media_path, error_message)
                 return None
-
-        except subprocess.TimeoutExpired:
-            # process might not be defined if timeout happened before first Popen
-            # However, the logic ensures it will be if we reach here from inside try.
-            if 'process' in locals() and hasattr(process, 'kill'): process.kill() # type: ignore
-            error_message = f"ffmpeg command timed out. Error: {stderr.strip() if 'stderr' in locals() and stderr else 'No stderr'}" # type: ignore
-            print(f"[ClippingManager] {error_message}")
-            self.clip_failed.emit(media_path, error_message)
-            return None
-        except FileNotFoundError: # For ffmpeg itself
-            error_message = "ffmpeg not found. Please ensure it's installed and in your system's PATH."
-            print(f"[ClippingManager] {error_message}")
-            self.clip_failed.emit(media_path, error_message)
-            return None
+                
         except Exception as e:
-            error_message = f"An unexpected error occurred during multi-segment clipping: {str(e)}"
-            print(f"[ClippingManager] {error_message}")
+            error_message = f"Basic clipping failed: {str(e)}"
+            self._logger.error("ClippingManager", error_message)
             self.clip_failed.emit(media_path, error_message)
             return None
         finally:
-            # 6. Clean up temporary files and directory
-            # print("[ClippingManager] Cleaning up temporary files...")
-            if list_file_path.exists():
-                try:
-                    os.remove(list_file_path)
-                except Exception as e:
-                    print(f"[ClippingManager] Error removing list file {list_file_path}: {e}")
-            for temp_file_path_str in temp_files:
-                temp_file_p = Path(temp_file_path_str)
-                if temp_file_p.exists():
-                    try:
-                        os.remove(temp_file_p)
-                    except Exception as e:
-                        print(f"[ClippingManager] Error removing temp segment file {temp_file_p}: {e}")
-            if temp_dir.exists():
-                try:
-                    # Only remove if empty, as a safeguard
-                    if not any(temp_dir.iterdir()): 
-                        os.rmdir(temp_dir)
-                    else:
-                        print(f"[ClippingManager] Temp directory {temp_dir} not empty, not removing.")
-                except Exception as e:
-                    print(f"[ClippingManager] Error removing temp directory {temp_dir}: {e}")
+            self._cleanup_temp_files(temp_dir, temp_files, list_file_path)
 
-    # OLD perform_clip content commented out or removed for brevity
-    # ...
-
-    # OLD perform_clip content commented out or removed for brevity
-    # ... 
+    def _cleanup_temp_files(self, temp_dir: Path, temp_files: List[str], list_file_path: Path):
+        """Clean up temporary files and directory."""
+        if list_file_path.exists():
+            try:
+                os.remove(list_file_path)
+            except Exception as e:
+                self._logger.error("ClippingManager", f"Error removing list file: {e}")
+        
+        for temp_file_path_str in temp_files:
+            temp_file_p = Path(temp_file_path_str)
+            if temp_file_p.exists():
+                try:
+                    os.remove(temp_file_p)
+                except Exception as e:
+                    self._logger.error("ClippingManager", f"Error removing temp file: {e}")
+        
+        # Clean up additional temporary files (from minimal re-encoding)
+        if temp_dir.exists():
+            try:
+                for temp_item in temp_dir.glob("*"):
+                    if temp_item.is_file():
+                        os.remove(temp_item)
+                
+                if not any(temp_dir.iterdir()):
+                    os.rmdir(temp_dir)
+            except Exception as e:
+                self._logger.error("ClippingManager", f"Error cleaning temp directory: {e}")

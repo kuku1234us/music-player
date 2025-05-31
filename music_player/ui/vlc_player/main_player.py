@@ -163,6 +163,11 @@ class MainPlayer(QWidget):
         self.backend.state_changed.connect(self._handle_backend_error_states) 
         self.backend.end_reached.connect(self._on_end_reached)
         self.backend.error_occurred.connect(self._show_error)
+        
+        # --- Connect ClippingManager signals for post-clipping behavior ---
+        self.clipping_manager.clip_successful.connect(self._on_clip_successful)
+        self.clipping_manager.clip_failed.connect(self._on_clip_failed)
+        # -----------------------------------------------------------------
 
     def _handle_backend_position_change(self, position_ms):
         """
@@ -209,6 +214,84 @@ class MainPlayer(QWidget):
         """
         QMessageBox.critical(self, "Playback Error", error_message)
         
+    # --- Clipping Signal Handlers for Post-Clipping Behavior ---
+    def _on_clip_successful(self, original_path: str, clipped_path: str):
+        """
+        Handle successful clipping operation with automatic mode switch and playback.
+        
+        Args:
+            original_path (str): Path to the original media file that was clipped
+            clipped_path (str): Path to the newly created clipped file
+        """
+        print(f"[MainPlayer] Clipping successful: '{original_path}' -> '{clipped_path}'")
+        
+        # Mode Switch: Set to single mode regardless of previous mode
+        if self._playback_mode != 'single':
+            print(f"[MainPlayer] Switching from {self._playback_mode} mode to single mode")
+            self._playback_mode = 'single'
+            self.playback_mode_changed.emit('single')
+        
+        # Clear Playlist Reference: Ensure clean single mode
+        self._current_playlist = None
+        
+        # Update Current Path: Set to the new clipped file
+        self.current_media_path = clipped_path
+        
+        # Update UI: Disable playlist controls for single mode
+        self.player_widget.set_next_prev_enabled(False)
+        
+        # Clear Clipping State: Reset all markers and segments
+        self.clipping_manager.clear_all_segments()
+        
+        # Notify timeline and clipping manager about the new media
+        self.player_widget.timeline.set_current_media_path(self.current_media_path)
+        self.clipping_manager.set_media(self.current_media_path)
+        
+        # Load New Media: Load the clipped file
+        print(f"[MainPlayer] Loading clipped file: {clipped_path}")
+        load_successful = self.backend.load_media(clipped_path)
+        
+        if load_successful:
+            # Set state to playing for immediate playback
+            self._set_app_state(STATE_PLAYING)
+            
+            # Start Playback: Start immediately from beginning
+            self.backend.play()
+            
+            print("[MainPlayer] Post-clipping playback started successfully")
+        else:
+            print("[MainPlayer] Failed to load clipped file")
+            self._show_error(f"Failed to load the clipped file: {clipped_path}")
+        
+        # Focus Management: Ensure hotkey functionality
+        self.setFocus()
+        
+        # Add to recently played
+        self.recently_played_model.add_item(item_type='file', name=os.path.basename(clipped_path), path=clipped_path)
+        
+    def _on_clip_failed(self, original_path: str, error_message: str):
+        """
+        Handle failed clipping operation with error display and state preservation.
+        
+        Args:
+            original_path (str): Path to the original media file that failed to clip
+            error_message (str): Error message describing the failure
+        """
+        print(f"[MainPlayer] Clipping failed for '{original_path}': {error_message}")
+        
+        # Error Display: Show error message to user
+        QMessageBox.critical(self, "Clipping Failed", 
+                           f"Failed to create clip from:\n{os.path.basename(original_path)}\n\nError: {error_message}")
+        
+        # State Preservation: Maintain current playback mode and loaded media
+        # No changes to current state - user can continue working with original media
+        
+        # Focus Restoration: Restore hotkey functionality after error dialog
+        self.setFocus()
+        
+        print("[MainPlayer] Clipping failure handled, original media state preserved")
+    # -------------------------------------------------------------------
+
     def _on_play_requested(self):
         """Handle play requested from UI"""
         # Handle the simplest cases first
