@@ -334,11 +334,45 @@ class ClippingManager(QObject):
                     
                     self._logger.info("ClippingManager", "Using CRF=23 mode for balanced quality/size")
                 
+                elif codec_name == 'vp9':
+                    encoding_params.extend(['-c:v', 'libvpx-vp9'])
+                    encoding_params.extend(['-crf', '23'])  # Good quality CRF for VP9
+                    encoding_params.extend(['-b:v', '0'])   # Use CRF mode (0 bitrate = CRF)
+                    
+                    # VP9-specific optimizations
+                    encoding_params.extend([
+                        '-speed', '2',              # Good speed/quality balance
+                        '-tile-columns', '2',       # Parallel encoding tiles
+                        '-auto-alt-ref', '1',       # Alternative reference frames
+                        '-lag-in-frames', '25',     # Look-ahead frames
+                    ])
+                    
+                    if codec_info['pix_fmt'] != 'Unknown':
+                        encoding_params.extend(['-pix_fmt', codec_info['pix_fmt']])
+                    
+                    self._logger.info("ClippingManager", "Using VP9 CRF=23 mode for balanced quality/size")
+                
+                elif codec_name in ['hevc', 'h265']:
+                    encoding_params.extend(['-c:v', 'libx265'])
+                    encoding_params.extend(['-crf', '23'])  # Good quality CRF for x265
+                    
+                    if codec_info['profile'] != 'Unknown':
+                        encoding_params.extend(['-profile:v', codec_info['profile'].lower()])
+                    if codec_info['pix_fmt'] != 'Unknown':
+                        encoding_params.extend(['-pix_fmt', codec_info['pix_fmt']])
+                    
+                    encoding_params.extend([
+                        '-preset', 'medium',        # Good speed/quality balance for x265
+                    ])
+                    
+                    self._logger.info("ClippingManager", "Using H.265 CRF=23 mode for balanced quality/size")
+                
                 return {
                     'supported': True,
                     'encoder': expected_encoder,
                     'encoding_params': encoding_params,
-                    'approach': 'crf'
+                    'approach': 'crf',
+                    'codec_name': codec_name
                 }
                     
             else:
@@ -523,7 +557,18 @@ class ClippingManager(QObject):
                                 self._logger.info("ClippingManager", f"Re-encoding {reencoding_duration:.3f}s from {start_time_seconds:.3f}s to {first_keyframe_after:.3f}s")
                                 
                                 # Phase 1: Re-encode from start to first keyframe
-                                temp_reencoded = str(temp_dir / f"reencoded_{i}.mp4")
+                                # Use consistent output format based on original codec
+                                original_extension = original_path_obj.suffix
+                                temp_extension = original_extension  # Keep same container format
+                                
+                                # Override for certain codecs that need specific containers
+                                detected_codec = encoder_support.get('codec_name', 'unknown')
+                                if detected_codec == 'vp9':
+                                    temp_extension = '.webm'  # VP9 should use WebM container
+                                elif detected_codec in ['h264', 'hevc', 'h265']:
+                                    temp_extension = '.mp4'   # H.264/H.265 should use MP4 container
+                                
+                                temp_reencoded = str(temp_dir / f"reencoded_{i}{temp_extension}")
                                 
                                 ffmpeg_reencode_cmd = [
                                     "ffmpeg", "-y", "-hide_banner",
@@ -532,7 +577,8 @@ class ClippingManager(QObject):
                                     "-t", str(reencoding_duration),
                                     "-force_key_frames", "expr:gte(t,0)"
                                 ] + encoder_support['encoding_params'] + [
-                                    "-c:a", "aac", "-b:a", "128k",
+                                    "-c:a", "libopus" if detected_codec == 'vp9' else "aac", 
+                                    "-b:a", "128k",
                                     temp_reencoded
                                 ]
                                 
@@ -546,7 +592,7 @@ class ClippingManager(QObject):
                                     return None
                                 
                                 # Phase 2: Stream copy from first keyframe to end
-                                temp_streamcopy = str(temp_dir / f"streamcopy_{i}.mp4")
+                                temp_streamcopy = str(temp_dir / f"streamcopy_{i}{temp_extension}")
                                 remaining_duration = end_time_seconds - first_keyframe_after
                                 
                                 if remaining_duration > 0:
@@ -573,12 +619,15 @@ class ClippingManager(QObject):
                                         f.write(f"file '{os.path.abspath(temp_reencoded)}'\n")
                                         f.write(f"file '{os.path.abspath(temp_streamcopy)}'\n")
                                     
+                                    # Use consistent output format for final segment
+                                    temp_final_segment = str(temp_dir / f"temp_segment_{i}{temp_extension}")
+                                    
                                     ffmpeg_concat_cmd = [
                                         "ffmpeg", "-y", "-hide_banner",
                                         "-f", "concat", "-safe", "0",
                                         "-i", concat_list,
                                         "-c", "copy",
-                                        temp_output_path
+                                        temp_final_segment
                                     ]
                                     
                                     self._logger.info("ClippingManager", f"Phase 3 (concat): {' '.join(ffmpeg_concat_cmd)}")
@@ -587,11 +636,65 @@ class ClippingManager(QObject):
                                     
                                     if process.returncode != 0:
                                         self._logger.error("ClippingManager", f"Phase 3 failed: {process.stderr}")
-                                        return None
+                                        
+                                        # Check if it's a codec/container mismatch issue
+                                        error_output = process.stderr.lower()
+                                        if any(keyword in error_output for keyword in ['incorrect codec parameters', 'only vp8 or vp9', 'only h264']):
+                                            self._logger.info("ClippingManager", "Codec/container mismatch detected, falling back to enhanced keyframe snapping")
+                                            
+                                            # Fallback to enhanced keyframe snapping (Option C approach)
+                                            if keyframe_info:
+                                                all_keyframes = keyframe_info['all_keyframes']
+                                                backward_keyframes = [kf for kf in all_keyframes if kf <= start_time_seconds]
+                                                
+                                                if backward_keyframes:
+                                                    fallback_start_time = max(backward_keyframes)
+                                                    self._logger.info("ClippingManager", f"Fallback snapping: {start_time_seconds:.3f}s -> {fallback_start_time:.3f}s")
+                                                else:
+                                                    forward_keyframes = [kf for kf in all_keyframes if kf > start_time_seconds]
+                                                    if forward_keyframes:
+                                                        fallback_start_time = min(forward_keyframes)
+                                                        self._logger.info("ClippingManager", f"Fallback snapping: {start_time_seconds:.3f}s -> {fallback_start_time:.3f}s")
+                                                    else:
+                                                        fallback_start_time = start_time_seconds
+                                                
+                                                fallback_duration = (end_ms - start_ms) / 1000.0
+                                                
+                                                # Use simple stream copy with fallback timing
+                                                fallback_cmd = [
+                                                    "ffmpeg", "-y", "-hide_banner",
+                                                    "-ss", str(fallback_start_time),
+                                                    "-i", media_path,
+                                                    "-t", str(fallback_duration),
+                                                    "-c", "copy",
+                                                    "-avoid_negative_ts", "make_zero",
+                                                    temp_output_path
+                                                ]
+                                                
+                                                self._logger.info("ClippingManager", f"Fallback stream copy: {' '.join(fallback_cmd)}")
+                                                
+                                                fallback_process = subprocess.run(fallback_cmd, capture_output=True, text=True, creationflags=creationflags)
+                                                
+                                                if fallback_process.returncode != 0:
+                                                    self._logger.error("ClippingManager", f"Fallback also failed: {fallback_process.stderr}")
+                                                    return None
+                                                else:
+                                                    self._logger.info("ClippingManager", f"Segment {i+1} processed successfully with fallback")
+                                                    continue  # Skip to next segment
+                                            else:
+                                                return None
+                                        else:
+                                            return None
+                                    else:
+                                        # Phase 3 succeeded - move the concatenated segment to expected location
+                                        import shutil
+                                        shutil.move(temp_final_segment, temp_output_path)
+                                        self._logger.info("ClippingManager", f"Segment {i+1} processed successfully (minimal re-encoding)")
                                 else:
-                                    # Only re-encoded portion needed
+                                    # Only re-encoded portion needed (no stream copy part)
                                     import shutil
                                     shutil.move(temp_reencoded, temp_output_path)
+                                    self._logger.info("ClippingManager", f"Segment {i+1} processed successfully (re-encode only)")
                             else:
                                 self._logger.info("ClippingManager", "No keyframe found after start time, using full re-encoding")
                                 # Fall back to single-phase re-encoding
@@ -602,21 +705,10 @@ class ClippingManager(QObject):
                                     "-t", str((end_ms - start_ms) / 1000.0),
                                     "-force_key_frames", "expr:gte(t,0)"
                                 ] + encoder_support['encoding_params'] + [
-                                    "-c:a", "aac", "-b:a", "128k",
+                                    "-c:a", "libopus" if encoder_support.get('codec_name') == 'vp9' else "aac", 
+                                    "-b:a", "128k",
                                     temp_output_path
                                 ]
-                        else:
-                            # No keyframe info, use basic re-encoding
-                            ffmpeg_cmd = [
-                                "ffmpeg", "-y", "-hide_banner",
-                                "-ss", str(start_time_seconds),
-                                "-i", media_path,
-                                "-t", str((end_ms - start_ms) / 1000.0),
-                                "-force_key_frames", "expr:gte(t,0)"
-                            ] + encoder_support['encoding_params'] + [
-                                "-c:a", "aac", "-b:a", "128k",
-                                temp_output_path
-                            ]
                 
                 # Execute the chosen ffmpeg command (for Options A, C, and basic re-encoding)
                 if 'ffmpeg_cmd' in locals():

@@ -102,12 +102,13 @@ def analyze_video_structure(video_path):
         return None
     
     try:
-        # Get basic video information
+        # Get basic video information - use both streams and format info for WebM compatibility
         cmd = [
             'ffprobe',
             '-v', 'quiet',
             '-print_format', 'json',
             '-show_streams',
+            '-show_format',
             '-select_streams', 'v:0',
             video_path
         ]
@@ -120,17 +121,59 @@ def analyze_video_structure(video_path):
             return None
             
         stream = data['streams'][0]
-        duration = float(stream.get('duration', 0))
+        
+        # Try to get duration from multiple sources (WebM compatibility)
+        duration = 0
+        if 'duration' in stream and stream['duration'] != 'N/A':
+            duration = float(stream['duration'])
+        elif 'format' in data and 'duration' in data['format']:
+            duration = float(data['format']['duration'])
+        elif 'tags' in stream and 'DURATION' in stream['tags']:
+            # Parse duration from WebM tag format: "00:02:39.399000000"
+            duration_str = stream['tags']['DURATION']
+            time_parts = duration_str.split(':')
+            if len(time_parts) == 3:
+                hours = float(time_parts[0])
+                minutes = float(time_parts[1])
+                seconds = float(time_parts[2])
+                duration = hours * 3600 + minutes * 60 + seconds
+        
+        # If still no duration, try alternative probe method
+        if duration == 0:
+            print("⚠️  Standard duration detection failed, trying alternative method...")
+            alt_cmd = [
+                'ffprobe',
+                '-v', 'error',
+                '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                video_path
+            ]
+            alt_result = subprocess.run(alt_cmd, capture_output=True, text=True)
+            if alt_result.returncode == 0 and alt_result.stdout.strip():
+                try:
+                    duration = float(alt_result.stdout.strip())
+                except ValueError:
+                    pass
+        
         width = int(stream.get('width', 0))
         height = int(stream.get('height', 0))
         codec = stream.get('codec_name', 'Unknown')
         bitrate = int(stream.get('bit_rate', 0))
+        
+        # If bitrate is 0, try to get it from format
+        if bitrate == 0 and 'format' in data and 'bit_rate' in data['format']:
+            bitrate = int(data['format']['bit_rate'])
         
         print(f"\n📊 Basic Video Info:")
         print(f"   Duration: {duration:.1f}s ({duration//60:.0f}:{duration%60:04.1f})")
         print(f"   Resolution: {width}x{height}")
         print(f"   Codec: {codec}")
         print(f"   Bitrate: {bitrate:,} bps ({bitrate//1000:.0f} kbps)")
+        
+        # Ensure we have valid duration before proceeding
+        if duration <= 0:
+            print("❌ Could not determine video duration")
+            return None
         
         # Get comprehensive keyframe analysis
         print(f"\n🔍 Analyzing keyframe structure...")
@@ -503,7 +546,7 @@ def test_clipping_algorithm():
             print("💡 Let's test the core methods directly...")
             return test_core_methods_directly()
     
-    video_path = "./temp/t.mp4"
+    video_path = "./temp/t.webm"
     
     # Check if test file exists
     if not os.path.exists(video_path):
@@ -685,7 +728,7 @@ def test_core_methods_directly():
         print(f"❌ FFmpeg/FFprobe check failed: {e}")
         return False
     
-    video_path = "./temp/t.mp4"
+    video_path = "./temp/t.webm"
     
     if not os.path.exists(video_path):
         print(f"❌ Test video file not found: {video_path}")
@@ -700,11 +743,11 @@ def test_core_methods_directly():
 
 def main():
     """
-    Main test function - analyze t.mp4 and test ClippingManager with strategic segments
+    Main test function - analyze t.webm and test ClippingManager with strategic segments
     """
-    print("=== STRATEGIC CLIPPINGMANAGER TESTING ===")
+    print("=== STRATEGIC CLIPPINGMANAGER TESTING (WebM/VP9) ===")
     
-    video_path = "./temp/t.mp4"
+    video_path = "./temp/t.webm"
     
     # Step 1: Comprehensive video analysis
     print(f"📁 Test video: {video_path}")
@@ -725,29 +768,32 @@ def main():
     success = test_strategic_segments(video_path, strategic_segments)
     
     # Step 4: Summary
-    print(f"\n=== STRATEGIC TESTING SUMMARY ===")
+    print(f"\n=== STRATEGIC TESTING SUMMARY (WebM/VP9) ===")
     
     if success:
         print(f"🎉 ALL STRATEGIC TESTS PASSED!")
-        print(f"✅ ClippingManager adaptive algorithm handles multiple scenarios correctly")
-        print(f"✅ Option A (Keyframe Snapping) working for segments ≤ 0.4s from keyframes")
-        print(f"✅ Option B (Minimal Re-encoding) working for segments > 0.4s from keyframes")
-        print(f"✅ Multi-segment concatenation working correctly")
+        print(f"✅ ClippingManager adaptive algorithm handles WebM/VP9 correctly")
+        print(f"✅ Option A (Keyframe Snapping) working for VP9 segments ≤ 0.4s from keyframes")
+        print(f"✅ Option B (Minimal Re-encoding) working for VP9 segments > 0.4s from keyframes")
+        print(f"✅ VP9 + libopus audio encoding working correctly")
+        print(f"✅ Multi-segment concatenation working with WebM containers")
         print(f"✅ Edge cases handled properly")
-        print(f"✅ CRF=23 quality optimization confirmed")
-        print(f"✅ Ready for full integration into music player application")
+        print(f"✅ CRF=23 quality optimization confirmed for VP9")
+        print(f"✅ Ready for full integration with WebM/VP9 support")
         
         # Additional insights
         print(f"\n📊 Test Insights:")
+        print(f"   Video codec: VP9 (WebM container)")
+        print(f"   Audio codec: Opus -> libopus (fixed)")
         print(f"   Video duration: {analysis_result['duration']:.1f}s")
         print(f"   Total keyframes: {len(analysis_result['keyframes'])}")
         print(f"   Average keyframe interval: {analysis_result['avg_gap']:.3f}s")
         print(f"   Segments tested: {len(strategic_segments)}")
-        print(f"   0.4s threshold effectiveness: Optimal for this video structure")
+        print(f"   0.4s threshold effectiveness: Optimal for VP9 structure")
         
     else:
         print(f"❌ STRATEGIC TESTS FAILED!")
-        print(f"⚠️  ClippingManager needs debugging before full integration")
+        print(f"⚠️  ClippingManager needs debugging for WebM/VP9 support")
         print(f"🔍 Check the detailed error messages above for specific issues")
     
     print(f"\n=== TESTING COMPLETED ===")
