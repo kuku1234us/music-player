@@ -305,7 +305,7 @@ class YtDlpModel:
                 resolution=720,
                 use_https=True,
                 use_m4a=True,
-                subtitle_lang=None,
+                subtitle_lang=['en', 'zh'],  # Include English and Chinese subtitles
                 use_cookies=True,
                 prefer_avc=True  # Specifically prefer AVC codec for better device compatibility
             )
@@ -315,7 +315,7 @@ class YtDlpModel:
                 resolution=None,  # No resolution limit
                 use_https=True,
                 use_m4a=False,
-                subtitle_lang=None,
+                subtitle_lang=['en', 'zh'],  # Include English and Chinese subtitles
                 use_cookies=True,
                 prefer_best_video=True,  # Indicates we want best video
                 prefer_avc=False   # Don't restrict codecs for best quality

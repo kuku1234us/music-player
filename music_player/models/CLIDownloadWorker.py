@@ -406,6 +406,10 @@ class CLIDownloadWorker(QObject):
                      if not os.path.exists(final_filepath):
                           self.logger.warning(caller="CLIDownloadWorker", msg=f"Warning: Final file '{self.downloaded_filename}' not found at expected location: {final_filepath}")
                      self.complete_signal.emit(self.url, self.output_dir, self.downloaded_filename)
+                     
+                     # Clean up external subtitle files after successful download and embedding
+                     self._cleanup_subtitle_files()
+                     
                      # Update timestamp
                      if os.path.isfile(final_filepath):
                         try:
@@ -505,6 +509,15 @@ class CLIDownloadWorker(QObject):
         
         # Add subtitle command arguments ONLY if requested
         if subtitles_requested:
+            # Add the appropriate --write-subs and/or --write-auto-subs flags
+            if self.format_options.get('writesubtitles', False):
+                cmd.append("--write-subs")
+                self.logger.debug(caller="CLIDownloadWorker", msg="Using --write-subs for manual subtitles.")
+            
+            if self.format_options.get('writeautomaticsub', False):
+                cmd.append("--write-auto-subs")
+                self.logger.debug(caller="CLIDownloadWorker", msg="Using --write-auto-subs for automatic captions.")
+            
             cmd.append("--embed-subs") # Always embed if subs requested
             self.logger.debug(caller="CLIDownloadWorker", msg="Using --embed-subs for subtitles.")
     
@@ -519,8 +532,6 @@ class CLIDownloadWorker(QObject):
             if subtitle_format_specified:
                 cmd.extend(["--sub-format", subtitle_format_specified])
                 self.logger.debug(caller="CLIDownloadWorker", msg=f"Using subtitle format: {subtitle_format_specified}")
-            
-            # Do NOT add --write-subs or --write-auto-subs
             
         # --- End Refactored Subtitle Logic ---
         
@@ -778,4 +789,41 @@ class CLIDownloadWorker(QObject):
             self.logger.warning(caller="CLIDownloadWorker", msg="File exists but couldn't extract filename from output")
             
         return already_exists, detected_filename
+        
+    def _cleanup_subtitle_files(self):
+        """Clean up external subtitle files after they've been embedded into the video."""
+        if not self.downloaded_filename:
+            self.logger.debug(caller="CLIDownloadWorker", msg="No final filename known, skipping subtitle cleanup.")
+            return
+            
+        # Get the base name without extension for the final video file
+        video_base_name = os.path.splitext(self.downloaded_filename)[0]
+        cleaned_count = 0
+        
+        self.logger.debug(caller="CLIDownloadWorker", msg=f"Cleaning up external subtitle files for: {video_base_name}")
+        
+        # Look for subtitle files with the same base name as the video
+        try:
+            import glob
+            for ext in SUBTITLE_EXTENSIONS:
+                # Create pattern like "Video Title.en.srt", "Video Title.zh-Hans.vtt", etc.
+                pattern = os.path.join(self.output_dir, f"{video_base_name}*{ext}")
+                subtitle_files = glob.glob(pattern)
+                
+                for subtitle_file in subtitle_files:
+                    try:
+                        if os.path.exists(subtitle_file):
+                            os.remove(subtitle_file)
+                            self.logger.info(caller="CLIDownloadWorker", msg=f"Removed external subtitle file: {os.path.basename(subtitle_file)}")
+                            cleaned_count += 1
+                    except Exception as e:
+                        self.logger.warning(caller="CLIDownloadWorker", msg=f"Failed to remove subtitle file {os.path.basename(subtitle_file)}: {e}")
+                        
+        except Exception as e:
+            self.logger.error(caller="CLIDownloadWorker", msg=f"Error during subtitle cleanup: {e}")
+            
+        if cleaned_count > 0:
+            self.logger.info(caller="CLIDownloadWorker", msg=f"Subtitle cleanup completed, removed {cleaned_count} external subtitle files.")
+        else:
+            self.logger.debug(caller="CLIDownloadWorker", msg="No external subtitle files found to clean up.")
         
