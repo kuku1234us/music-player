@@ -1,92 +1,71 @@
-[2025-06-01 07:47:30-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-06-01 07:47:30-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-06-01 07:47:30-DEBUG][BaseWindow]Restored window geometry.
-[2025-06-01 07:47:30-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-06-01 07:47:31-INFO ][YoutubePage]UI setup complete.
-[2025-06-01 07:47:31-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-06-01 07:47:31-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-06-01 07:47:31-INFO ][YoutubePage]Initialized.
-[2025-06-01 07:47:31-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-06-01 07:47:31-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-06-01 07:47:31-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-06-01 07:47:32-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-06-01 07:47:37-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-06-01 07:47:41-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=gWkhUd-LWTs (Type: video)
-[2025-06-01 07:47:41-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=gWkhUd-LWTs, Type=video
-[2025-06-01 07:47:41-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
-[2025-06-01 07:47:41-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=gWkhUd-LWTs, Dir=Z:\AAAAA01
-[2025-06-01 07:47:41-INFO ][YoutubePage]Shown.
-[2025-06-01 07:47:41-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=gWkhUd-LWTs
-[2025-06-01 07:47:41-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
-[2025-06-01 07:47:41-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
-[2025-06-01 07:47:41-INFO ][CLIDownloadWorker]Subtitle download requested.
-[2025-06-01 07:47:41-DEBUG][CLIDownloadWorker]Using --write-subs for manual subtitles.
-[2025-06-01 07:47:41-DEBUG][CLIDownloadWorker]Using --write-auto-subs for automatic captions.
-[2025-06-01 07:47:41-DEBUG][CLIDownloadWorker]Using --embed-subs for subtitles.
-[2025-06-01 07:47:41-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
-[2025-06-01 07:47:41-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
-[2025-06-01 07:47:41-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
-[2025-06-01 07:47:41-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
-[2025-06-01 07:47:41-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-subs --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=gWkhUd-LWTs'
-[2025-06-01 07:47:44-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
-[2025-06-01 07:47:44-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 56 cookies from firefox
-[2025-06-01 07:47:44-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=gWkhUd-LWTs
-[2025-06-01 07:47:44-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] gWkhUd-LWTs: Downloading webpage
-[2025-06-01 07:47:46-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] gWkhUd-LWTs: Downloading tv client config
-[2025-06-01 07:47:47-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] gWkhUd-LWTs: Downloading tv player API JSON
-[2025-06-01 07:47:48-INFO ][CLIDownloadWorker][yt-dlp output] [info] gWkhUd-LWTs: Downloading subtitles: en, zh-Hans
-[2025-06-01 07:47:48-INFO ][CLIDownloadWorker][yt-dlp output] [info] gWkhUd-LWTs: Downloading 1 format(s): 136+140
-[2025-06-01 07:47:48-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).en.vtt
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).en.vtt
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).en.vtt
-[2025-06-01 07:47:49-DEBUG][CLIDownloadWorker]Added temporary filename candidate: How I use Google Veo3 to create viral videos (3M views in 48 hrs).en.vtt
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [download]    1.00KiB at   27.18KiB/s (00:00:00)
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [download]    3.00KiB at   79.61KiB/s (00:00:00)
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [download]    7.00KiB at  185.76KiB/s (00:00:00)
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [download]   15.00KiB at  377.89KiB/s (00:00:00)
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [download]   31.00KiB at  673.11KiB/s (00:00:00)
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [download]   63.00KiB at  925.93KiB/s (00:00:00)
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [download]  127.00KiB at  991.46KiB/s (00:00:00)
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [download]  255.00KiB at    1.15MiB/s (00:00:00)
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [download]  438.04KiB at    1.29MiB/s (00:00:00)
-[2025-06-01 07:47:49-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).zh-Hans.vtt
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).zh-Hans.vtt
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).zh-Hans.vtt
-[2025-06-01 07:47:50-DEBUG][CLIDownloadWorker]Added temporary filename candidate: How I use Google Veo3 to create viral videos (3M views in 48 hrs).zh-Hans.vtt
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [download]    1.00KiB at   88.34KiB/s (00:00:00)
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [download]    3.00KiB at  243.85KiB/s (00:00:00)
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [download]    7.00KiB at  568.99KiB/s (00:00:00)
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [download]   15.00KiB at  918.85KiB/s (00:00:00)
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [download]   31.00KiB at    1.42MiB/s (00:00:00)
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [download]   63.00KiB at    1.89MiB/s (00:00:01)
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [download]  127.00KiB at    1.95MiB/s (00:00:01)
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [download]  255.00KiB at    2.27MiB/s (00:00:01)
-[2025-06-01 07:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [download]  449.76KiB at    2.29MiB/s (00:00:01)
-[2025-06-01 07:47:53-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f136.mp4
-[2025-06-01 07:47:53-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f136.mp4
-[2025-06-01 07:47:53-DEBUG][CLIDownloadWorker]Added temporary filename candidate: How I use Google Veo3 to create viral videos (3M views in 48 hrs).f136.mp4
-[2025-06-01 07:47:53-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-06-01 07:48:22-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f140.m4a
-[2025-06-01 07:48:22-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f140.m4a
-[2025-06-01 07:48:22-DEBUG][CLIDownloadWorker]Added temporary filename candidate: How I use Google Veo3 to create viral videos (3M views in 48 hrs).f140.m4a
-[2025-06-01 07:48:22-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-06-01 07:48:34-INFO ][CLIDownloadWorker][yt-dlp output] [Merger] Merging formats into "Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).mp4"
-[2025-06-01 07:48:34-INFO ][CLIDownloadWorker]Detected final merged file: How I use Google Veo3 to create viral videos (3M views in 48 hrs).mp4
-[2025-06-01 07:49:07-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f140.m4a (pass -k to keep)
-[2025-06-01 07:49:07-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f136.mp4 (pass -k to keep)
-[2025-06-01 07:49:07-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] Embedding subtitles in "Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).mp4"
-[2025-06-01 07:49:39-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
-[2025-06-01 07:49:39-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
-[2025-06-01 07:49:39-DEBUG][CLIDownloadWorker]Cleaning up external subtitle files for: How I use Google Veo3 to create viral videos (3M views in 48 hrs)
-[2025-06-01 07:49:39-INFO ][CLIDownloadWorker]Removed external subtitle file: How I use Google Veo3 to create viral videos (3M views in 48 hrs).en.vtt
-[2025-06-01 07:49:39-INFO ][CLIDownloadWorker]Removed external subtitle file: How I use Google Veo3 to create viral videos (3M views in 48 hrs).zh-Hans.vtt
-[2025-06-01 07:49:39-INFO ][CLIDownloadWorker]Subtitle cleanup completed, removed 2 external subtitle files.
-[2025-06-01 07:49:39-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=gWkhUd-LWTs. Emitting finished signal.
-[2025-06-01 07:49:39-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=gWkhUd-LWTs
-[2025-06-01 07:49:39-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=gWkhUd-LWTs from active. Count: 0
-[2025-06-01 07:49:39-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=gWkhUd-LWTs
-[2025-06-01 07:49:45-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).mp4, switching to PlayerPage.
-[2025-06-01 07:49:45-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
-[2025-06-01 10:06:17-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-06-01 16:46:33-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-06-01 16:46:34-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-06-01 16:46:34-DEBUG][BaseWindow]Restored window geometry.
+[2025-06-01 16:46:34-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-06-01 16:46:35-INFO ][YoutubePage]UI setup complete.
+[2025-06-01 16:46:35-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-06-01 16:46:35-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-06-01 16:46:35-INFO ][YoutubePage]Initialized.
+[2025-06-01 16:46:35-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-06-01 16:46:35-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-06-01 16:46:35-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-06-01 16:46:35-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-06-01 16:46:42-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=gWkhUd-LWTs (Type: video)
+[2025-06-01 16:46:42-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=gWkhUd-LWTs, Type=video
+[2025-06-01 16:46:42-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
+[2025-06-01 16:46:42-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=gWkhUd-LWTs, Dir=Z:\AAAAA01
+[2025-06-01 16:46:42-INFO ][YoutubePage]Shown.
+[2025-06-01 16:46:42-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=gWkhUd-LWTs
+[2025-06-01 16:46:42-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-06-01 16:46:42-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
+[2025-06-01 16:46:42-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-06-01 16:46:42-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-06-01 16:46:42-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
+[2025-06-01 16:46:42-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-06-01 16:46:42-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-06-01 16:46:42-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-06-01 16:46:42-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=gWkhUd-LWTs'
+[2025-06-01 16:46:43-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-06-01 16:46:43-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 56 cookies from firefox
+[2025-06-01 16:46:43-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=gWkhUd-LWTs
+[2025-06-01 16:46:43-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] gWkhUd-LWTs: Downloading webpage
+[2025-06-01 16:46:45-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] gWkhUd-LWTs: Downloading tv client config
+[2025-06-01 16:46:45-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] gWkhUd-LWTs: Downloading tv player API JSON
+[2025-06-01 16:46:48-INFO ][CLIDownloadWorker][yt-dlp output] [info] gWkhUd-LWTs: Downloading subtitles: en, zh-Hans
+[2025-06-01 16:46:48-INFO ][CLIDownloadWorker][yt-dlp output] [info] gWkhUd-LWTs: Downloading 1 format(s): 136+140
+[2025-06-01 16:46:48-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).en.vtt
+[2025-06-01 16:46:48-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).en.vtt
+[2025-06-01 16:46:48-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).en.vtt
+[2025-06-01 16:46:48-DEBUG][CLIDownloadWorker]Added temporary filename candidate: How I use Google Veo3 to create viral videos (3M views in 48 hrs).en.vtt
+[2025-06-01 16:46:48-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-06-01 16:46:50-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).zh-Hans.vtt
+[2025-06-01 16:46:51-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).zh-Hans.vtt
+[2025-06-01 16:46:51-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).zh-Hans.vtt
+[2025-06-01 16:46:51-DEBUG][CLIDownloadWorker]Added temporary filename candidate: How I use Google Veo3 to create viral videos (3M views in 48 hrs).zh-Hans.vtt
+[2025-06-01 16:46:51-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-06-01 16:46:52-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f136.mp4
+[2025-06-01 16:46:52-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f136.mp4
+[2025-06-01 16:46:52-DEBUG][CLIDownloadWorker]Added temporary filename candidate: How I use Google Veo3 to create viral videos (3M views in 48 hrs).f136.mp4
+[2025-06-01 16:46:52-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-06-01 16:47:22-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f140.m4a
+[2025-06-01 16:47:22-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f140.m4a
+[2025-06-01 16:47:22-DEBUG][CLIDownloadWorker]Added temporary filename candidate: How I use Google Veo3 to create viral videos (3M views in 48 hrs).f140.m4a
+[2025-06-01 16:47:22-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-06-01 16:47:33-INFO ][CLIDownloadWorker][yt-dlp output] [Merger] Merging formats into "Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).mp4"
+[2025-06-01 16:47:33-INFO ][CLIDownloadWorker]Detected final merged file: How I use Google Veo3 to create viral videos (3M views in 48 hrs).mp4
+[2025-06-01 16:48:01-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f136.mp4 (pass -k to keep)
+[2025-06-01 16:48:01-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).f140.m4a (pass -k to keep)
+[2025-06-01 16:48:01-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] Embedding subtitles in "Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).mp4"
+[2025-06-01 16:48:34-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).zh-Hans.vtt (pass -k to keep)
+[2025-06-01 16:48:34-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\How I use Google Veo3 to create viral videos (3M views in 48 hrs).en.vtt (pass -k to keep)
+[2025-06-01 16:48:34-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-06-01 16:48:34-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-06-01 16:48:34-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=gWkhUd-LWTs. Emitting finished signal.
+[2025-06-01 16:48:34-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=gWkhUd-LWTs
+[2025-06-01 16:48:34-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=gWkhUd-LWTs from active. Count: 0
+[2025-06-01 16:48:34-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=gWkhUd-LWTs
+[2025-06-01 17:37:44-INFO ][MusicPlayerDashboard]Main window close event triggered.
+[2025-06-01 17:37:44-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
+[2025-06-01 17:37:44-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
+[2025-06-01 17:37:44-INFO ][DownloadManager]No active downloads to shut down.
+[2025-06-01 17:37:44-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.

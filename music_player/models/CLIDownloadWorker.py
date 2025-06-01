@@ -35,6 +35,15 @@ PROGRESS_REGEX = re.compile(
     r"(?P<speed>[^\s]+)"                # Speed (greedy should be fine here)
     r"(?:\s+ETA\s+(?P<eta>[^\s]+))?"    # Optional ETA part (non-capturing outer group)
 )
+
+# Matches subtitle download progress lines like: [download]    1.00KiB at   90.79KiB/s (00:00:00)
+SUBTITLE_PROGRESS_REGEX = re.compile(
+    r"\s*\[download\]\s+"               # "[download]" prefix
+    r"(?P<size>[\d.]+\w+)\s+"           # Downloaded size (e.g., "1.00KiB", "255.00KiB")
+    r"at\s+"                            # "at " separator
+    r"(?P<speed>[^\s]+)"                # Speed (e.g., "90.79KiB/s")
+    r"(?:\s+\((?P<time>[^)]+)\))?"      # Optional time in parentheses (e.g., "(00:00:00)")
+)
 # ---------------------------
 
 class CLIDownloadWorker(QObject):
@@ -141,7 +150,7 @@ class CLIDownloadWorker(QObject):
 
                     # --- Refactored Parsing Logic ---
                     
-                    # 1. Check for Progress Line using Regex
+                    # 1. Check for Progress Line using Main Regex (video/audio with percentages)
                     progress_match = PROGRESS_REGEX.search(line)
                     if progress_match:
                         try:
@@ -157,7 +166,27 @@ class CLIDownloadWorker(QObject):
                             self.logger.error(caller="CLIDownloadWorker", msg=f"Error parsing progress regex match: {str(e)} - Line: {line.strip()}")
                         continue # Move to the next line after handling progress
 
-                    # 2. If NOT a progress line, print it to logger and check for other keywords
+                    # 2. Check for Subtitle Progress Line (raw data amounts)
+                    subtitle_progress_match = SUBTITLE_PROGRESS_REGEX.search(line)
+                    if subtitle_progress_match:
+                        try:
+                            size = subtitle_progress_match.group('size')
+                            speed = subtitle_progress_match.group('speed')
+                            time_elapsed = subtitle_progress_match.group('time') or "ongoing"
+                            status_text = f"Downloading subtitles: {size} at {speed} ({time_elapsed})"
+                            
+                            # For subtitle progress, we can't calculate exact percentage without knowing total size
+                            # Use a small progress value to show activity without indicating actual completion
+                            subtitle_progress = 5.0  # Small progress indicator
+                            
+                            # Emit progress update
+                            self.progress_signal.emit(self.url, subtitle_progress, status_text)
+                            
+                        except Exception as e:
+                            self.logger.error(caller="CLIDownloadWorker", msg=f"Error parsing subtitle progress regex match: {str(e)} - Line: {line.strip()}")
+                        continue # Move to the next line after handling subtitle progress
+
+                    # 3. If NOT a progress line, print it to logger and check for other keywords
                     self.logger.info(caller="CLIDownloadWorker", msg=f"[yt-dlp output] {line.strip()}") # Log non-progress lines as INFO
                     
                     # Check for Destination:
@@ -180,6 +209,15 @@ class CLIDownloadWorker(QObject):
                             # This is the FINAL filename
                             self.downloaded_filename = os.path.basename(merged_filepath)
                             self.logger.info(caller="CLIDownloadWorker", msg=f"Detected final merged file: {self.downloaded_filename}")
+                            
+                            # Emit progress update for merging phase
+                            self.progress_signal.emit(self.url, 100.0, "Merging video+audio...")
+                        continue # Handled, move to next line
+
+                    # Check for Subtitle Embedding:
+                    if line.strip().startswith('[EmbedSubtitle]') and 'Embedding subtitles in' in line:
+                        # Emit progress update for subtitle embedding phase
+                        self.progress_signal.emit(self.url, 100.0, "Embedding subtitles...")
                         continue # Handled, move to next line
                         
                     # Check for Errors:
@@ -405,12 +443,13 @@ class CLIDownloadWorker(QObject):
                      final_filepath = os.path.join(self.output_dir, self.downloaded_filename)
                      if not os.path.exists(final_filepath):
                           self.logger.warning(caller="CLIDownloadWorker", msg=f"Warning: Final file '{self.downloaded_filename}' not found at expected location: {final_filepath}")
+                     
+                     # Emit final 100% progress before completing
+                     self.progress_signal.emit(self.url, 100.0, "Download completed")
+                     
                      self.complete_signal.emit(self.url, self.output_dir, self.downloaded_filename)
                      
-                     # Clean up external subtitle files after successful download and embedding
-                     self._cleanup_subtitle_files()
-                     
-                     # Update timestamp
+                     # Update timestamp - no subtitle cleanup needed with --embed-subs only
                      if os.path.isfile(final_filepath):
                         try:
                             current_time = time.time()
@@ -479,7 +518,7 @@ class CLIDownloadWorker(QObject):
                 cmd.extend(["--merge-output-format", self.format_options['merge_output_format']])
                 self.logger.debug(caller="CLIDownloadWorker", msg=f"Using merge-output-format: {self.format_options['merge_output_format']}")
         
-        # --- Refactored Subtitle Logic ---
+        # --- Simplified Subtitle Logic ---
         subtitles_requested = False
         subtitle_langs_specified = None
         subtitle_format_specified = None
@@ -491,7 +530,7 @@ class CLIDownloadWorker(QObject):
                 self.format_options.get('writeautomaticsub', False) or 
                 ('subtitleslangs' in self.format_options and self.format_options['subtitleslangs'])): 
                 subtitles_requested = True
-                self.logger.info(caller="CLIDownloadWorker", msg="Subtitle download requested.") # Log request
+                self.logger.info(caller="CLIDownloadWorker", msg="Subtitle embedding requested.") # Log request
                 
             # Get specific lang/format if provided, regardless of toggles
             if 'subtitleslangs' in self.format_options:
@@ -509,17 +548,12 @@ class CLIDownloadWorker(QObject):
         
         # Add subtitle command arguments ONLY if requested
         if subtitles_requested:
-            # Add the appropriate --write-subs and/or --write-auto-subs flags
-            if self.format_options.get('writesubtitles', False):
-                cmd.append("--write-subs")
-                self.logger.debug(caller="CLIDownloadWorker", msg="Using --write-subs for manual subtitles.")
-            
-            if self.format_options.get('writeautomaticsub', False):
-                cmd.append("--write-auto-subs")
-                self.logger.debug(caller="CLIDownloadWorker", msg="Using --write-auto-subs for automatic captions.")
-            
-            cmd.append("--embed-subs") # Always embed if subs requested
-            self.logger.debug(caller="CLIDownloadWorker", msg="Using --embed-subs for subtitles.")
+            # Use --write-auto-subs to download automatic captions and --embed-subs to embed them
+            # According to yt-dlp docs: when both are used together, subtitles are embedded 
+            # and separate files are automatically deleted
+            cmd.append("--write-auto-subs")
+            cmd.append("--embed-subs")
+            self.logger.debug(caller="CLIDownloadWorker", msg="Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).")
     
             if subtitle_langs_specified:
                 cmd.extend(["--sub-langs", subtitle_langs_specified])
@@ -533,7 +567,7 @@ class CLIDownloadWorker(QObject):
                 cmd.extend(["--sub-format", subtitle_format_specified])
                 self.logger.debug(caller="CLIDownloadWorker", msg=f"Using subtitle format: {subtitle_format_specified}")
             
-        # --- End Refactored Subtitle Logic ---
+        # --- End Simplified Subtitle Logic ---
         
         # Handle cookies option
         # For CLI mode, always use --cookies-from-browser firefox when cookies are enabled
@@ -789,41 +823,4 @@ class CLIDownloadWorker(QObject):
             self.logger.warning(caller="CLIDownloadWorker", msg="File exists but couldn't extract filename from output")
             
         return already_exists, detected_filename
-        
-    def _cleanup_subtitle_files(self):
-        """Clean up external subtitle files after they've been embedded into the video."""
-        if not self.downloaded_filename:
-            self.logger.debug(caller="CLIDownloadWorker", msg="No final filename known, skipping subtitle cleanup.")
-            return
-            
-        # Get the base name without extension for the final video file
-        video_base_name = os.path.splitext(self.downloaded_filename)[0]
-        cleaned_count = 0
-        
-        self.logger.debug(caller="CLIDownloadWorker", msg=f"Cleaning up external subtitle files for: {video_base_name}")
-        
-        # Look for subtitle files with the same base name as the video
-        try:
-            import glob
-            for ext in SUBTITLE_EXTENSIONS:
-                # Create pattern like "Video Title.en.srt", "Video Title.zh-Hans.vtt", etc.
-                pattern = os.path.join(self.output_dir, f"{video_base_name}*{ext}")
-                subtitle_files = glob.glob(pattern)
-                
-                for subtitle_file in subtitle_files:
-                    try:
-                        if os.path.exists(subtitle_file):
-                            os.remove(subtitle_file)
-                            self.logger.info(caller="CLIDownloadWorker", msg=f"Removed external subtitle file: {os.path.basename(subtitle_file)}")
-                            cleaned_count += 1
-                    except Exception as e:
-                        self.logger.warning(caller="CLIDownloadWorker", msg=f"Failed to remove subtitle file {os.path.basename(subtitle_file)}: {e}")
-                        
-        except Exception as e:
-            self.logger.error(caller="CLIDownloadWorker", msg=f"Error during subtitle cleanup: {e}")
-            
-        if cleaned_count > 0:
-            self.logger.info(caller="CLIDownloadWorker", msg=f"Subtitle cleanup completed, removed {cleaned_count} external subtitle files.")
-        else:
-            self.logger.debug(caller="CLIDownloadWorker", msg="No external subtitle files found to clean up.")
         
