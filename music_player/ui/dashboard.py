@@ -186,14 +186,12 @@ class MusicPlayerDashboard(BaseWindow):
         if hasattr(playlists_page.play_mode_widget.selection_pool_widget, 'play_single_file_requested') and hasattr(self.player, 'play_single_file'):
             playlists_page.play_mode_widget.selection_pool_widget.play_single_file_requested.connect(self.player.play_single_file)
             
-        if hasattr(browser_page, 'play_single_file_requested') and hasattr(self.player, 'play_single_file'):
-            # Connect BrowserPage signal to the NEW dashboard handler
-            browser_page.play_single_file_requested.connect(self._handle_single_file_request)
-        
         # Connect signals from DashboardPage for recently played items
         if hasattr(dashboard_page, 'play_single_file_requested'):
-            dashboard_page.play_single_file_requested.connect(self._handle_single_file_request)
-            
+            # Use direct connection to unified loading method for consistent behavior
+            dashboard_page.play_single_file_requested.connect(self.player._unified_load_single_file)
+            self.logger.info(self.__class__.__name__, "Connected DashboardPage to unified file loading")
+        
         if hasattr(dashboard_page, 'play_playlist_requested'):
             dashboard_page.play_playlist_requested.connect(self._handle_play_playlist_from_dashboard)
         
@@ -206,6 +204,12 @@ class MusicPlayerDashboard(BaseWindow):
         if hasattr(youtube_page, 'play_file'):
             youtube_page.play_file.connect(self._handle_single_file_request)
             self.logger.info(self.__class__.__name__, "Connected YoutubePage's play_file signal")
+        
+        # Keep the browser page connection to the handler for now (it might need the extra logic)
+        if hasattr(browser_page, 'play_single_file_requested') and hasattr(self.player, '_unified_load_single_file'):
+            # Connect BrowserPage to unified loading method as well for consistency
+            browser_page.play_single_file_requested.connect(self.player._unified_load_single_file)
+            self.logger.info(self.__class__.__name__, "Connected BrowserPage to unified file loading")
         
         # Show the dashboard page initially
         self.show_page('dashboard')
@@ -277,32 +281,39 @@ class MusicPlayerDashboard(BaseWindow):
     @pyqtSlot(str)
     def _handle_single_file_request(self, filepath: str):
         """
-        Handles request to play a single file, ensuring PlayerPage is visible first.
-        Now, this is connected to BrowserPage double-click on a file.
+        Handles request to play a single file, ensuring consistent behavior.
+        Uses unified loading approach to ensure position restoration works correctly.
         """
-        self.logger.info(self.__class__.__name__, f"Handling single file request: {filepath}, switching to PlayerPage.")
+        self.logger.info(self.__class__.__name__, f"Handling single file request: {filepath}")
 
-        # --- HIDE VIDEO WIDGET (if needed) ---
+        # Check if player is available
+        if not self.player or not hasattr(self.player, '_unified_load_single_file'):
+            self.logger.error(self.__class__.__name__, "Player instance not available or missing unified loading method.")
+            return
+
+        # --- Prepare video widget state if needed ---
         video_widget_was_hidden = False
         if self.player and hasattr(self.player, '_video_widget') and self.player._video_widget:
-            self.logger.info(self.__class__.__name__, "Hiding video widget before switching page and playing.")
-            self.player._video_widget.setVisible(False)
-            video_widget_was_hidden = True # Keep track if we hid it
-        # -------------------------------------
+            if not self.player._video_widget.isVisible():
+                video_widget_was_hidden = True
+            else:
+                # Only hide if currently visible - position restoration will handle showing it again
+                self.player._video_widget.setVisible(False)
+                video_widget_was_hidden = False  # We hid it, so don't restore it manually
+        # -------------------------------------------
 
-        # 2. Tell the player to play the file (with delay)
-        if self.player and hasattr(self.player, 'play_single_file'):
-            # Use QTimer.singleShot to give UI time to update before player starts
-            # This helps ensure the video widget handle is valid when needed.
-            # The player's loading logic will handle making the video widget visible again
-            # if the loaded media is actually video.
-            QTimer.singleShot(50, lambda fp=filepath: self.player.play_single_file(fp))
-        else:
-            self.logger.error(self.__class__.__name__, "Player instance not found or missing 'play_single_file' method.")
-            # If player failed, restore visibility if we hid it
-            if video_widget_was_hidden and self.player and hasattr(self.player, '_video_widget') and self.player._video_widget:
-                 self.logger.warning(self.__class__.__name__, "Player error, restoring video widget visibility.")
-                 self.player._video_widget.setVisible(True)
+        # Use unified loading method directly - no delays needed
+        # The unified method handles all timing and position restoration internally
+        try:
+            self.player._unified_load_single_file(filepath)
+            self.logger.info(self.__class__.__name__, "Unified file loading initiated successfully.")
+        except Exception as e:
+            self.logger.error(self.__class__.__name__, f"Error during unified file loading: {e}")
+            
+            # Restore video widget visibility if we hid it and loading failed
+            if not video_widget_was_hidden and self.player and hasattr(self.player, '_video_widget') and self.player._video_widget:
+                self.logger.warning(self.__class__.__name__, "Restoring video widget visibility after loading error.")
+                self.player._video_widget.setVisible(True)
 
     def _on_playback_state_changed(self, state):
         """Handle playback state change events"""
@@ -326,6 +337,25 @@ class MusicPlayerDashboard(BaseWindow):
         log_prefix = self.__class__.__name__ # Use class name for caller context
         
         self.logger.info(log_prefix, "Main window close event triggered.")
+
+        # --- NEW: Save current playback position before exit ---
+        if self.player and self.player.current_media_path:
+            current_pos = self.player.backend.get_current_position()
+            current_duration = self.player.backend.get_duration()
+            if current_pos and current_duration and current_pos > 5000:
+                self.logger.info(log_prefix, f"Saving position {current_pos}ms before app exit")
+                try:
+                    success = self.player.position_manager.save_position(
+                        self.player.current_media_path, current_pos, current_duration)
+                    if success:
+                        # Update tracking variables for consistency
+                        self.player.last_saved_position = current_pos
+                        self.logger.info(log_prefix, "Position saved successfully on app exit")
+                    else:
+                        self.logger.warning(log_prefix, "Failed to save position on app exit")
+                except Exception as e:
+                    self.logger.error(log_prefix, f"Error saving position on app exit: {e}")
+        # -------------------------------------------------------
 
         # Gracefully shut down the download manager threads
         if hasattr(self, 'pages') and 'youtube_downloader' in self.pages:

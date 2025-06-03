@@ -4,7 +4,7 @@ Main player module that integrates the UI components with the VLC backend.
 import os
 import sys # <-- Add sys import for platform check
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QFileDialog
-from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer
 import vlc
 from typing import Optional
 
@@ -33,6 +33,15 @@ from music_player.ui.components.player_components.full_screen_video import FullS
 # --- Add PlayerPage import for type hinting and method call ---
 from music_player.ui.pages.player_page import PlayerPage 
 # -----------------------------------------------------------
+
+# --- Add Position Manager import ---
+from music_player.models.position_manager import PlaybackPositionManager
+# --------------------------------
+
+# --- Add New Manager Imports ---
+from music_player.models.subtitle_manager import SubtitleManager
+from music_player.models.media_manager import MediaManager
+# ------------------------------
 
 class MainPlayer(QWidget):
     """
@@ -94,6 +103,22 @@ class MainPlayer(QWidget):
         # --- Add PlayerPage reference attribute ---
         self._player_page_ref: Optional[PlayerPage] = None
         # ----------------------------------------
+        
+        # --- Add Position Manager instance attribute ---
+        self.position_manager = PlaybackPositionManager.instance()
+        # --------------------------------------------
+        
+        # --- Add Subtitle Manager instance ---
+        self.subtitle_manager = SubtitleManager()
+        # ----------------------------------
+        
+        # --- Add Periodic Position Save Timer (Phase 3) ---
+        self.position_save_timer = QTimer(self)
+        self.position_save_timer.setInterval(10000)  # 10 seconds
+        self.position_save_timer.timeout.connect(self._periodic_position_save)
+        self.position_dirty = False  # Flag to track if position needs saving
+        self.last_saved_position = 0  # Track last saved position to avoid redundant saves
+        # ------------------------------------------------
         
         # UI Components
         self.player_widget = PlayerWidget(self, persistent=persistent_mode)
@@ -383,6 +408,18 @@ class MainPlayer(QWidget):
         """
         self.app_state = state
         
+        # --- Manage Periodic Save Timer (Phase 3) ---
+        if hasattr(self, 'position_save_timer'):
+            if state == STATE_PLAYING:
+                if not self.position_save_timer.isActive():
+                    self.position_save_timer.start()
+                    print("[MainPlayer] Started periodic position save timer")
+            else:
+                if self.position_save_timer.isActive():
+                    self.position_save_timer.stop()
+                    print(f"[MainPlayer] Stopped periodic position save timer (state: {state})")
+        # ------------------------------------------
+        
         # Update UI
         if state == STATE_PLAYING:
             self.player_widget.set_playing_state(True)
@@ -438,6 +475,13 @@ class MainPlayer(QWidget):
         Decides what to do when a track finishes playing based on playback mode and repeat settings.
         """
         print(f"[MainPlayer] _on_end_reached called with mode {self._playback_mode}")
+        
+        # --- NEW: Clear saved position when media ends naturally ---
+        if self.current_media_path:
+            print(f"[MainPlayer] Clearing saved position for completed media: {os.path.basename(self.current_media_path)}")
+            self.position_manager.clear_position(self.current_media_path)
+        # ----------------------------------------------------------
+        
         if self._playback_mode == 'single':
             # Always repeat in single mode
             self.backend.seek(0)
@@ -533,6 +577,18 @@ class MainPlayer(QWidget):
         
     def pause(self):
         """Pause playback"""
+        # --- NEW: Save position when user manually pauses ---
+        if self.current_media_path and self.backend.get_current_position():
+            current_pos = self.backend.get_current_position()
+            current_duration = self.backend.get_duration()
+            # Use PositionManager to handle the business logic
+            success, saved_position = self.position_manager.handle_manual_action_save(
+                self.current_media_path, current_pos, current_duration, "pause"
+            )
+            if success:
+                self.last_saved_position = saved_position
+        # ---------------------------------------------------
+        
         # Set app state to paused FIRST for responsive UI
         self._set_app_state(STATE_PAUSED)
         
@@ -558,6 +614,11 @@ class MainPlayer(QWidget):
     def cleanup(self):
         """Clean up resources"""
         self.backend.cleanup()
+        
+        # --- Stop periodic save timer ---
+        if hasattr(self, 'position_save_timer'):
+            self.position_save_timer.stop()
+        # ------------------------------
         
         # --- Call FullScreenManager cleanup ---
         if self.full_screen_manager:
@@ -768,24 +829,30 @@ class MainPlayer(QWidget):
         self.player_widget.update_track_info(title, artist, album, artwork_path)
         self.setFocus()
         
+        # --- NEW: Restore saved position if available ---
+        if self.current_media_path:
+            saved_position = self.position_manager.get_saved_position(self.current_media_path)
+            if saved_position and self.backend.get_duration() > saved_position > 5000:
+                print(f"[MainPlayer] Restoring saved position: {saved_position}ms")
+                # Use a small delay to ensure media is fully loaded before seeking
+                QTimer.singleShot(100, lambda: self.backend.seek(saved_position))
+        # ---------------------------------------------------
+        
         # Emit the consolidated media_changed signal
         self.media_changed.emit(media, is_video)
         
     def _reset_subtitle_state(self):
-        """Reset internal subtitle state tracking."""
-        self._has_subtitle_tracks = False
-        self._subtitle_enabled = False
-        self._current_subtitle_track = -1
-        self._subtitle_tracks = []
-        self._current_subtitle_language = ""
+        """Reset internal subtitle state tracking using SubtitleManager."""
+        self.subtitle_manager.reset_state()
         
     def _update_subtitle_controls(self):
-        """Update the subtitle controls in the PlayerWidget based on current state."""
+        """Update the subtitle controls in the PlayerWidget using SubtitleManager state."""
+        state_info = self.subtitle_manager.get_subtitle_state_info()
         self.player_widget.update_subtitle_state(
-            self._has_subtitle_tracks,
-            self._subtitle_enabled,
-            self._current_subtitle_language,
-            self._subtitle_tracks  # Pass the full list of subtitle tracks for the menu
+            state_info['has_subtitle_tracks'],
+            state_info['subtitle_enabled'],
+            state_info['current_subtitle_language'],
+            state_info['subtitle_tracks']
         )
         
     def _extract_language_code(self, track_name):
@@ -1102,30 +1169,37 @@ class MainPlayer(QWidget):
         Args:
             file_path (str): The absolute path to the media file.
         """
-        # Ensure file_path is a string before checking existence or showing error
-        actual_path = file_path
-        if isinstance(file_path, dict):
-            actual_path = file_path.get('path', '') # Extract path if it's a dict
-            print(f"[MainPlayer] Warning: _load_and_play_path received dict, extracted path: {actual_path}")
-
-        if not actual_path or not os.path.exists(actual_path):
-            # Display the extracted path in the error message
-            error_display_path = actual_path if actual_path else "(Empty Path)"
-            self._show_error(f"Media file not found: {error_display_path}")
-            # --- NEW: If load fails, ensure timeline and clipping manager know there's effectively no *new* media ---
-            # This assumes current_media_path might have been optimistically set before this check.
-            # If _load_and_play_path is only called with confirmed paths, this might be redundant.
-            # However, it's safer to ensure state is consistent if an error occurs mid-load.
-            if self.current_media_path != actual_path or not actual_path: # If intended path failed
-                self.player_widget.timeline.set_current_media_path(None) # Or previous valid path if applicable
+        # --- Save current position before loading new media ---
+        if self.current_media_path and not MediaManager.compare_media_paths(self.current_media_path, file_path):
+            current_pos = self.backend.get_current_position()
+            current_duration = self.backend.get_duration()
+            # Use PositionManager to handle the business logic
+            success, saved_position = self.position_manager.handle_position_on_media_change(
+                self.current_media_path, file_path, current_pos, current_duration
+            )
+            if success:
+                self.last_saved_position = saved_position
+        # --------------------------------------------------------
+        
+        # Use MediaManager to validate and prepare the media file
+        success, actual_path, file_info = MediaManager.prepare_media_for_loading(file_path)
+        
+        if not success:
+            error_msg = file_info.get('error', f"Failed to prepare media: {actual_path}")
+            self._show_error(error_msg)
+            # Handle timeline and clipping manager state on error
+            if self.current_media_path != actual_path or not actual_path:
+                self.player_widget.timeline.set_current_media_path(None)
                 self.clipping_manager.set_media("")
-            # -------------------------------------------------------------------------------------------------
             if self._playback_mode == 'playlist':
-                # If loading fails in playlist mode, try to advance
                 self.play_next_track(force_advance=True)
-            return # Exit early on error
-            
-        # Use the extracted actual_path from now on
+            return
+        
+        # Log any warnings
+        if 'warning' in file_info:
+            print(f"[MainPlayer] Warning: {file_info['warning']}")
+        
+        # Use the validated path
         self.current_media_path = actual_path
         print(f"[MainPlayer] Backend loading: {actual_path}")
         
@@ -1248,6 +1322,17 @@ class MainPlayer(QWidget):
             filepath (str): The absolute path of the file to play.
         """
         print(f"[MainPlayer] Received request to play single file: {filepath}")
+        self._unified_load_single_file(filepath)
+        
+    def _unified_load_single_file(self, filepath: str):
+        """
+        Unified method for loading and playing a single file with consistent position restoration.
+        This ensures the same behavior regardless of entry point (browser, dashboard, etc.).
+        
+        Args:
+            filepath (str): The absolute path of the file to play.
+        """
+        print(f"[MainPlayer] Unified loading of single file: {filepath}")
         
         # Set mode to single and clear playlist reference
         self.set_playback_mode('single') 
@@ -1256,7 +1341,7 @@ class MainPlayer(QWidget):
         # Add to recently played BEFORE loading
         self.recently_played_model.add_item(item_type='file', name=os.path.basename(filepath), path=filepath)
         
-        # Load and play the track
+        # Load and play the track - this will handle position restoration
         self._load_and_play_path(filepath)
         self.setFocus() # Ensure player retains focus
 
@@ -1356,6 +1441,19 @@ class MainPlayer(QWidget):
     def stop(self):
         """Stop playback immediately."""
         print("[MainPlayer] stop() method called. Calling backend.stop()")
+        
+        # --- NEW: Save position when user manually stops ---
+        if self.current_media_path and self.backend.get_current_position():
+            current_pos = self.backend.get_current_position()
+            current_duration = self.backend.get_duration()
+            # Use PositionManager to handle the business logic
+            success, saved_position = self.position_manager.handle_manual_action_save(
+                self.current_media_path, current_pos, current_duration, "stop"
+            )
+            if success:
+                self.last_saved_position = saved_position
+        # --------------------------------------------------
+        
         # Set internal state first?
         # self._set_app_state(STATE_STOPPED) # If we add a stopped state
         # Or just let backend state signal handle it?
@@ -1531,3 +1629,26 @@ class MainPlayer(QWidget):
         self._player_page_ref = player_page
         print("[MainPlayer] PlayerPage registered.")
     # ------------------------------------------------------------------------------------
+
+    # --- Add Periodic Position Save Method (Phase 3) ---
+    def _periodic_position_save(self):
+        """
+        Periodic position save method called every 10 seconds during playback.
+        Uses PositionManager to encapsulate all business logic.
+        """
+        if not self.current_media_path or not self.is_playing():
+            return
+            
+        current_pos = self.backend.get_current_position()
+        current_duration = self.backend.get_duration()
+        
+        # Delegate to PositionManager for all business logic
+        success, new_last_saved = self.position_manager.handle_periodic_save(
+            self.current_media_path, current_pos, current_duration, self.last_saved_position
+        )
+        
+        if success:
+            self.last_saved_position = new_last_saved
+            self.position_dirty = False
+        # Note: PositionManager handles all logging and validation
+    # -------------------------------------------------------

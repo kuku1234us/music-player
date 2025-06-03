@@ -181,6 +181,37 @@ class PreferencePage(QWidget):
         self.groq_api_key_edit.textChanged.connect(self._save_groq_api_key)
         form_layout.addRow(self.groq_api_key_label, self.groq_api_key_edit)
 
+        # --- Playback Position Settings ---
+        self.position_cleanup_label = QLabel("Saved Positions:")
+        self.position_cleanup_label.setStyleSheet(label_style)
+
+        self.position_cleanup_container = QWidget()
+        self.position_cleanup_layout = QHBoxLayout(self.position_cleanup_container)
+        self.position_cleanup_layout.setContentsMargins(0, 0, 0, 0)
+        self.position_cleanup_layout.setSpacing(12)
+
+        self.position_stats_label = QLabel("Loading...")
+        self.position_stats_label.setStyleSheet(input_style + """
+            border: none;
+            background-color: transparent;
+            padding: 4px;
+        """)
+        self.position_stats_label.setWordWrap(True)
+        self.position_stats_label.setMinimumHeight(32)
+        self.position_stats_label.setSizePolicy(
+            self.position_stats_label.sizePolicy().horizontalPolicy(),
+            self.position_stats_label.sizePolicy().verticalPolicy()
+        )
+
+        self.cleanup_positions_button = QPushButton("Clean Up Deleted Files")
+        self.cleanup_positions_button.clicked.connect(self.cleanup_playback_positions)
+        self.cleanup_positions_button.setStyleSheet(button_style)
+
+        self.position_cleanup_layout.addWidget(self.position_stats_label, 1)
+        self.position_cleanup_layout.addWidget(self.cleanup_positions_button, 0)
+
+        form_layout.addRow(self.position_cleanup_label, self.position_cleanup_container)
+
         self.main_layout.addLayout(form_layout)
         
         # --- Buttons --- 
@@ -220,6 +251,9 @@ class PreferencePage(QWidget):
         mp3_bitrate = self.settings.get(CONVERSION_MP3_BITRATE_KEY, DEFAULT_CONVERSION_MP3_BITRATE, SettingType.INT)
         self.mp3_bitrate_spinbox.setValue(mp3_bitrate)
         # --- END NEW --- #
+        
+        # Update position database stats
+        self.update_position_stats()
         
     def _save_seek_interval(self):
         """Save the seek interval setting."""
@@ -336,3 +370,62 @@ class PreferencePage(QWidget):
                     "Save Error",
                     f"Failed to save download directory: {str(e)}"
                 ) 
+
+    def cleanup_playback_positions(self):
+        """Clean up playback positions for deleted files"""
+        from music_player.models.position_manager import PlaybackPositionManager
+
+        try:
+            position_manager = PlaybackPositionManager.instance()
+            removed_count = position_manager.cleanup_deleted_files()
+
+            QMessageBox.information(
+                self,
+                "Cleanup Complete",
+                f"Removed {removed_count} position entries for deleted files."
+            )
+
+            # Refresh stats display
+            self.update_position_stats()
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Cleanup Error", 
+                f"Failed to clean up position database: {str(e)}"
+            )
+
+    def update_position_stats(self):
+        """Update the display of position database statistics"""
+        try:
+            from music_player.models.position_manager import PlaybackPositionManager
+
+            position_manager = PlaybackPositionManager.instance()
+            stats = position_manager.get_database_stats()
+
+            # Format the stats for display
+            total_files = stats.get('total_files', 0)
+            total_hours = stats.get('total_hours', 0.0)
+            total_duration_hours = stats.get('total_duration_hours', 0.0)
+            db_size_mb = stats.get('database_size_mb', 0.0)
+            
+            if total_files == 0:
+                stats_text = "No saved positions"
+            else:
+                # Create a compact single-line stats display for horizontal layout
+                stats_parts = [f"{total_files} files", f"{total_hours:.1f}h saved"]
+                
+                if total_duration_hours > 0:
+                    completion_percentage = (total_hours / total_duration_hours) * 100
+                    stats_parts.append(f"{completion_percentage:.1f}% avg")
+                
+                if db_size_mb > 0.1:
+                    stats_parts.append(f"{db_size_mb:.1f} MB")
+                
+                stats_text = " • ".join(stats_parts)
+
+            self.position_stats_label.setText(stats_text)
+            
+        except Exception as e:
+            self.position_stats_label.setText(f"Error: {str(e)}")
+            print(f"[PreferencePage] Error updating position stats: {e}")

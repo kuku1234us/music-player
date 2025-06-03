@@ -1,22 +1,16 @@
-[2025-06-03 13:12:28-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-06-03 13:12:28-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-06-03 13:12:29-DEBUG][BaseWindow]Restored window geometry.
-[2025-06-03 13:12:29-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-06-03 13:12:30-INFO ][YoutubePage]UI setup complete.
-[2025-06-03 13:12:30-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-06-03 13:12:30-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-06-03 13:12:30-INFO ][YoutubePage]Initialized.
-[2025-06-03 13:12:30-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-06-03 13:12:30-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-06-03 13:12:30-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-06-03 13:12:31-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-06-03 13:12:40-INFO ][PlaylistPlaymodeWidget][PlayMode] Loading playlist 'Classical' into view.
-[2025-06-03 13:12:40-DEBUG][PlaylistPlaymodeWidget][PlayMode] Creating FilePoolModel for playlist with 19 tracks.
-[2025-06-03 13:12:40-DEBUG][FilePoolModel][FilePoolModel.__init__] Initializing. Provided source_objects count: 19
-[2025-06-03 13:12:40-DEBUG][FilePoolModel][FilePoolModel.__init__] After super().__init__. _source_objects count: 19
-[2025-06-03 13:12:40-DEBUG][FilePoolModel][FilePoolModel.__init__] Calling _rebuild_path_set from __init__.
-[2025-06-03 13:12:40-DEBUG][FilePoolModel][FilePoolModel._rebuild_path_set] Rebuilding path set from 19 objects.
-[2025-06-03 13:12:40-DEBUG][FilePoolModel][FilePoolModel._rebuild_path_set] Finished rebuilding. Added 19 unique paths. Set size: 19
-[2025-06-03 13:12:40-DEBUG][FilePoolModel][FilePoolModel.__init__] Path set rebuilt. Size: 19
-[2025-06-03 18:10:43-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4, switching to PlayerPage.
-[2025-06-03 18:10:43-INFO ][MusicPlayerDashboard]Hiding video widget before switching page and playing.
+[2025-06-03 20:47:33-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-06-03 20:47:33-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-06-03 20:47:33-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-06-03 20:47:33-INFO ][PlaybackPositionManager]Position database initialized successfully
+[2025-06-03 20:47:33-DEBUG][BaseWindow]Restored window geometry.
+[2025-06-03 20:47:33-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-06-03 20:47:34-INFO ][YoutubePage]UI setup complete.
+[2025-06-03 20:47:34-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-06-03 20:47:34-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-06-03 20:47:34-INFO ][YoutubePage]Initialized.
+[2025-06-03 20:47:34-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified file loading
+[2025-06-03 20:47:34-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-06-03 20:47:34-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-06-03 20:47:34-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified file loading
+[2025-06-03 20:47:35-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-06-03 20:47:35-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
