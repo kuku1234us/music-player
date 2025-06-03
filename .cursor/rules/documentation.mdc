@@ -13,5 +13,5 @@ The documentations of our system is geared towards training junior developers. W
 - Anticipate Questions: Address confusion points.
 - Use Analogies on difficult/complex concepts: Relate to familiar concepts.
 - Add Visuals, Ascii Diagrams
-
 - Use complete sentences, paragraphs, essay style
+- If the document is a new feature implementation documentation, add a milestone checklist to the end to track our progress.

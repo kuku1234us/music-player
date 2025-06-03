@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Our player does NOT have a "media ended" state. When any media is loaded, one of three repeat modes is always in effect. When a media file reaches the end, the player always either repeat the same file (Single Mode) or play the next file in a playlist (Playlist Mode).
