@@ -774,7 +774,7 @@ class ClippingManager(QObject):
         
         # 4. Check codec encoding support
         encoder_support = self._check_codec_encoding_support(codec_info)
-        
+
         output_path = self._generate_clipped_filename()
         if not output_path:
             self._logger.error("ClippingManager", "Could not generate an output filename.")
@@ -998,11 +998,11 @@ class ClippingManager(QObject):
                                                 
                                                 # Use simple stream copy with fallback timing
                                                 fallback_cmd = [
-                                                    "ffmpeg", "-y", "-hide_banner",
+                    "ffmpeg", "-y", "-hide_banner",
                                                     "-ss", str(fallback_start_time),
-                                                    "-i", media_path,
+                    "-i", media_path,
                                                     "-t", str(fallback_duration),
-                                                    "-c", "copy",
+                    "-c", "copy",
                                                     "-avoid_negative_ts", "make_zero",
                                                     temp_output_path
                                                 ]
@@ -1221,7 +1221,7 @@ class ClippingManager(QObject):
                     if temp_item.is_file():
                         os.remove(temp_item)
                 
-                if not any(temp_dir.iterdir()):
+                if not any(temp_dir.iterdir()): 
                     os.rmdir(temp_dir)
             except Exception as e:
                 self._logger.error("ClippingManager", f"Error cleaning temp directory: {e}")

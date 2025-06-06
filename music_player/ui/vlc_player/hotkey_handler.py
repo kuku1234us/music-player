@@ -188,16 +188,19 @@ class HotkeyHandler(QObject):
         """Increase playback speed by 0.10"""
         current_rate = self.main_player.get_rate()
         new_rate = current_rate + 0.10
+        print(f"[HotkeyHandler] ']' key: Increasing speed to {new_rate:.2f}x")
         self.main_player.set_rate(new_rate)
         
     def _decrease_playback_speed(self):
         """Decrease playback speed by 0.10"""
         current_rate = self.main_player.get_rate()
-        new_rate = current_rate - 0.10
+        new_rate = max(0.10, current_rate - 0.10)  # Prevent negative or zero speed
+        print(f"[HotkeyHandler] '[' key: Decreasing speed to {new_rate:.2f}x")
         self.main_player.set_rate(new_rate)
         
     def _reset_playback_speed(self):
         """Reset playback speed to normal (1.0)"""
+        print(f"[HotkeyHandler] '0' key: Resetting speed to 1.0x")
         self.main_player.set_rate(1.0)
         
     def _request_toggle_full_screen(self):

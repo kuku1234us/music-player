@@ -610,7 +610,7 @@ class VLCBackend(QObject):
         Get the path of the currently loaded media file.
         
         Returns:
-            str: Path to the current media file, or None if no media is loaded
+            str: Normalized absolute path to the current media file, or None if no media is loaded
         """
         if not self.current_media:
             return None
@@ -625,12 +625,89 @@ class VLCBackend(QObject):
                 # For Windows paths that start with a drive letter
                 if os.name == 'nt' and file_path.startswith('/'):
                     file_path = file_path[1:]
+                
+                # Normalize the path to ensure consistency with position manager
+                try:
+                    normalized_path = os.path.abspath(file_path)
                     
-                return file_path
+                    # Handle network drive mappings for consistency
+                    if os.name == 'nt':
+                        normalized_path = self._resolve_network_path(normalized_path)
+                    
+                    return normalized_path
+                except Exception as norm_error:
+                    print(f"[VLCBackend] Warning: Failed to normalize path {file_path}: {norm_error}")
+                    return file_path  # Return original if normalization fails
+                    
         except Exception as e:
-            print(f"Error getting media path: {e}")
+            print(f"[VLCBackend] Error getting media path: {e}")
             
         return None
+
+    def _resolve_network_path(self, path: str) -> str:
+        """
+        Resolve mapped network drives to their UNC paths for consistent database storage.
+        
+        Args:
+            path (str): File path that might use a mapped drive
+            
+        Returns:
+            str: UNC path if it's a mapped network drive, otherwise the original path
+        """
+        if not path or len(path) < 3:
+            return path
+            
+        # Check if it's a drive letter path (e.g., Z:\...)
+        if path[1:3] == ':\\':
+            drive_letter = path[0].upper()
+            
+            try:
+                import subprocess
+                # Use Windows NET USE command to get UNC path for the drive
+                result = subprocess.run(
+                    ['net', 'use', f'{drive_letter}:'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                if result.returncode == 0:
+                    # Parse the output to find the remote path
+                    output_lines = result.stdout.strip().split('\n')
+                    for line in output_lines:
+                        if 'Remote name' in line or 'remote name' in line:
+                            # Extract UNC path from "Remote name \\server\share"
+                            parts = line.split()
+                            if len(parts) >= 3 and parts[-1].startswith('\\\\'):
+                                unc_root = parts[-1]
+                                # Replace drive portion with UNC root
+                                relative_path = path[3:]  # Remove "Z:\"
+                                unc_path = os.path.join(unc_root, relative_path).replace('\\', '/')
+                                unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
+                                print(f"[VLCBackend] Resolved mapped drive: {path} -> {unc_path}")
+                                return unc_path
+                        
+                        # Alternative parsing for different NET USE output formats
+                        if '\\\\' in line and drive_letter in line:
+                            # Find UNC path in the line
+                            unc_start = line.find('\\\\')
+                            if unc_start >= 0:
+                                # Extract everything from \\ onwards, but stop at whitespace
+                                unc_part = line[unc_start:].split()[0]
+                                if unc_part.count('\\') >= 3:  # Valid UNC path \\server\share
+                                    relative_path = path[3:]  # Remove "Z:\"
+                                    unc_path = os.path.join(unc_part, relative_path).replace('\\', '/')
+                                    unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
+                                    print(f"[VLCBackend] Resolved mapped drive: {path} -> {unc_path}")
+                                    return unc_path
+                                    
+            except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
+                print(f"[VLCBackend] Could not resolve network drive {drive_letter}: {e}")
+            except Exception as e:
+                print(f"[VLCBackend] Unexpected error resolving network drive {drive_letter}: {e}")
+        
+        # Return original path if not a mapped drive or resolution failed
+        return path
 
     # --- Add method to set video output --- 
     def set_video_output(self, hwnd):

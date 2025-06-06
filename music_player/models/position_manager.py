@@ -70,16 +70,24 @@ class PlaybackPositionManager:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # Create table with proper schema
+                # Create table with proper schema including playback_rate
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS playback_positions (
                         file_path TEXT PRIMARY KEY,
                         position_ms INTEGER NOT NULL,
                         duration_ms INTEGER NOT NULL,
+                        playback_rate REAL NOT NULL DEFAULT 1.0,
                         last_updated TEXT NOT NULL,
                         created_at TEXT NOT NULL
                     )
                 """)
+                
+                # Check if playback_rate column exists, add it if missing (for existing databases)
+                cursor.execute("PRAGMA table_info(playback_positions)")
+                columns = [column[1] for column in cursor.fetchall()]
+                if 'playback_rate' not in columns:
+                    self.logger.info(self.__class__.__name__, "Adding playback_rate column to existing database")
+                    cursor.execute("ALTER TABLE playback_positions ADD COLUMN playback_rate REAL NOT NULL DEFAULT 1.0")
                 
                 # Create index for performance
                 cursor.execute("""
@@ -121,14 +129,15 @@ class PlaybackPositionManager:
         
         raise sqlite3.OperationalError(f"Failed to connect to database after {self._retry_count} attempts")
     
-    def save_position(self, file_path: str, position_ms: int, duration_ms: int) -> bool:
+    def save_position(self, file_path: str, position_ms: int, duration_ms: int, playback_rate: float = 1.0) -> bool:
         """
-        Save the playback position for a media file.
+        Save the playback position and rate for a media file.
         
         Args:
             file_path (str): Absolute path to the media file
             position_ms (int): Current playback position in milliseconds
             duration_ms (int): Total duration of the media in milliseconds
+            playback_rate (float): Current playback rate (1.0 = normal speed)
             
         Returns:
             bool: True if save was successful, False otherwise
@@ -144,9 +153,20 @@ class PlaybackPositionManager:
                               f"Position {position_ms}ms exceeds duration {duration_ms}ms for {file_path}")
             return False
         
+        # Validate playback rate is reasonable
+        if playback_rate <= 0 or playback_rate > 10.0:  # Allow up to 10x speed
+            self.logger.warning(self.__class__.__name__, 
+                              f"Invalid playback rate {playback_rate} for {file_path}, using 1.0")
+            playback_rate = 1.0
+        
         # Normalize file path
         try:
             normalized_path = os.path.abspath(file_path)
+            
+            # Handle network drive mappings for consistency with MediaManager
+            if os.name == 'nt':
+                normalized_path = self._resolve_network_path(normalized_path)
+                
         except Exception as e:
             self.logger.error(self.__class__.__name__, f"Failed to normalize path {file_path}: {e}")
             return False
@@ -166,15 +186,15 @@ class PlaybackPositionManager:
                     # Use INSERT OR REPLACE for upsert functionality
                     cursor.execute("""
                         INSERT OR REPLACE INTO playback_positions 
-                        (file_path, position_ms, duration_ms, last_updated, created_at)
-                        VALUES (?, ?, ?, ?, 
+                        (file_path, position_ms, duration_ms, playback_rate, last_updated, created_at)
+                        VALUES (?, ?, ?, ?, ?, 
                                COALESCE((SELECT created_at FROM playback_positions WHERE file_path = ?), ?))
-                    """, (normalized_path, position_ms, duration_ms, timestamp, normalized_path, timestamp))
+                    """, (normalized_path, position_ms, duration_ms, playback_rate, timestamp, normalized_path, timestamp))
                     
                     conn.commit()
                     
                     self.logger.debug(self.__class__.__name__, 
-                                    f"Saved position {position_ms}ms for {os.path.basename(normalized_path)}")
+                                    f"Saved position {position_ms}ms at {playback_rate}x rate for {os.path.basename(normalized_path)}")
                     return True
                     
         except sqlite3.Error as e:
@@ -184,59 +204,133 @@ class PlaybackPositionManager:
             self.logger.error(self.__class__.__name__, f"Unexpected error saving position: {e}")
             return False
     
-    def get_saved_position(self, file_path: str) -> Optional[int]:
+    def get_saved_position(self, file_path: str) -> tuple[Optional[int], float]:
         """
-        Get the saved playback position for a media file.
+        Get the saved playback position and rate for a media file.
         
         Args:
             file_path (str): Absolute path to the media file
             
         Returns:
-            Optional[int]: Saved position in milliseconds, or None if not found
+            tuple[Optional[int], float]: (position in milliseconds or None, playback rate)
         """
         if not file_path:
-            return None
+            return None, 1.0
         
         # Normalize file path
         try:
             normalized_path = os.path.abspath(file_path)
+            
+            # Handle network drive mappings for consistency with MediaManager
+            if os.name == 'nt':
+                normalized_path = self._resolve_network_path(normalized_path)
+                
         except Exception as e:
             self.logger.error(self.__class__.__name__, f"Failed to normalize path {file_path}: {e}")
-            return None
+            return None, 1.0
         
         try:
             with self._db_lock:
                 with self._get_connection() as conn:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "SELECT position_ms, duration_ms FROM playback_positions WHERE file_path = ?",
+                        "SELECT position_ms, duration_ms, playback_rate FROM playback_positions WHERE file_path = ?",
                         (normalized_path,)
                     )
                     result = cursor.fetchone()
                     
                     if result:
-                        position_ms, duration_ms = result
+                        position_ms, duration_ms, playback_rate = result
+                        # Handle case where playback_rate might be None from old database entries
+                        if playback_rate is None:
+                            playback_rate = 1.0
+                        
                         self.logger.debug(self.__class__.__name__, 
-                                        f"Retrieved position {position_ms}ms for {os.path.basename(normalized_path)}")
+                                        f"Retrieved position {position_ms}ms at {playback_rate}x rate for {os.path.basename(normalized_path)}")
                         
                         # Validate that the saved position is reasonable
                         if 0 <= position_ms <= duration_ms:
-                            return position_ms
+                            return position_ms, playback_rate
                         else:
                             self.logger.warning(self.__class__.__name__, 
                                               f"Invalid saved position {position_ms}ms (duration: {duration_ms}ms) for {file_path}")
                             # Clean up the invalid entry
                             self.clear_position(normalized_path)
-                            return None
+                            return None, 1.0
                     
-                    return None
+                    return None, 1.0
                     
         except sqlite3.Error as e:
             self.logger.error(self.__class__.__name__, f"Failed to get position for {file_path}: {e}")
-            return None
+            return None, 1.0
         except Exception as e:
             self.logger.error(self.__class__.__name__, f"Unexpected error getting position: {e}")
-            return None
+            return None, 1.0
+    
+    def _resolve_network_path(self, path: str) -> str:
+        """
+        Resolve mapped network drives to their UNC paths for consistent database storage.
+        
+        Args:
+            path (str): File path that might use a mapped drive
+            
+        Returns:
+            str: UNC path if it's a mapped network drive, otherwise the original path
+        """
+        if not path or len(path) < 3:
+            return path
+            
+        # Check if it's a drive letter path (e.g., Z:\...)
+        if path[1:3] == ':\\':
+            drive_letter = path[0].upper()
+            
+            try:
+                import subprocess
+                # Use Windows NET USE command to get UNC path for the drive
+                result = subprocess.run(
+                    ['net', 'use', f'{drive_letter}:'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                if result.returncode == 0:
+                    # Parse the output to find the remote path
+                    output_lines = result.stdout.strip().split('\n')
+                    for line in output_lines:
+                        if 'Remote name' in line or 'remote name' in line:
+                            # Extract UNC path from "Remote name \\server\share"
+                            parts = line.split()
+                            if len(parts) >= 3 and parts[-1].startswith('\\\\'):
+                                unc_root = parts[-1]
+                                # Replace drive portion with UNC root
+                                relative_path = path[3:]  # Remove "Z:\"
+                                unc_path = os.path.join(unc_root, relative_path).replace('\\', '/')
+                                unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
+                                self.logger.debug(self.__class__.__name__, f"Resolved mapped drive: {path} -> {unc_path}")
+                                return unc_path
+                        
+                        # Alternative parsing for different NET USE output formats
+                        if '\\\\' in line and drive_letter in line:
+                            # Find UNC path in the line
+                            unc_start = line.find('\\\\')
+                            if unc_start >= 0:
+                                # Extract everything from \\ onwards, but stop at whitespace
+                                unc_part = line[unc_start:].split()[0]
+                                if unc_part.count('\\') >= 3:  # Valid UNC path \\server\share
+                                    relative_path = path[3:]  # Remove "Z:\"
+                                    unc_path = os.path.join(unc_part, relative_path).replace('\\', '/')
+                                    unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
+                                    self.logger.debug(self.__class__.__name__, f"Resolved mapped drive: {path} -> {unc_path}")
+                                    return unc_path
+                                    
+            except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
+                self.logger.warning(self.__class__.__name__, f"Could not resolve network drive {drive_letter}: {e}")
+            except Exception as e:
+                self.logger.warning(self.__class__.__name__, f"Unexpected error resolving network drive {drive_letter}: {e}")
+        
+        # Return original path if not a mapped drive or resolution failed
+        return path
     
     def clear_position(self, file_path: str) -> bool:
         """
@@ -254,6 +348,11 @@ class PlaybackPositionManager:
         # Normalize file path
         try:
             normalized_path = os.path.abspath(file_path)
+            
+            # Handle network drive mappings for consistency with MediaManager
+            if os.name == 'nt':
+                normalized_path = self._resolve_network_path(normalized_path)
+                
         except Exception as e:
             self.logger.error(self.__class__.__name__, f"Failed to normalize path {file_path}: {e}")
             return False
@@ -430,7 +529,7 @@ class PlaybackPositionManager:
         return True
 
     def handle_periodic_save(self, file_path: str, current_pos: int, current_duration: int, 
-                           last_saved_position: int) -> tuple[bool, int]:
+                           current_rate: float, last_saved_position: int) -> tuple[bool, int]:
         """
         Handle periodic position saving with all business logic encapsulated.
         
@@ -438,6 +537,7 @@ class PlaybackPositionManager:
             file_path (str): Path to the media file
             current_pos (int): Current playback position in milliseconds
             current_duration (int): Total duration in milliseconds
+            current_rate (float): Current playback rate
             last_saved_position (int): Last saved position for change detection
             
         Returns:
@@ -454,9 +554,9 @@ class PlaybackPositionManager:
         # Calculate position difference for logging
         position_difference = abs(current_pos - last_saved_position)
         
-        # Save the position
-        print(f"[PositionManager] Periodic save: {current_pos}ms (change: {position_difference}ms)")
-        success = self.save_position(file_path, current_pos, current_duration)
+        # Save the position and rate
+        print(f"[PositionManager] Periodic save: {current_pos}ms at {current_rate}x rate (change: {position_difference}ms)")
+        success = self.save_position(file_path, current_pos, current_duration, current_rate)
         
         if success:
             return True, current_pos
@@ -464,7 +564,7 @@ class PlaybackPositionManager:
             return False, last_saved_position
 
     def handle_position_on_media_change(self, old_file_path: str, new_file_path: str, 
-                                      current_pos: int, current_duration: int) -> tuple[bool, int]:
+                                      current_pos: int, current_duration: int, current_rate: float) -> tuple[bool, int]:
         """
         Handle position saving when media changes, with validation and business logic.
         
@@ -473,6 +573,7 @@ class PlaybackPositionManager:
             new_file_path (str): Path to the new media file (for comparison)
             current_pos (int): Current playback position in milliseconds
             current_duration (int): Total duration in milliseconds
+            current_rate (float): Current playback rate
             
         Returns:
             tuple[bool, int]: (success, saved_position)
@@ -485,8 +586,8 @@ class PlaybackPositionManager:
         if not self.should_save_position(current_pos, current_duration):
             return False, 0
         
-        print(f"[PositionManager] Saving position {current_pos}ms before loading new media")
-        success = self.save_position(old_file_path, current_pos, current_duration)
+        print(f"[PositionManager] Saving position {current_pos}ms at {current_rate}x rate before loading new media")
+        success = self.save_position(old_file_path, current_pos, current_duration, current_rate)
         
         if success:
             return True, current_pos
@@ -494,7 +595,7 @@ class PlaybackPositionManager:
             return False, 0
 
     def handle_manual_action_save(self, file_path: str, current_pos: int, current_duration: int, 
-                                action_type: str = "manual") -> tuple[bool, int]:
+                                current_rate: float, action_type: str = "manual") -> tuple[bool, int]:
         """
         Handle position saving for manual actions (pause, stop) with business logic.
         
@@ -502,6 +603,7 @@ class PlaybackPositionManager:
             file_path (str): Path to the media file
             current_pos (int): Current playback position in milliseconds
             current_duration (int): Total duration in milliseconds
+            current_rate (float): Current playback rate
             action_type (str): Type of action for logging ("pause", "stop", "manual")
             
         Returns:
@@ -514,8 +616,8 @@ class PlaybackPositionManager:
         if not self.should_save_position(current_pos, current_duration):
             return False, 0
         
-        print(f"[PositionManager] Saving position {current_pos}ms on {action_type}")
-        success = self.save_position(file_path, current_pos, current_duration)
+        print(f"[PositionManager] Saving position {current_pos}ms at {current_rate}x rate on {action_type}")
+        success = self.save_position(file_path, current_pos, current_duration, current_rate)
         
         if success:
             return True, current_pos

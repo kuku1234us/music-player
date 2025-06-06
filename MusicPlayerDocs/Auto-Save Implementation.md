@@ -36,6 +36,7 @@ CREATE TABLE playback_positions (
     file_path TEXT PRIMARY KEY,
     position_ms INTEGER NOT NULL,
     duration_ms INTEGER NOT NULL,
+    playback_rate REAL NOT NULL DEFAULT 1.0,
     last_updated TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
@@ -44,6 +45,8 @@ CREATE INDEX idx_last_updated ON playback_positions(last_updated);
 ```
 
 **Key Strategy**: Simple file path as lookup key for simplicity and reliability.
+
+**New Features**: Now also saves and restores playback speed along with position. When media ends naturally, saves position 0 (instead of clearing) to support repeat modes.
 
 ## Threshold Logic
 
@@ -100,12 +103,14 @@ if self.player and self.player.current_media_path:
 
 ### 4. MainPlayer.\_on_end_reached()
 
-**Purpose**: Clear saved position when media ends naturally
+**Purpose**: Save position 0 when media ends naturally (for repeat functionality)
 
 ```python
 # Add at end of method
 if self.current_media_path:
-    self.position_manager.clear_position(self.current_media_path)
+    current_duration = self.backend.get_duration()
+    current_rate = self.backend.get_rate()
+    self.position_manager.save_position(self.current_media_path, 0, current_duration, current_rate)
 ```
 
 ### 5. Periodic Save Timer (New Component)
@@ -137,8 +142,8 @@ def _set_app_state(self, state):
 
 ```python
 class PlaybackPositionManager:
-    def save_position(self, file_path: str, position_ms: int, duration_ms: int)
-    def get_saved_position(self, file_path: str) -> Optional[int]
+    def save_position(self, file_path: str, position_ms: int, duration_ms: int, playback_rate: float = 1.0)
+    def get_saved_position(self, file_path: str) -> tuple[Optional[int], float]  # Returns (position, rate)
     def clear_position(self, file_path: str)
     def cleanup_deleted_files(self) -> int  # Returns count of cleaned entries
     def get_database_stats(self) -> dict    # For preferences display
@@ -402,3 +407,62 @@ def update_position_stats(self):
 - Performance testing with large databases (1000+ entries)
 
 **Next Steps**: The auto-save implementation is now feature-complete and production-ready. Consider implementing Phase 7 (Testing & Validation) for comprehensive quality assurance.
+
+## Unified Media Loading System
+
+All media loading requests in the application now flow through a single comprehensive method: `MainPlayer.load_media_unified()`. This ensures consistent behavior for position restoration, playback speed restoration, video widget state management, and error handling regardless of where the load request originated.
+
+### Media Loading Entry Points
+
+All the following entry points now use the unified loading system:
+
+1. **Dashboard Page (Recently Played)**
+
+   - File: `dashboard_page.py` → `_on_item_double_clicked()`
+   - Signal: `play_single_file_requested`
+   - Connection: `lambda filepath: self.player.load_media_unified(filepath, "dashboard_recent_files")`
+
+2. **Browser Page (File Table)**
+
+   - File: `browser_table.py` → `mouseDoubleClickEvent()` → `fileDoubleClicked` signal
+   - File: `browser_page.py` → `_on_file_double_clicked()` → `play_single_file_requested` signal
+   - Connection: `lambda filepath: self.player.load_media_unified(filepath, "browser_files")`
+
+3. **Selection Pool (Double-click)**
+
+   - File: `selection_pool.py` → `_on_item_double_clicked()`
+   - Signal: `play_single_file_requested`
+   - Connection: `lambda filepath: self.player.load_media_unified(filepath, "selection_pool")`
+
+4. **YouTube Progress (Right-click Play)**
+
+   - File: `YoutubeProgress.py` → `mouseReleaseEvent()` → `play_file_requested` signal
+   - File: `dashboard.py` → `_handle_single_file_request()`
+   - Calls: `self.player.load_media_unified(filepath, "youtube_downloader")`
+
+5. **Main Player File Dialog**
+
+   - File: `main_player.py` → `load_media()`
+   - Direct call: `self.load_media_unified(file_path, "file_dialog")`
+
+6. **Internal Playlist Navigation**
+   - File: `main_player.py` → `_load_and_play_path()`
+   - Direct call: `self.load_media_unified(file_path, "internal_playlist_navigation")`
+
+### Benefits of Unified Loading
+
+- **Consistent Position Restoration**: All loading methods restore saved position and playback speed
+- **Video Widget State Management**: Proper handling of video display vs album art switching
+- **Error Handling**: Comprehensive error handling and fallback mechanisms
+- **Recently Played Integration**: All loads are automatically added to recently played list
+- **MediaManager Integration**: File validation and path normalization
+- **Context Tracking**: Each entry point provides context for logging and debugging
+
+### Legacy Methods Removed
+
+The following legacy methods have been removed since all entry points now use the unified system:
+
+- `play_single_file()` - Replaced by direct `load_media_unified()` calls
+- `_unified_load_single_file()` - Redundant with comprehensive unified method
+
+The `_load_and_play_path()` method is retained for internal playlist navigation but now also uses the unified loading system internally.

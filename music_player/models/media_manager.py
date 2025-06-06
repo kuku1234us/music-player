@@ -97,23 +97,101 @@ class MediaManager:
             file_path (str): Path to the media file
             
         Returns:
-            Tuple[bool, str, Dict]: (success, validated_path, file_info)
+            Tuple[bool, str, Dict]: (success, normalized_absolute_path, file_info)
         """
         # Validate the path
         is_valid, actual_path, error_msg = MediaManager.validate_media_path(file_path)
         if not is_valid:
             return False, actual_path, {'error': error_msg}
         
-        # Get file information
-        file_info = MediaManager.get_file_info(actual_path)
+        # Normalize the path to ensure consistency across all components
+        try:
+            normalized_path = os.path.abspath(actual_path)
+            
+            # Handle network drive mappings (Windows specific)
+            if os.name == 'nt':
+                normalized_path = MediaManager._resolve_network_path(normalized_path)
+            
+        except Exception as e:
+            print(f"[MediaManager] Warning: Failed to normalize path {actual_path}: {e}")
+            normalized_path = actual_path  # Fall back to original if normalization fails
+        
+        # Get file information using the normalized path
+        file_info = MediaManager.get_file_info(normalized_path)
         if not file_info.get('is_valid', False):
-            return False, actual_path, file_info
+            return False, normalized_path, file_info
         
         # Check if it's a supported media type
-        if not MediaManager.is_media_file(actual_path):
-            file_info['warning'] = f"File type may not be supported: {actual_path}"
+        if not MediaManager.is_media_file(normalized_path):
+            file_info['warning'] = f"File type may not be supported: {normalized_path}"
         
-        return True, actual_path, file_info
+        return True, normalized_path, file_info
+    
+    @staticmethod
+    def _resolve_network_path(path: str) -> str:
+        """
+        Resolve mapped network drives to their UNC paths for consistent database storage.
+        
+        Args:
+            path (str): File path that might use a mapped drive
+            
+        Returns:
+            str: UNC path if it's a mapped network drive, otherwise the original path
+        """
+        if not path or len(path) < 3:
+            return path
+            
+        # Check if it's a drive letter path (e.g., Z:\...)
+        if path[1:3] == ':\\':
+            drive_letter = path[0].upper()
+            
+            try:
+                import subprocess
+                # Use Windows NET USE command to get UNC path for the drive
+                result = subprocess.run(
+                    ['net', 'use', f'{drive_letter}:'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                if result.returncode == 0:
+                    # Parse the output to find the remote path
+                    output_lines = result.stdout.strip().split('\n')
+                    for line in output_lines:
+                        if 'Remote name' in line or 'remote name' in line:
+                            # Extract UNC path from "Remote name \\server\share"
+                            parts = line.split()
+                            if len(parts) >= 3 and parts[-1].startswith('\\\\'):
+                                unc_root = parts[-1]
+                                # Replace drive portion with UNC root
+                                relative_path = path[3:]  # Remove "Z:\"
+                                unc_path = os.path.join(unc_root, relative_path).replace('\\', '/')
+                                unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
+                                print(f"[MediaManager] Resolved mapped drive: {path} -> {unc_path}")
+                                return unc_path
+                        
+                        # Alternative parsing for different NET USE output formats
+                        if '\\\\' in line and drive_letter in line:
+                            # Find UNC path in the line
+                            unc_start = line.find('\\\\')
+                            if unc_start >= 0:
+                                # Extract everything from \\ onwards, but stop at whitespace
+                                unc_part = line[unc_start:].split()[0]
+                                if unc_part.count('\\') >= 3:  # Valid UNC path \\server\share
+                                    relative_path = path[3:]  # Remove "Z:\"
+                                    unc_path = os.path.join(unc_part, relative_path).replace('\\', '/')
+                                    unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
+                                    print(f"[MediaManager] Resolved mapped drive: {path} -> {unc_path}")
+                                    return unc_path
+                                    
+            except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
+                print(f"[MediaManager] Could not resolve network drive {drive_letter}: {e}")
+            except Exception as e:
+                print(f"[MediaManager] Unexpected error resolving network drive {drive_letter}: {e}")
+        
+        # Return original path if not a mapped drive or resolution failed
+        return path
     
     @staticmethod
     def compare_media_paths(path1: str, path2: str) -> bool:

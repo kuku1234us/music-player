@@ -355,10 +355,8 @@ class MainPlayer(QWidget):
                     next_track_path = self._current_playlist.get_first_file()
                     
                 print(f"[MainPlayer] Loading track from playlist: {next_track_path}")
-                self.current_media_path = next_track_path
-                # Set state to playing BEFORE loading media for responsive UI
-                self._set_app_state(STATE_PLAYING)
-                self.backend.load_media(next_track_path)
+                # Use the existing method that properly handles unified loading
+                self._load_and_play_path(next_track_path)
             else:
                 # Single file mode with an existing media file loaded
                 print(f"[MainPlayer] Restarting track: {self.current_media_path}")
@@ -476,11 +474,13 @@ class MainPlayer(QWidget):
         """
         print(f"[MainPlayer] _on_end_reached called with mode {self._playback_mode}")
         
-        # --- NEW: Clear saved position when media ends naturally ---
+        # --- NEW: Save position 0 when media ends naturally (for repeat functionality) ---
         if self.current_media_path:
-            print(f"[MainPlayer] Clearing saved position for completed media: {os.path.basename(self.current_media_path)}")
-            self.position_manager.clear_position(self.current_media_path)
-        # ----------------------------------------------------------
+            current_duration = self.backend.get_duration()
+            current_rate = self.backend.get_rate()
+            print(f"[MainPlayer] Saving position 0 for completed media: {os.path.basename(self.current_media_path)}")
+            self.position_manager.save_position(self.current_media_path, 0, current_duration, current_rate)
+        # ----------------------------------------------------------------------------------
         
         if self._playback_mode == 'single':
             # Always repeat in single mode
@@ -553,13 +553,13 @@ class MainPlayer(QWidget):
         if self.app_state == STATE_ENDED:
             # Need to reload media and start playback
             if self.current_media_path:
-                # Set UI state immediately for responsive UI
+                # For ended state, just seek to beginning and play instead of reloading
+                # This avoids unnecessary media reload and potential path normalization issues
+                print(f"[MainPlayer] Restarting from ended state: {self.current_media_path}")
                 self._set_app_state(STATE_PLAYING)
                 
-                # Load the media first (this triggers on_media_changed for metadata)
-                self.backend.load_media(self.current_media_path)
-                
-                # Start playback from beginning
+                # Seek to beginning and play
+                self.backend.seek(0)
                 result = self.backend.play()
             else:
                 # No current media path to reload
@@ -581,9 +581,10 @@ class MainPlayer(QWidget):
         if self.current_media_path and self.backend.get_current_position():
             current_pos = self.backend.get_current_position()
             current_duration = self.backend.get_duration()
+            current_rate = self.backend.get_rate()
             # Use PositionManager to handle the business logic
             success, saved_position = self.position_manager.handle_manual_action_save(
-                self.current_media_path, current_pos, current_duration, "pause"
+                self.current_media_path, current_pos, current_duration, current_rate, "pause"
             )
             if success:
                 self.last_saved_position = saved_position
@@ -662,6 +663,16 @@ class MainPlayer(QWidget):
         # Send to backend
         self.backend.set_rate(rate)
         
+        # --- NEW: Save position and rate when rate changes ---
+        if self.current_media_path and self.backend.get_current_position():
+            current_pos = self.backend.get_current_position()
+            current_duration = self.backend.get_duration()
+            if current_pos and current_duration:
+                print(f"[MainPlayer] Saving position {current_pos}ms at new rate {rate}x due to rate change")
+                self.position_manager.save_position(self.current_media_path, current_pos, current_duration, rate)
+                self.last_saved_position = current_pos
+        # -------------------------------------------------------
+        
     def get_rate(self):
         """
         Get the current playback rate.
@@ -696,13 +707,135 @@ class MainPlayer(QWidget):
         if hasattr(self.player_widget, 'set_volume'):
             self.player_widget.set_volume(volume)
     
+    def load_media_unified(self, filepath: str, source_context: str = "unknown"):
+        """
+        Unified method for loading media files with comprehensive handling.
+        This method ensures consistent behavior for position restoration, video widget state,
+        and playback regardless of where the request originated.
+        
+        Args:
+            filepath (str): The absolute path of the file to load
+            source_context (str): Context of where the request came from (for logging)
+        
+        Returns:
+            bool: True if loading was successful, False otherwise
+        """
+        print(f"[MainPlayer] Unified media loading from {source_context}: {filepath}")
+        
+        try:
+            # Validate the file path
+            if not filepath or not os.path.exists(filepath):
+                print(f"[MainPlayer] Error: File does not exist: {filepath}")
+                return False
+            
+            # Set mode to single and clear playlist reference
+            self.set_playback_mode('single')
+            self._current_playlist = None
+            
+            # Store video widget state for potential restoration
+            video_widget_was_hidden = False
+            if hasattr(self, '_video_widget') and self._video_widget:
+                video_widget_was_hidden = not self._video_widget.isVisible()
+                # Temporarily hide video widget to prevent flicker during loading
+                self._video_widget.setVisible(False)
+            
+            # Add to recently played BEFORE loading (in case loading fails)
+            try:
+                self.recently_played_model.add_item(
+                    item_type='file', 
+                    name=os.path.basename(filepath), 
+                    path=filepath
+                )
+            except Exception as e:
+                print(f"[MainPlayer] Warning: Could not add to recently played: {e}")
+            
+            # Save current position before loading new media if different file
+            if (self.current_media_path and 
+                not MediaManager.compare_media_paths(self.current_media_path, filepath)):
+                try:
+                    current_pos = self.backend.get_current_position()
+                    current_duration = self.backend.get_duration()
+                    current_rate = self.backend.get_rate()
+                    
+                    if current_pos and current_duration:
+                        success, saved_position = self.position_manager.handle_position_on_media_change(
+                            self.current_media_path, filepath, current_pos, current_duration, current_rate
+                        )
+                        if success:
+                            self.last_saved_position = saved_position
+                            print(f"[MainPlayer] Saved position {saved_position}ms at {current_rate}x for previous media")
+                except Exception as e:
+                    print(f"[MainPlayer] Warning: Could not save previous position: {e}")
+            
+            # Use MediaManager to validate and prepare the media file
+            success, actual_path, file_info = MediaManager.prepare_media_for_loading(filepath)
+            
+            if not success:
+                error_msg = file_info.get('error', f"Failed to prepare media: {actual_path}")
+                print(f"[MainPlayer] Media preparation failed: {error_msg}")
+                
+                # Restore video widget state on error
+                if hasattr(self, '_video_widget') and self._video_widget and not video_widget_was_hidden:
+                    self._video_widget.setVisible(True)
+                
+                return False
+            
+            # Log any warnings from MediaManager
+            if 'warning' in file_info:
+                print(f"[MainPlayer] Warning from MediaManager: {file_info['warning']}")
+            
+            # Update current media path
+            self.current_media_path = actual_path
+            print(f"[MainPlayer] Media path set to: {actual_path}")
+            
+            # Notify timeline and clipping manager about new media
+            self.player_widget.timeline.set_current_media_path(self.current_media_path)
+            self.clipping_manager.set_media(self.current_media_path)
+            
+            # Set app state to playing for responsive UI
+            self._set_app_state(STATE_PLAYING)
+            
+            # Load the media through backend
+            load_successful = self.backend.load_media(actual_path)
+            
+            if load_successful:
+                # Start playback
+                self.backend.play()
+                print(f"[MainPlayer] Successfully loaded and started playback from {source_context}")
+                
+                # The position and rate restoration will be handled automatically
+                # in on_media_metadata_loaded when the backend signals media is ready
+                
+                # Ensure player has focus for hotkeys
+                self.setFocus()
+                
+                return True
+            else:
+                print(f"[MainPlayer] Backend failed to load media: {actual_path}")
+                self._set_app_state(STATE_PAUSED)
+                
+                # Restore video widget state on error  
+                if hasattr(self, '_video_widget') and self._video_widget and not video_widget_was_hidden:
+                    self._video_widget.setVisible(True)
+                
+                return False
+                
+        except Exception as e:
+            print(f"[MainPlayer] Error in unified media loading: {e}")
+            
+            # Restore video widget state on error
+            if hasattr(self, '_video_widget') and self._video_widget and not video_widget_was_hidden:
+                self._video_widget.setVisible(True)
+            
+            return False
+
     def load_media(self):
         """Open a file dialog to select and load a SINGLE media file. Sets mode to 'single'."""
-
-        # --- HIDE VIDEO WIDGET before opening file dialog ---
-        self._video_widget.setVisible(False)
-        video_was_hidden = True
-        # -----------------------
+        # Store video widget state
+        video_widget_was_hidden = False
+        if hasattr(self, '_video_widget') and self._video_widget:
+            video_widget_was_hidden = not self._video_widget.isVisible()
+            self._video_widget.setVisible(False)
 
         last_dir = self.settings.get('player/last_directory', os.path.expanduser("~"), SettingType.STRING)
         
@@ -714,39 +847,21 @@ class MainPlayer(QWidget):
         if file_path:
             self.settings.set('player/last_directory', os.path.dirname(file_path), SettingType.STRING)
             
-            self.set_playback_mode('single')
-            self._current_playlist = None
+            # Use unified loading method
+            success = self.load_media_unified(file_path, "file_dialog")
             
-            self.recently_played_model.add_item(item_type='file', name=os.path.basename(file_path), path=file_path)
-            
-            # Hiding is done before dialog, no need here
-            
-            try:
-                self._load_and_play_path(file_path)
-            finally:
-                # --- KEEP THIS RESTORE LOGIC ---
-                # This is needed because the media type isn't known until AFTER loading.
-                if self._video_widget: # <-- We need to remove the 'video_was_hidden' check here
-                    if self._is_current_media_video:
-                        print("[MainPlayer] New media is video, restoring video widget visibility.")
-                        self._video_widget.setVisible(True)
-                    else:
-                        print("[MainPlayer] New media is audio, keeping video widget hidden.")
-                # -------------------------------
-                # --- NEW: Notify PlayerTimeline and ClippingManager about media change ---
-                self.player_widget.timeline.set_current_media_path(self.current_media_path)
-                self.clipping_manager.set_media(self.current_media_path if self.current_media_path else "")
-                # ---------------------------------------------------------------------
-
-            self.setFocus()
-            return True
+            if success:
+                self.setFocus()
+                return True
+            else:
+                # Restore video widget visibility if loading failed
+                if hasattr(self, '_video_widget') and self._video_widget and not video_widget_was_hidden:
+                    self._video_widget.setVisible(True)
+                return False
         else:
-            # --- KEEP THIS RESTORE LOGIC TOO ---
-            # Restore if dialog was cancelled
-            if self._video_widget: # <-- And remove 'video_was_hidden' here
-                print("[MainPlayer] File dialog cancelled, restoring video widget visibility.")
+            # Dialog was cancelled - restore video widget
+            if hasattr(self, '_video_widget') and self._video_widget and not video_widget_was_hidden:
                 self._video_widget.setVisible(True)
-            # -----------------------------------------------------------------------------------------------------------
             return False
 
     def on_media_metadata_loaded(self, media: dict, is_video: bool):
@@ -829,14 +944,18 @@ class MainPlayer(QWidget):
         self.player_widget.update_track_info(title, artist, album, artwork_path)
         self.setFocus()
         
-        # --- NEW: Restore saved position if available ---
+        # --- NEW: Restore saved position and rate if available ---
         if self.current_media_path:
-            saved_position = self.position_manager.get_saved_position(self.current_media_path)
+            saved_position, saved_rate = self.position_manager.get_saved_position(self.current_media_path)
             if saved_position and self.backend.get_duration() > saved_position > 5000:
-                print(f"[MainPlayer] Restoring saved position: {saved_position}ms")
-                # Use a small delay to ensure media is fully loaded before seeking
-                QTimer.singleShot(100, lambda: self.backend.seek(saved_position))
-        # ---------------------------------------------------
+                print(f"[MainPlayer] Restoring saved position: {saved_position}ms at {saved_rate}x rate")
+                # Use a small delay to ensure media is fully loaded before seeking and setting rate
+                QTimer.singleShot(100, lambda: self._restore_position_and_rate(saved_position, saved_rate))
+            elif saved_rate != 1.0:
+                # Restore just the playback rate if no position to restore
+                print(f"[MainPlayer] Restoring saved playback rate: {saved_rate}x")
+                QTimer.singleShot(100, lambda: self.backend.set_rate(saved_rate))
+        # ----------------------------------------------------------------------
         
         # Emit the consolidated media_changed signal
         self.media_changed.emit(media, is_video)
@@ -854,6 +973,21 @@ class MainPlayer(QWidget):
             state_info['current_subtitle_language'],
             state_info['subtitle_tracks']
         )
+        
+    def _restore_position_and_rate(self, position_ms: int, rate: float):
+        """
+        Helper method to restore both position and playback rate.
+        
+        Args:
+            position_ms (int): Position to seek to in milliseconds
+            rate (float): Playback rate to restore
+        """
+        # First seek to the position
+        self.backend.seek(position_ms)
+        # Then set the playback rate
+        self.backend.set_rate(rate)
+        # Update UI to reflect the rate
+        self.player_widget.set_rate(rate)
         
     def _extract_language_code(self, track_name):
         """
@@ -1165,61 +1299,14 @@ class MainPlayer(QWidget):
 
     def _load_and_play_path(self, file_path: str):
         """
-        Internal helper to load a specific file path and start playback.
+        Internal helper that loads media and starts playback.
+        Used by playlist navigation and other internal operations.
+        
         Args:
             file_path (str): The absolute path to the media file.
         """
-        # --- Save current position before loading new media ---
-        if self.current_media_path and not MediaManager.compare_media_paths(self.current_media_path, file_path):
-            current_pos = self.backend.get_current_position()
-            current_duration = self.backend.get_duration()
-            # Use PositionManager to handle the business logic
-            success, saved_position = self.position_manager.handle_position_on_media_change(
-                self.current_media_path, file_path, current_pos, current_duration
-            )
-            if success:
-                self.last_saved_position = saved_position
-        # --------------------------------------------------------
-        
-        # Use MediaManager to validate and prepare the media file
-        success, actual_path, file_info = MediaManager.prepare_media_for_loading(file_path)
-        
-        if not success:
-            error_msg = file_info.get('error', f"Failed to prepare media: {actual_path}")
-            self._show_error(error_msg)
-            # Handle timeline and clipping manager state on error
-            if self.current_media_path != actual_path or not actual_path:
-                self.player_widget.timeline.set_current_media_path(None)
-                self.clipping_manager.set_media("")
-            if self._playback_mode == 'playlist':
-                self.play_next_track(force_advance=True)
-            return
-        
-        # Log any warnings
-        if 'warning' in file_info:
-            print(f"[MainPlayer] Warning: {file_info['warning']}")
-        
-        # Use the validated path
-        self.current_media_path = actual_path
-        print(f"[MainPlayer] Backend loading: {actual_path}")
-        
-        # --- NEW: Notify PlayerTimeline and ClippingManager about new media path BEFORE loading ---
-        self.player_widget.timeline.set_current_media_path(self.current_media_path)
-        self.clipping_manager.set_media(self.current_media_path)
-        # ------------------------------------------------------------------------------------
-        
-        # Always set the app state to playing BEFORE loading media for responsive UI
-        self._set_app_state(STATE_PLAYING)
-        
-        # Load the media (this will trigger on_media_changed but won't start playback)
-        load_successful = self.backend.load_media(actual_path)
-
-        if load_successful:
-            # Explicitly start playback after media is loaded
-            self.backend.play()
-        else:
-            print("[MainPlayer] Backend load_media failed, playback not started.")
-            self._set_app_state(STATE_PAUSED) # Revert to paused if load failed
+        print(f"[MainPlayer] Loading and playing path: {file_path}")
+        self.load_media_unified(file_path, "internal_playlist_navigation")
 
     def play_next_track(self, force_advance=False):
         """
@@ -1299,50 +1386,16 @@ class MainPlayer(QWidget):
             print(f"[MainPlayer] Error: Track '{filepath}' not found in current playlist '{self._current_playlist.name}'.")
             return # Stop if track couldn't be selected
 
-        # Step 2c & 2d: Load, set state, seek, and play
-        print(f"[MainPlayer] Loading and playing selected track: {filepath}")
-        self.current_media_path = filepath # Update current media path
-        self.backend.load_media(filepath)
-        self._set_app_state(STATE_PLAYING)
-        # self.backend.seek(0) # seek(0) might not be needed as load_media often starts from beginning
-        self.backend.play()
+        # Step 2c & 2d: Use unified loading system for consistent behavior
+        print(f"[MainPlayer] Loading and playing selected track via unified system: {filepath}")
+        # Set playback mode back to playlist after unified loading (which sets it to single)
+        success = self.load_media_unified(filepath, "playlist_track_selection")
+        if success:
+            # Restore playlist mode since unified loading sets it to single
+            self.set_playback_mode('playlist')
+            self._current_playlist = current_ui_playlist
+            print(f"[MainPlayer] Restored playlist mode after unified loading")
         
-        # Add the specific track to recently played
-        self.recently_played_model.add_item(item_type='file', name=os.path.basename(filepath), path=filepath)
-        
-        self.setFocus() # Ensure player retains focus
-
-    @pyqtSlot(str)
-    def play_single_file(self, filepath: str):
-        """
-        Slot to handle requests to play a single file directly.
-        Sets the playback mode to 'single'.
-
-        Args:
-            filepath (str): The absolute path of the file to play.
-        """
-        print(f"[MainPlayer] Received request to play single file: {filepath}")
-        self._unified_load_single_file(filepath)
-        
-    def _unified_load_single_file(self, filepath: str):
-        """
-        Unified method for loading and playing a single file with consistent position restoration.
-        This ensures the same behavior regardless of entry point (browser, dashboard, etc.).
-        
-        Args:
-            filepath (str): The absolute path of the file to play.
-        """
-        print(f"[MainPlayer] Unified loading of single file: {filepath}")
-        
-        # Set mode to single and clear playlist reference
-        self.set_playback_mode('single') 
-        self._current_playlist = None
-        
-        # Add to recently played BEFORE loading
-        self.recently_played_model.add_item(item_type='file', name=os.path.basename(filepath), path=filepath)
-        
-        # Load and play the track - this will handle position restoration
-        self._load_and_play_path(filepath)
         self.setFocus() # Ensure player retains focus
 
     def increase_volume(self, amount=5):
@@ -1446,9 +1499,10 @@ class MainPlayer(QWidget):
         if self.current_media_path and self.backend.get_current_position():
             current_pos = self.backend.get_current_position()
             current_duration = self.backend.get_duration()
+            current_rate = self.backend.get_rate()
             # Use PositionManager to handle the business logic
             success, saved_position = self.position_manager.handle_manual_action_save(
-                self.current_media_path, current_pos, current_duration, "stop"
+                self.current_media_path, current_pos, current_duration, current_rate, "stop"
             )
             if success:
                 self.last_saved_position = saved_position
@@ -1641,10 +1695,11 @@ class MainPlayer(QWidget):
             
         current_pos = self.backend.get_current_position()
         current_duration = self.backend.get_duration()
+        current_rate = self.backend.get_rate()
         
         # Delegate to PositionManager for all business logic
         success, new_last_saved = self.position_manager.handle_periodic_save(
-            self.current_media_path, current_pos, current_duration, self.last_saved_position
+            self.current_media_path, current_pos, current_duration, current_rate, self.last_saved_position
         )
         
         if success:
