@@ -331,7 +331,7 @@ class MusicPlayerDashboard(BaseWindow):
         
         self.logger.info(log_prefix, "Main window close event triggered.")
 
-        # --- NEW: Save current playback position before exit ---
+        # --- NEW: Save current playback position and subtitle state before exit ---
         if self.player and self.player.current_media_path:
             current_pos = self.player.backend.get_current_position()
             current_duration = self.player.backend.get_duration()
@@ -339,17 +339,20 @@ class MusicPlayerDashboard(BaseWindow):
             if current_pos and current_duration and current_pos > 5000:
                 self.logger.info(log_prefix, f"Saving position {current_pos}ms at {current_rate}x rate before app exit")
                 try:
+                    # Get current subtitle state
+                    subtitle_enabled, subtitle_track_id, subtitle_language = self.player._get_current_subtitle_state()
                     success = self.player.position_manager.save_position(
-                        self.player.current_media_path, current_pos, current_duration, current_rate)
+                        self.player.current_media_path, current_pos, current_duration, current_rate,
+                        subtitle_enabled, subtitle_track_id, subtitle_language)
                     if success:
                         # Update tracking variables for consistency
                         self.player.last_saved_position = current_pos
-                        self.logger.info(log_prefix, "Position and rate saved successfully on app exit")
+                        self.logger.info(log_prefix, "Position, rate, and subtitle state saved successfully on app exit")
                     else:
-                        self.logger.warning(log_prefix, "Failed to save position and rate on app exit")
+                        self.logger.warning(log_prefix, "Failed to save position, rate, and subtitle state on app exit")
                 except Exception as e:
-                    self.logger.error(log_prefix, f"Error saving position and rate on app exit: {e}")
-        # -------------------------------------------------------
+                    self.logger.error(log_prefix, f"Error saving position, rate, and subtitle state on app exit: {e}")
+        # ------------------------------------------------------------------------
 
         # Gracefully shut down the download manager threads
         if hasattr(self, 'pages') and 'youtube_downloader' in self.pages:

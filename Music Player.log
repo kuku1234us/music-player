@@ -1,56 +1,46 @@
-[2025-06-06 13:34:01-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-06-06 13:34:01-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-06-06 13:34:01-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
-[2025-06-06 13:34:01-INFO ][PlaybackPositionManager]Position database initialized successfully
-[2025-06-06 13:34:01-DEBUG][BaseWindow]Restored window geometry.
-[2025-06-06 13:34:01-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-06-06 13:34:02-INFO ][YoutubePage]UI setup complete.
-[2025-06-06 13:34:02-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-06-06 13:34:02-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-06-06 13:34:02-INFO ][YoutubePage]Initialized.
-[2025-06-06 13:34:03-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
-[2025-06-06 13:34:03-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
-[2025-06-06 13:34:03-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-06-06 13:34:03-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-06-06 13:34:03-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
-[2025-06-06 13:34:03-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-06-06 13:34:03-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-06-06 13:34:05-DEBUG][PlaybackPositionManager]Retrieved position 256753ms at 1.2000000476837158x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:34:12-DEBUG][PlaybackPositionManager]Saved position 264400ms at 1.300000047683716x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:34:13-DEBUG][PlaybackPositionManager]Saved position 265152ms at 1.4000000715255738x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:34:13-DEBUG][PlaybackPositionManager]Saved position 265403ms at 1.5000000953674317x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:34:15-DEBUG][PlaybackPositionManager]Saved position 268401ms at 1.5000001192092896x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:34:25-DEBUG][PlaybackPositionManager]Saved position 533601ms at 1.5000001192092896x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:34:35-DEBUG][PlaybackPositionManager]Saved position 748202ms at 1.5000001192092896x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:34:45-DEBUG][PlaybackPositionManager]Saved position 763201ms at 1.5000001192092896x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:34:45-DEBUG][PlaybackPositionManager]Saved position 763201ms at 1.5000001192092896x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:34:53-DEBUG][PlaybackPositionManager]Saved position 0ms at 1.5000001192092896x rate for Solo dance at sunset beach.webm
-[2025-06-06 13:35:03-DEBUG][PlaybackPositionManager]Saved position 0ms at 1.5000001192092896x rate for Solo dance at sunset beach.webm
-[2025-06-06 13:35:23-DEBUG][PlaybackPositionManager]Saved position 251113ms at 1.5000001192092896x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:35:28-DEBUG][PlaybackPositionManager]Saved position 1868468ms at 1.5000001192092896x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:35:34-DEBUG][PlaybackPositionManager]Saved position 1564718ms at 1.4000001192092895x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:35:35-DEBUG][PlaybackPositionManager]Saved position 1565718ms at 1.3000000953674316x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:35:35-DEBUG][PlaybackPositionManager]Saved position 1566468ms at 1.2000000715255736x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:35:36-DEBUG][PlaybackPositionManager]Saved position 1566468ms at 1.1000000476837157x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:35:36-DEBUG][PlaybackPositionManager]Saved position 1567466ms at 1.0000000238418578x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:35:41-DEBUG][PlaybackPositionManager]Saved position 1571467ms at 1.0x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:35:42-DEBUG][PlaybackPositionManager]Retrieved position 1571467ms at 1.0x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:35:46-DEBUG][PlaybackPositionManager]Saved position 1574751ms at 1.0x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:35:47-DEBUG][PlaybackPositionManager]Retrieved position 763201ms at 1.5000001192092896x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:35:51-DEBUG][PlaybackPositionManager]Saved position 768335ms at 1.5000001192092896x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:35:53-DEBUG][PlaybackPositionManager]Saved position 771752ms at 1.5000001192092896x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:36:00-DEBUG][PlaybackPositionManager]Saved position 771752ms at 1.5000001192092896x rate for ComfyUI 教學系列：Ep01 - 介紹與安裝big.mp4
-[2025-06-06 13:36:00-DEBUG][PlaybackPositionManager]Retrieved position 1574751ms at 1.0x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:36:05-DEBUG][PlaybackPositionManager]Saved position 1578001ms at 1.1x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:36:05-DEBUG][PlaybackPositionManager]Saved position 1578751ms at 1.200000023841858x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:36:05-DEBUG][PlaybackPositionManager]Saved position 1579001ms at 1.300000047683716x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:36:06-DEBUG][PlaybackPositionManager]Saved position 1579001ms at 1.4000000715255738x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:36:06-DEBUG][PlaybackPositionManager]Saved position 1579750ms at 1.5000000953674317x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:36:09-INFO ][MusicPlayerDashboard]Main window close event triggered.
-[2025-06-06 13:36:09-INFO ][MusicPlayerDashboard]Saving position 1584003ms at 1.5000001192092896x rate before app exit
-[2025-06-06 13:36:09-DEBUG][PlaybackPositionManager]Saved position 1584003ms at 1.5000001192092896x rate for How to Use Interactive Brokers in 2025： Full Tutorial.mp4
-[2025-06-06 13:36:09-INFO ][MusicPlayerDashboard]Position and rate saved successfully on app exit
-[2025-06-06 13:36:09-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
-[2025-06-06 13:36:09-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
-[2025-06-06 13:36:09-INFO ][DownloadManager]No active downloads to shut down.
-[2025-06-06 13:36:09-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.
+[2025-06-08 09:21:05-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-06-08 09:21:05-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-06-08 09:21:05-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-06-08 09:21:05-INFO ][PlaybackPositionManager]Position database initialized successfully
+[2025-06-08 09:21:05-DEBUG][BaseWindow]Restored window geometry.
+[2025-06-08 09:21:05-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-06-08 09:21:07-INFO ][YoutubePage]UI setup complete.
+[2025-06-08 09:21:07-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-06-08 09:21:07-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-06-08 09:21:07-INFO ][YoutubePage]Initialized.
+[2025-06-08 09:21:07-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
+[2025-06-08 09:21:07-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
+[2025-06-08 09:21:07-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-06-08 09:21:07-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-06-08 09:21:07-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
+[2025-06-08 09:21:07-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-06-08 09:21:07-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-06-08 09:21:11-DEBUG][PlaybackPositionManager]Retrieved position 853046ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:21:15-DEBUG][PlaybackPositionManager]Saved position 856298ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:23:16-DEBUG][PlaybackPositionManager]Saved position 866141ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:23:26-DEBUG][PlaybackPositionManager]Saved position 876152ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:23:36-DEBUG][PlaybackPositionManager]Saved position 886163ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:23:46-DEBUG][PlaybackPositionManager]Saved position 896173ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:23:56-DEBUG][PlaybackPositionManager]Saved position 906141ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:24:06-DEBUG][PlaybackPositionManager]Saved position 916108ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:24:16-DEBUG][PlaybackPositionManager]Saved position 926161ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:24:26-DEBUG][PlaybackPositionManager]Saved position 936171ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:24:36-DEBUG][PlaybackPositionManager]Saved position 946139ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:24:46-DEBUG][PlaybackPositionManager]Saved position 956149ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:24:56-DEBUG][PlaybackPositionManager]Saved position 966159ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:25:06-DEBUG][PlaybackPositionManager]Saved position 976169ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:25:16-DEBUG][PlaybackPositionManager]Saved position 986138ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:25:26-DEBUG][PlaybackPositionManager]Saved position 996147ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:25:36-DEBUG][PlaybackPositionManager]Saved position 1006156ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:25:46-DEBUG][PlaybackPositionManager]Saved position 1016167ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:25:56-DEBUG][PlaybackPositionManager]Saved position 1026136ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:26:06-DEBUG][PlaybackPositionManager]Saved position 1036145ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:26:09-DEBUG][PlaybackPositionManager]Saved position 1039148ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:27:45-INFO ][MusicPlayerDashboard]Main window close event triggered.
+[2025-06-08 09:27:45-INFO ][MusicPlayerDashboard]Saving position 1039148ms at 1.0x rate before app exit
+[2025-06-08 09:27:45-DEBUG][PlaybackPositionManager]Saved position 1039148ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
+[2025-06-08 09:27:45-INFO ][MusicPlayerDashboard]Position, rate, and subtitle state saved successfully on app exit
+[2025-06-08 09:27:45-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
+[2025-06-08 09:27:45-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
+[2025-06-08 09:27:45-INFO ][DownloadManager]No active downloads to shut down.
+[2025-06-08 09:27:45-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.

@@ -4,13 +4,17 @@ Video widget for displaying video output using VLC.
 # --- Use PyQt6 --- 
 from PyQt6.QtWidgets import QWidget, QSizePolicy
 from PyQt6.QtGui import QPalette, QColor
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QUrl
 # --- Add QKeyEvent import --- 
-from PyQt6.QtGui import QKeyEvent, QMouseEvent
+from PyQt6.QtGui import QKeyEvent, QMouseEvent, QDragEnterEvent, QDropEvent
+# --- Add drag and drop imports ---
+from PyQt6.QtCore import QMimeData
 # ----------------------------
 # --- Add typing for handler --- 
 from typing import Optional
 from music_player.ui.vlc_player.hotkey_handler import HotkeyHandler # Import for type hint
+# --- Add os import for file validation ---
+import os
 # --------------------------
 
 class VideoWidget(QWidget):
@@ -29,8 +33,14 @@ class VideoWidget(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         # ------------------------
         
+        # --- Enable drag and drop ---
+        self.setAcceptDrops(True)
+        # ---------------------------
+        
         # --- Add handler reference --- 
         self.hotkey_handler: Optional[HotkeyHandler] = None
+        # --- Add main player reference for drag and drop ---
+        self.main_player = None
         # -----------------------------
 
         # Removed background color settings to let VLC draw
@@ -51,6 +61,12 @@ class VideoWidget(QWidget):
         """Sets the hotkey handler instance to use."""
         self.hotkey_handler = handler
     # --------------------------
+    
+    # --- Add main player setter ---
+    def set_main_player(self, main_player):
+        """Sets the main player instance for drag and drop functionality."""
+        self.main_player = main_player
+    # ------------------------------
     
     # --- Implement keyPressEvent --- 
     def keyPressEvent(self, event: QKeyEvent):
@@ -99,3 +115,78 @@ class VideoWidget(QWidget):
             return
         super().mouseDoubleClickEvent(event)
     # --------------------------------------
+
+    # --- Add drag enter event handler ---
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        """Handle drag enter events to accept media files."""
+        if event.mimeData().hasUrls():
+            # Check if any of the URLs are media files
+            for url in event.mimeData().urls():
+                if url.isLocalFile():
+                    file_path = url.toLocalFile()
+                    if self._is_media_file(file_path):
+                        event.acceptProposedAction()
+                        return
+        event.ignore()
+    # -----------------------------------
+
+    # --- Add drop event handler ---
+    def dropEvent(self, event: QDropEvent):
+        """Handle drop events to load and play media files."""
+        if not self.main_player:
+            print("[VideoWidget] Warning: No main player reference set for drag and drop")
+            event.ignore()
+            return
+            
+        if event.mimeData().hasUrls():
+            # Get the first valid media file from the dropped URLs
+            for url in event.mimeData().urls():
+                if url.isLocalFile():
+                    file_path = url.toLocalFile()
+                    if self._is_media_file(file_path) and os.path.exists(file_path):
+                        print(f"[VideoWidget] Media file dropped: {file_path}")
+                        
+                        # Use the uniform loading method from MainPlayer
+                        success = self.main_player.load_media_unified(file_path, "drag_and_drop")
+                        
+                        if success:
+                            event.acceptProposedAction()
+                            print(f"[VideoWidget] Successfully loaded dropped media: {os.path.basename(file_path)}")
+                        else:
+                            print(f"[VideoWidget] Failed to load dropped media: {file_path}")
+                            event.ignore()
+                        return
+                        
+        event.ignore()
+    # ------------------------------
+
+    # --- Add helper method to check if file is a media file ---
+    def _is_media_file(self, file_path: str) -> bool:
+        """
+        Check if the given file path is a supported media file.
+        
+        Args:
+            file_path (str): Path to the file to check
+            
+        Returns:
+            bool: True if the file is a supported media file, False otherwise
+        """
+        if not file_path:
+            return False
+            
+        # Get file extension
+        _, ext = os.path.splitext(file_path.lower())
+        
+        # Define supported media extensions
+        supported_extensions = {
+            # Audio formats
+            '.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.wma', '.opus',
+            # Video formats  
+            '.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.m4v', '.webm',
+            '.mpg', '.mpeg', '.3gp', '.ts', '.mts', '.m2ts', '.vob', '.divx',
+            # Playlist formats
+            '.m3u', '.m3u8', '.pls'
+        }
+        
+        return ext in supported_extensions
+    # ----------------------------------------------------------
