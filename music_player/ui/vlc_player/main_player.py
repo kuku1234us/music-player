@@ -41,6 +41,7 @@ from music_player.models.position_manager import PlaybackPositionManager
 # --- Add New Manager Imports ---
 from music_player.models.subtitle_manager import SubtitleManager
 from music_player.models.media_manager import MediaManager
+from music_player.models.audio_manager import AudioManager
 # ------------------------------
 
 class MainPlayer(QWidget):
@@ -105,6 +106,10 @@ class MainPlayer(QWidget):
         self.subtitle_manager = SubtitleManager()
         # ----------------------------------
         
+        # --- Add Audio Manager instance ---
+        self.audio_manager = AudioManager()
+        # --------------------------------
+        
         # --- Add Periodic Position Save Timer (Phase 3) ---
         self.position_save_timer = QTimer(self)
         self.position_save_timer.setInterval(10000)  # 10 seconds
@@ -167,6 +172,9 @@ class MainPlayer(QWidget):
         self.player_widget.toggle_subtitles.connect(self._toggle_subtitles)
         self.player_widget.next_subtitle.connect(self._cycle_subtitle_track)  # Legacy support
         self.player_widget.subtitle_selected.connect(self._select_subtitle_track)  # New menu selection
+        
+        # Connect audio control signals
+        self.player_widget.audio_track_selected.connect(self._select_audio_track)
         
         # Connect backend to UI/player logic
         self.backend.media_loaded.connect(self.on_media_metadata_loaded) # Connect to the renamed slot
@@ -447,12 +455,6 @@ class MainPlayer(QWidget):
                 print("[MainPlayer] Backend state changed to 'playing', syncing app state.")
                 self._set_app_state(STATE_PLAYING)
 
-            # # --- NEW: Try setting HWND when playback starts for video ---
-            # if self._is_current_media_video and self._video_widget:
-            #     print("[MainPlayer] State is PLAYING and media is video, setting HWND.")
-            #     self._set_vlc_window_handle(self._video_widget)
-            # # -----------------------------------------------------------
-
         elif state == "paused":
             # If the backend spontaneously reports 'paused', ensure our state matches.
             if self.app_state != STATE_PAUSED:
@@ -471,10 +473,17 @@ class MainPlayer(QWidget):
         if self.current_media_path:
             current_duration = self.backend.get_duration()
             current_rate = self.backend.get_rate()
-            subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
+            
+            subtitle_enabled, subtitle_track_id, subtitle_language = False, -1, ''
+            if self._is_current_media_video:
+                subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
+            
+            audio_track_id = self._get_current_audio_state()
+
             print(f"[MainPlayer] Saving position 0 for completed media: {os.path.basename(self.current_media_path)}")
             self.position_manager.save_position(self.current_media_path, 0, current_duration, current_rate,
-                                              subtitle_enabled, subtitle_track_id, subtitle_language)
+                                                  subtitle_enabled, subtitle_track_id, subtitle_language,
+                                                  audio_track_id)
         # ----------------------------------------------------------------------------------
         
         if self._playback_mode == 'single':
@@ -577,11 +586,17 @@ class MainPlayer(QWidget):
             current_pos = self.backend.get_current_position()
             current_duration = self.backend.get_duration()
             current_rate = self.backend.get_rate()
-            subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
+            
+            subtitle_enabled, subtitle_track_id, subtitle_language = False, -1, ''
+            if self._is_current_media_video:
+                subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
+            
+            audio_track_id = self._get_current_audio_state()
+
             # Use PositionManager to handle the business logic
             success, saved_position = self.position_manager.handle_manual_action_save(
                 self.current_media_path, current_pos, current_duration, current_rate, "pause",
-                subtitle_enabled, subtitle_track_id, subtitle_language
+                subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id
             )
             if success:
                 self.last_saved_position = saved_position
@@ -664,12 +679,18 @@ class MainPlayer(QWidget):
         if self.current_media_path and self.backend.get_current_position():
             current_pos = self.backend.get_current_position()
             current_duration = self.backend.get_duration()
-            if current_pos and current_duration:
+            
+            subtitle_enabled, subtitle_track_id, subtitle_language = False, -1, ''
+            if self._is_current_media_video:
                 subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
-                print(f"[MainPlayer] Saving position {current_pos}ms at new rate {rate}x due to rate change")
-                self.position_manager.save_position(self.current_media_path, current_pos, current_duration, rate,
-                                                  subtitle_enabled, subtitle_track_id, subtitle_language)
-                self.last_saved_position = current_pos
+            
+            audio_track_id = self._get_current_audio_state()
+
+            print(f"[MainPlayer] Saving position {current_pos}ms at new rate {rate}x due to rate change")
+            self.position_manager.save_position(self.current_media_path, current_pos, current_duration, rate,
+                                                  subtitle_enabled, subtitle_track_id, subtitle_language,
+                                                  audio_track_id)
+            self.last_saved_position = current_pos
         # ----------------------------------------------------------------
         
     def get_rate(self):
@@ -757,10 +778,15 @@ class MainPlayer(QWidget):
                     current_rate = self.backend.get_rate()
                     
                     if current_pos and current_duration:
-                        subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
+                        subtitle_enabled, subtitle_track_id, subtitle_language = False, -1, ''
+                        if self._is_current_media_video:
+                            subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
+                        
+                        audio_track_id = self._get_current_audio_state()
+
                         success, saved_position = self.position_manager.handle_position_on_media_change(
                             self.current_media_path, filepath, current_pos, current_duration, current_rate,
-                            subtitle_enabled, subtitle_track_id, subtitle_language
+                            subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id
                         )
                         if success:
                             self.last_saved_position = saved_position
@@ -919,11 +945,47 @@ class MainPlayer(QWidget):
                 
                 # Update subtitle controls in PlayerWidget
                 self._update_subtitle_controls()
+            else:
+                # No subtitle tracks available for this video
+                print("[MainPlayer] No subtitle tracks available for this video")
+                # Update subtitle controls to hide them
+                self._update_subtitle_controls()
         else:
             # Reset subtitle state for non-video files
             self.subtitle_manager.reset_state()
             self._update_subtitle_controls()
         # -------------------------------------------
+
+        # --- NEW: Audio track handling ---
+        self.audio_manager.reset_state()
+        
+        # Always get audio tracks to ensure at least one is active
+        backend_audio_tracks = self.backend.get_audio_tracks()
+        if backend_audio_tracks:
+            # Process tracks to find the preferred one (or use the only one available)
+            preferred_track = self.audio_manager.process_audio_tracks(backend_audio_tracks)
+            
+            if preferred_track:
+                success = self.backend.set_audio_track(preferred_track['id'])
+                if success:
+                    self.audio_manager.update_audio_state(preferred_track['id'])
+                    print(f"[MainPlayer] Set audio track to {preferred_track['id']} ({preferred_track.get('name', 'Unknown')})")
+                else:
+                    print(f"[MainPlayer] Failed to set audio track {preferred_track['id']}")
+            else:
+                # If no preferred track found but tracks exist, try to use the first valid track
+                for track in backend_audio_tracks:
+                    if track['id'] >= 0:  # Allow track 0, only skip truly disabled tracks (usually -1)
+                        success = self.backend.set_audio_track(track['id'])
+                        if success:
+                            self.audio_manager.update_audio_state(track['id'])
+                            print(f"[MainPlayer] Fallback: Set audio track to {track['id']} ({track.get('name', 'Unknown')})")
+                            break
+        else:
+            print("[MainPlayer] No audio tracks available in media")
+
+        self._update_audio_controls()
+        # --- End Audio track handling ---
 
         # Update UI with track information
         self.player_widget.update_track_info(title, artist, album, artwork_path)
@@ -931,17 +993,17 @@ class MainPlayer(QWidget):
         
         # --- NEW: Restore saved position, rate, and subtitle state if available ---
         if self.current_media_path:
-            saved_position, saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language = self.position_manager.get_saved_position(self.current_media_path)
+            saved_position, saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language, saved_audio_track_id = self.position_manager.get_saved_position(self.current_media_path)
             if saved_position and self.backend.get_duration() > saved_position > 5000:
                 print(f"[MainPlayer] Restoring saved position: {saved_position}ms at {saved_rate}x rate")
                 # Use a small delay to ensure media is fully loaded before seeking, setting rate, and restoring subtitles
-                QTimer.singleShot(100, lambda: self._restore_position_rate_and_subtitles(
-                    saved_position, saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language))
-            elif saved_rate != 1.0 or saved_subtitle_enabled:
+                QTimer.singleShot(100, lambda: self._restore_playback_state(
+                    saved_position, saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language, saved_audio_track_id))
+            elif saved_rate != 1.0 or saved_subtitle_enabled or saved_audio_track_id != -1:
                 # Restore just the playback rate and/or subtitle state if no position to restore
-                print(f"[MainPlayer] Restoring saved playback rate: {saved_rate}x and subtitle state")
-                QTimer.singleShot(100, lambda: self._restore_rate_and_subtitles(
-                    saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language))
+                print(f"[MainPlayer] Restoring saved playback rate: {saved_rate}x and other settings")
+                QTimer.singleShot(100, lambda: self._restore_settings(
+                    saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language, saved_audio_track_id))
         # -------------------------------------------------------------------------
         
         # Emit the consolidated media_changed signal
@@ -957,8 +1019,9 @@ class MainPlayer(QWidget):
             state_info['subtitle_tracks']
         )
         
-    def _restore_position_rate_and_subtitles(self, position_ms: int, rate: float, 
-                                           subtitle_enabled: bool, subtitle_track_id: int, subtitle_language: str):
+    def _restore_playback_state(self, position_ms: int, rate: float, 
+                                           subtitle_enabled: bool, subtitle_track_id: int, subtitle_language: str,
+                                           audio_track_id: int):
         """
         Helper method to restore position, playback rate, and subtitle state.
         
@@ -968,18 +1031,16 @@ class MainPlayer(QWidget):
             subtitle_enabled (bool): Whether subtitles should be enabled
             subtitle_track_id (int): ID of the subtitle track to restore
             subtitle_language (str): Language code of the subtitle track
+            audio_track_id (int): ID of the audio track to restore
         """
         # First seek to the position
         self.backend.seek(position_ms)
-        # Then set the playback rate
-        self.backend.set_rate(rate)
-        # Update UI to reflect the rate
-        self.player_widget.set_rate(rate)
-        # Restore subtitle state
-        self._restore_subtitle_state(subtitle_enabled, subtitle_track_id, subtitle_language)
+        # Then restore other settings
+        self._restore_settings(rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id)
         
-    def _restore_rate_and_subtitles(self, rate: float, subtitle_enabled: bool, 
-                                   subtitle_track_id: int, subtitle_language: str):
+    def _restore_settings(self, rate: float, subtitle_enabled: bool, 
+                                   subtitle_track_id: int, subtitle_language: str,
+                                   audio_track_id: int):
         """
         Helper method to restore playback rate and subtitle state without seeking.
         
@@ -988,6 +1049,7 @@ class MainPlayer(QWidget):
             subtitle_enabled (bool): Whether subtitles should be enabled
             subtitle_track_id (int): ID of the subtitle track to restore
             subtitle_language (str): Language code of the subtitle track
+            audio_track_id (int): ID of the audio track to restore
         """
         # Set the playback rate
         self.backend.set_rate(rate)
@@ -995,6 +1057,8 @@ class MainPlayer(QWidget):
         self.player_widget.set_rate(rate)
         # Restore subtitle state
         self._restore_subtitle_state(subtitle_enabled, subtitle_track_id, subtitle_language)
+        # Restore audio track
+        self._restore_audio_track_state(audio_track_id)
         
     def _restore_subtitle_state(self, subtitle_enabled: bool, subtitle_track_id: int, subtitle_language: str):
         """
@@ -1030,6 +1094,69 @@ class MainPlayer(QWidget):
         else:
             print(f"[MainPlayer] Could not restore subtitle track {subtitle_track_id} ({subtitle_language}) - track not found")
     
+    def _restore_audio_track_state(self, audio_track_id: int):
+        """
+        Helper method to restore audio track state.
+        Falls back to default English track selection if saved track is not available.
+        
+        Args:
+            audio_track_id (int): ID of the audio track to restore (-1 means no saved audio track)
+        """
+        available_tracks = self.backend.get_audio_tracks()
+        
+        if audio_track_id == -1 or not available_tracks:
+            # No saved audio track or no tracks available - use default selection logic
+            print(f"[MainPlayer] No saved audio track (ID: {audio_track_id}), using default selection")
+            self._apply_default_audio_track_selection(available_tracks)
+            return
+
+        # Check if saved track still exists
+        track_exists = any(track['id'] == audio_track_id for track in available_tracks)
+
+        if track_exists:
+            print(f"[MainPlayer] Restoring audio track {audio_track_id}")
+            if self.backend.set_audio_track(audio_track_id):
+                self.audio_manager.update_audio_state(audio_track_id)
+                self._update_audio_controls()
+            else:
+                print(f"[MainPlayer] Failed to set saved audio track {audio_track_id}, falling back to default")
+                self._apply_default_audio_track_selection(available_tracks)
+        else:
+            print(f"[MainPlayer] Saved audio track {audio_track_id} not found, falling back to default")
+            self._apply_default_audio_track_selection(available_tracks)
+    
+    def _apply_default_audio_track_selection(self, available_tracks):
+        """
+        Apply default audio track selection logic (prefer English tracks).
+        
+        Args:
+            available_tracks (list): List of available audio tracks
+        """
+        if not available_tracks:
+            return
+            
+        # Use audio manager's logic to find the best track
+        preferred_track = self.audio_manager.process_audio_tracks(available_tracks)
+        
+        if preferred_track:
+            success = self.backend.set_audio_track(preferred_track['id'])
+            if success:
+                self.audio_manager.update_audio_state(preferred_track['id'])
+                self._update_audio_controls()
+                print(f"[MainPlayer] Applied default audio track: {preferred_track['id']} ({preferred_track.get('name', 'Unknown')})")
+            else:
+                print(f"[MainPlayer] Failed to set default audio track {preferred_track['id']}")
+        else:
+            # Fallback: try to use the first non-disabled track
+            for track in available_tracks:
+                if track['id'] >= 0:
+                    success = self.backend.set_audio_track(track['id'])
+                    if success:
+                        self.audio_manager.update_audio_state(track['id'])
+                        self._update_audio_controls()
+                        print(f"[MainPlayer] Applied fallback audio track: {track['id']} ({track.get('name', 'Unknown')})")
+                        break
+
     def _get_current_subtitle_state(self) -> tuple[bool, int, str]:
         """
         Get the current subtitle state for saving.
@@ -1051,6 +1178,17 @@ class MainPlayer(QWidget):
         print(f"[MainPlayer._get_current_subtitle_state] State info: {state_info}")
         return result
     
+    def _get_current_audio_state(self) -> int:
+        """
+        Get the current audio track ID for saving.
+        
+        Returns:
+            int: Current audio track ID
+        """
+        if not self.audio_manager.has_multiple_audio_tracks:
+            return -1
+        return self.audio_manager.current_audio_track
+
     def _restore_position_and_rate(self, position_ms: int, rate: float):
         """
         Legacy helper method - kept for backward compatibility.
@@ -1060,7 +1198,7 @@ class MainPlayer(QWidget):
             rate (float): Playback rate to restore
         """
         # Delegate to the new comprehensive method with no subtitle restoration
-        self._restore_position_rate_and_subtitles(position_ms, rate, False, -1, '')
+        self._restore_playback_state(position_ms, rate, False, -1, '', -1)
         
     def _toggle_subtitles(self):
         """Toggle subtitles on/off."""
@@ -1480,11 +1618,17 @@ class MainPlayer(QWidget):
             current_pos = self.backend.get_current_position()
             current_duration = self.backend.get_duration()
             current_rate = self.backend.get_rate()
-            subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
+            
+            subtitle_enabled, subtitle_track_id, subtitle_language = False, -1, ''
+            if self._is_current_media_video:
+                subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
+
+            audio_track_id = self._get_current_audio_state()
+
             # Use PositionManager to handle the business logic
             success, saved_position = self.position_manager.handle_manual_action_save(
                 self.current_media_path, current_pos, current_duration, current_rate, "stop",
-                subtitle_enabled, subtitle_track_id, subtitle_language
+                subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id
             )
             if success:
                 self.last_saved_position = saved_position
@@ -1506,6 +1650,17 @@ class MainPlayer(QWidget):
         self.player_widget.timeline.set_duration(0)
         self.player_widget.timeline.set_position(0)
         self.player_widget.update_track_info("No Media", "", "", None)
+        
+        # --- NEW: Reset subtitle state when stopping ---
+        self.subtitle_manager.reset_state()
+        self._update_subtitle_controls()
+        # --------------------------------------------
+        
+        # --- NEW: Reset audio state when stopping ---
+        self.audio_manager.reset_state()
+        self._update_audio_controls()
+        # --------------------------------------------
+
         self._set_app_state(STATE_PAUSED) # Or a new STATE_STOPPED if defined
         # -----------------------------------------------------------------------
     # -----------------------
@@ -1582,6 +1737,18 @@ class MainPlayer(QWidget):
                 # Update UI
                 self._update_subtitle_controls()
 
+    def _select_audio_track(self, track_id: int):
+        """
+        Select a specific audio track by ID.
+        
+        Args:
+            track_id (int): ID of the audio track to select.
+        """
+        if self.backend.set_audio_track(track_id):
+            self.audio_manager.update_audio_state(track_id)
+            self._update_audio_controls()
+            print(f"[MainPlayer] Selected audio track: {track_id}")
+
     # --- Add slot for full screen request ---
     @pyqtSlot()
     def _handle_full_screen_request(self):
@@ -1644,6 +1811,13 @@ class MainPlayer(QWidget):
             else:
                 print("[MainPlayer] Syncing PlayerPage to show album art view.")
                 self._player_page_ref.show_album_art_view()
+            
+            # --- NEW: Re-set the window handle after restoring the view, regardless of media type ---
+            if self._video_widget:
+                print("[MainPlayer] Re-setting VLC window handle after exiting full screen.")
+                # Use a small delay to ensure the widget has been fully reparented and has a valid winId
+                QTimer.singleShot(50, lambda: self._set_vlc_window_handle(self._video_widget))
+            # -----------------------------------------------------------
         else:
             print("[MainPlayer] Warning: _player_page_ref not set or PlayerPage missing view methods. Cannot sync display.")
     # ---------------------------------------------------------
@@ -1669,12 +1843,16 @@ class MainPlayer(QWidget):
         current_rate = self.backend.get_rate()
         
         # Get current subtitle state
-        subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
+        subtitle_enabled, subtitle_track_id, subtitle_language = False, -1, ''
+        if self._is_current_media_video:
+            subtitle_enabled, subtitle_track_id, subtitle_language = self._get_current_subtitle_state()
         
+        audio_track_id = self._get_current_audio_state()
+
         # Delegate to PositionManager for all business logic
         success, new_last_saved = self.position_manager.handle_periodic_save(
             self.current_media_path, current_pos, current_duration, current_rate, self.last_saved_position,
-            subtitle_enabled, subtitle_track_id, subtitle_language
+            subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id
         )
         
         if success:
@@ -1682,3 +1860,12 @@ class MainPlayer(QWidget):
             self.position_dirty = False
         # Note: PositionManager handles all logging and validation
     # -------------------------------------------------------
+
+    def _update_audio_controls(self):
+        """Update the audio controls in the PlayerWidget using AudioManager state."""
+        state_info = self.audio_manager.get_audio_state_info()
+        self.player_widget.update_audio_state(
+            state_info['has_multiple_audio_tracks'],
+            state_info['current_audio_language'],
+            state_info['audio_tracks']
+        )

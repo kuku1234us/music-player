@@ -64,8 +64,9 @@ class YtDlpModel:
                 format_options['cookies_from_browser'] = 'firefox'
                 print("DEBUG: Falling back to standard firefox cookie extraction")
         
-        # Add more flexible subtitle format handling
-        if subtitle_lang:
+        # Add more flexible subtitle format handling, only for video downloads
+        is_video_download = resolution is not None or prefer_best_video
+        if subtitle_lang and is_video_download:
             format_options['writesubtitles'] = True
             format_options['writeautomaticsub'] = True  # Include auto-generated subtitles
             
@@ -106,7 +107,7 @@ class YtDlpModel:
             # Accept multiple subtitle formats in order of preference
             format_options['subtitlesformat'] = 'srt/vtt/ttml/best'
             
-            # Embed subtitles for video downloads
+            # Embed subtitles for video downloads (this check is now redundant but safe to keep)
             if resolution or prefer_best_video:
                 format_options['embedsubtitles'] = True
         

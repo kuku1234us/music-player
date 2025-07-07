@@ -80,6 +80,7 @@ class PlaybackPositionManager:
                         subtitle_enabled INTEGER NOT NULL DEFAULT 0,
                         subtitle_track_id INTEGER NOT NULL DEFAULT -1,
                         subtitle_language TEXT DEFAULT '',
+                        audio_track_id INTEGER NOT NULL DEFAULT -1,
                         last_updated TEXT NOT NULL,
                         created_at TEXT NOT NULL
                     )
@@ -98,6 +99,10 @@ class PlaybackPositionManager:
                     cursor.execute("ALTER TABLE playback_positions ADD COLUMN subtitle_enabled INTEGER NOT NULL DEFAULT 0")
                     cursor.execute("ALTER TABLE playback_positions ADD COLUMN subtitle_track_id INTEGER NOT NULL DEFAULT -1")
                     cursor.execute("ALTER TABLE playback_positions ADD COLUMN subtitle_language TEXT DEFAULT ''")
+                
+                if 'audio_track_id' not in columns:
+                    self.logger.info(self.__class__.__name__, "Adding audio_track_id column to existing database")
+                    cursor.execute("ALTER TABLE playback_positions ADD COLUMN audio_track_id INTEGER NOT NULL DEFAULT -1")
                 
                 # Create index for performance
                 cursor.execute("""
@@ -140,7 +145,8 @@ class PlaybackPositionManager:
         raise sqlite3.OperationalError(f"Failed to connect to database after {self._retry_count} attempts")
     
     def save_position(self, file_path: str, position_ms: int, duration_ms: int, playback_rate: float = 1.0,
-                     subtitle_enabled: bool = False, subtitle_track_id: int = -1, subtitle_language: str = '') -> bool:
+                     subtitle_enabled: bool = False, subtitle_track_id: int = -1, subtitle_language: str = '',
+                     audio_track_id: int = -1) -> bool:
         """
         Save the playback position, rate, and subtitle state for a media file.
         
@@ -152,6 +158,7 @@ class PlaybackPositionManager:
             subtitle_enabled (bool): Whether subtitles are currently enabled
             subtitle_track_id (int): ID of the currently selected subtitle track (-1 if disabled)
             subtitle_language (str): Language code of the current subtitle track
+            audio_track_id (int): ID of the currently selected audio track (-1 if default)
             
         Returns:
             bool: True if save was successful, False otherwise
@@ -200,10 +207,10 @@ class PlaybackPositionManager:
                     # Use INSERT OR REPLACE for upsert functionality
                     cursor.execute("""
                         INSERT OR REPLACE INTO playback_positions 
-                        (file_path, position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, last_updated, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 
+                        (file_path, position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id, last_updated, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 
                                COALESCE((SELECT created_at FROM playback_positions WHERE file_path = ?), ?))
-                    """, (normalized_path, position_ms, duration_ms, playback_rate, int(subtitle_enabled), subtitle_track_id, subtitle_language, timestamp, normalized_path, timestamp))
+                    """, (normalized_path, position_ms, duration_ms, playback_rate, int(subtitle_enabled), subtitle_track_id, subtitle_language, audio_track_id, timestamp, normalized_path, timestamp))
                     
                     conn.commit()
                     return True
@@ -215,7 +222,7 @@ class PlaybackPositionManager:
             self.logger.error(self.__class__.__name__, f"Unexpected error saving position: {e}")
             return False
     
-    def get_saved_position(self, file_path: str) -> tuple[Optional[int], float, bool, int, str]:
+    def get_saved_position(self, file_path: str) -> tuple[Optional[int], float, bool, int, str, int]:
         """
         Get the saved playback position, rate, and subtitle state for a media file.
         
@@ -223,10 +230,10 @@ class PlaybackPositionManager:
             file_path (str): Absolute path to the media file
             
         Returns:
-            tuple[Optional[int], float, bool, int, str]: (position in milliseconds or None, playback rate, subtitle enabled, subtitle track id, subtitle language)
+            tuple[Optional[int], float, bool, int, str, int]: (position in milliseconds or None, playback rate, subtitle enabled, subtitle track id, subtitle language, audio_track_id)
         """
         if not file_path:
-            return None, 1.0, False, -1, ''
+            return None, 1.0, False, -1, '', -1
         
         # Normalize file path
         try:
@@ -238,20 +245,20 @@ class PlaybackPositionManager:
                 
         except Exception as e:
             self.logger.error(self.__class__.__name__, f"Failed to normalize path {file_path}: {e}")
-            return None, 1.0, False, -1, ''
+            return None, 1.0, False, -1, '', -1
         
         try:
             with self._db_lock:
                 with self._get_connection() as conn:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "SELECT position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language FROM playback_positions WHERE file_path = ?",
+                        "SELECT position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id FROM playback_positions WHERE file_path = ?",
                         (normalized_path,)
                     )
                     result = cursor.fetchone()
                     
                     if result:
-                        position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language = result
+                        position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id = result
                         
                         # Handle case where fields might be None from old database entries
                         if playback_rate is None:
@@ -262,28 +269,30 @@ class PlaybackPositionManager:
                             subtitle_track_id = -1
                         if subtitle_language is None:
                             subtitle_language = ''
+                        if audio_track_id is None:
+                            audio_track_id = -1
                         
                         # Convert subtitle_enabled from integer back to boolean
                         subtitle_enabled = bool(subtitle_enabled)
                         
                         # Validate that the saved position is reasonable
                         if 0 <= position_ms <= duration_ms:
-                            return position_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language
+                            return position_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id
                         else:
                             self.logger.warning(self.__class__.__name__, 
                                               f"Invalid saved position {position_ms}ms (duration: {duration_ms}ms) for {file_path}")
                             # Clean up the invalid entry
                             self.clear_position(normalized_path)
-                            return None, 1.0, False, -1, ''
+                            return None, 1.0, False, -1, '', -1
                     
-                    return None, 1.0, False, -1, ''
+                    return None, 1.0, False, -1, '', -1
                     
         except sqlite3.Error as e:
             self.logger.error(self.__class__.__name__, f"Failed to get position for {file_path}: {e}")
-            return None, 1.0, False, -1, ''
+            return None, 1.0, False, -1, '', -1
         except Exception as e:
             self.logger.error(self.__class__.__name__, f"Unexpected error getting position: {e}")
-            return None, 1.0, False, -1, ''
+            return None, 1.0, False, -1, '', -1
     
     def _resolve_network_path(self, path: str) -> str:
         """
@@ -539,7 +548,8 @@ class PlaybackPositionManager:
 
     def handle_periodic_save(self, file_path: str, current_pos: int, current_duration: int, 
                            current_rate: float, last_saved_position: int, subtitle_enabled: bool = False,
-                           subtitle_track_id: int = -1, subtitle_language: str = '') -> tuple[bool, int]:
+                           subtitle_track_id: int = -1, subtitle_language: str = '',
+                           audio_track_id: int = -1) -> tuple[bool, int]:
         """
         Handle periodic position saving with all business logic encapsulated.
         
@@ -552,6 +562,7 @@ class PlaybackPositionManager:
             subtitle_enabled (bool): Whether subtitles are currently enabled
             subtitle_track_id (int): ID of the currently selected subtitle track
             subtitle_language (str): Language code of the current subtitle track
+            audio_track_id (int): ID of the currently selected audio track
             
         Returns:
             tuple[bool, int]: (success, new_last_saved_position)
@@ -566,7 +577,8 @@ class PlaybackPositionManager:
         
         # Save the position, rate, and subtitle state
         success = self.save_position(file_path, current_pos, current_duration, current_rate, 
-                                   subtitle_enabled, subtitle_track_id, subtitle_language)
+                                   subtitle_enabled, subtitle_track_id, subtitle_language,
+                                   audio_track_id)
         
         if success:
             return True, current_pos
@@ -576,7 +588,8 @@ class PlaybackPositionManager:
     def handle_position_on_media_change(self, old_file_path: str, new_file_path: str, 
                                       current_pos: int, current_duration: int, current_rate: float,
                                       subtitle_enabled: bool = False, subtitle_track_id: int = -1, 
-                                      subtitle_language: str = '') -> tuple[bool, int]:
+                                      subtitle_language: str = '',
+                                      audio_track_id: int = -1) -> tuple[bool, int]:
         """
         Handle position saving when media changes, with validation and business logic.
         
@@ -589,6 +602,7 @@ class PlaybackPositionManager:
             subtitle_enabled (bool): Whether subtitles are currently enabled
             subtitle_track_id (int): ID of the currently selected subtitle track
             subtitle_language (str): Language code of the current subtitle track
+            audio_track_id (int): ID of the currently selected audio track
             
         Returns:
             tuple[bool, int]: (success, saved_position)
@@ -602,7 +616,8 @@ class PlaybackPositionManager:
             return False, 0
         
         success = self.save_position(old_file_path, current_pos, current_duration, current_rate,
-                                   subtitle_enabled, subtitle_track_id, subtitle_language)
+                                   subtitle_enabled, subtitle_track_id, subtitle_language,
+                                   audio_track_id)
         
         if success:
             return True, current_pos
@@ -611,7 +626,8 @@ class PlaybackPositionManager:
 
     def handle_manual_action_save(self, file_path: str, current_pos: int, current_duration: int, 
                                 current_rate: float, action_type: str = "manual", subtitle_enabled: bool = False,
-                                subtitle_track_id: int = -1, subtitle_language: str = '') -> tuple[bool, int]:
+                                subtitle_track_id: int = -1, subtitle_language: str = '',
+                                audio_track_id: int = -1) -> tuple[bool, int]:
         """
         Handle position saving for manual actions (pause, stop) with business logic.
         
@@ -624,6 +640,7 @@ class PlaybackPositionManager:
             subtitle_enabled (bool): Whether subtitles are currently enabled
             subtitle_track_id (int): ID of the currently selected subtitle track
             subtitle_language (str): Language code of the current subtitle track
+            audio_track_id (int): ID of the currently selected audio track
             
         Returns:
             tuple[bool, int]: (success, saved_position)
@@ -636,7 +653,8 @@ class PlaybackPositionManager:
             return False, 0
         
         success = self.save_position(file_path, current_pos, current_duration, current_rate,
-                                   subtitle_enabled, subtitle_track_id, subtitle_language)
+                                   subtitle_enabled, subtitle_track_id, subtitle_language,
+                                   audio_track_id)
         
         if success:
             return True, current_pos

@@ -1,46 +1,85 @@
-[2025-06-08 09:21:05-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-06-08 09:21:05-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-06-08 09:21:05-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
-[2025-06-08 09:21:05-INFO ][PlaybackPositionManager]Position database initialized successfully
-[2025-06-08 09:21:05-DEBUG][BaseWindow]Restored window geometry.
-[2025-06-08 09:21:05-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-06-08 09:21:07-INFO ][YoutubePage]UI setup complete.
-[2025-06-08 09:21:07-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-06-08 09:21:07-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-06-08 09:21:07-INFO ][YoutubePage]Initialized.
-[2025-06-08 09:21:07-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
-[2025-06-08 09:21:07-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
-[2025-06-08 09:21:07-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-06-08 09:21:07-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-06-08 09:21:07-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
-[2025-06-08 09:21:07-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-06-08 09:21:07-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-06-08 09:21:11-DEBUG][PlaybackPositionManager]Retrieved position 853046ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:21:15-DEBUG][PlaybackPositionManager]Saved position 856298ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:23:16-DEBUG][PlaybackPositionManager]Saved position 866141ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:23:26-DEBUG][PlaybackPositionManager]Saved position 876152ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:23:36-DEBUG][PlaybackPositionManager]Saved position 886163ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:23:46-DEBUG][PlaybackPositionManager]Saved position 896173ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:23:56-DEBUG][PlaybackPositionManager]Saved position 906141ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:24:06-DEBUG][PlaybackPositionManager]Saved position 916108ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:24:16-DEBUG][PlaybackPositionManager]Saved position 926161ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:24:26-DEBUG][PlaybackPositionManager]Saved position 936171ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:24:36-DEBUG][PlaybackPositionManager]Saved position 946139ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:24:46-DEBUG][PlaybackPositionManager]Saved position 956149ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:24:56-DEBUG][PlaybackPositionManager]Saved position 966159ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:25:06-DEBUG][PlaybackPositionManager]Saved position 976169ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:25:16-DEBUG][PlaybackPositionManager]Saved position 986138ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:25:26-DEBUG][PlaybackPositionManager]Saved position 996147ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:25:36-DEBUG][PlaybackPositionManager]Saved position 1006156ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:25:46-DEBUG][PlaybackPositionManager]Saved position 1016167ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:25:56-DEBUG][PlaybackPositionManager]Saved position 1026136ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:26:06-DEBUG][PlaybackPositionManager]Saved position 1036145ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:26:09-DEBUG][PlaybackPositionManager]Saved position 1039148ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:27:45-INFO ][MusicPlayerDashboard]Main window close event triggered.
-[2025-06-08 09:27:45-INFO ][MusicPlayerDashboard]Saving position 1039148ms at 1.0x rate before app exit
-[2025-06-08 09:27:45-DEBUG][PlaybackPositionManager]Saved position 1039148ms at 1.0x rate (subtitles: ON - EN) for Stick S01E03 Daddy Issues 1080p ATVP WEB-DL DDP5 1 Atmos H 264-FLUX.mkv
-[2025-06-08 09:27:45-INFO ][MusicPlayerDashboard]Position, rate, and subtitle state saved successfully on app exit
-[2025-06-08 09:27:45-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
-[2025-06-08 09:27:45-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
-[2025-06-08 09:27:45-INFO ][DownloadManager]No active downloads to shut down.
-[2025-06-08 09:27:45-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.
+[2025-07-07 20:59:06-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-07-07 20:59:06-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-07-07 20:59:06-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-07-07 20:59:06-INFO ][PlaybackPositionManager]Position database initialized successfully
+[2025-07-07 20:59:07-DEBUG][BaseWindow]Restored window geometry.
+[2025-07-07 20:59:07-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-07-07 20:59:09-INFO ][YoutubePage]UI setup complete.
+[2025-07-07 20:59:09-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-07-07 20:59:09-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-07-07 20:59:09-INFO ][YoutubePage]Initialized.
+[2025-07-07 20:59:09-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
+[2025-07-07 20:59:09-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
+[2025-07-07 20:59:09-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-07-07 20:59:09-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-07-07 20:59:09-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
+[2025-07-07 20:59:09-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-07-07 20:59:09-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-07-07 20:59:21-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=X8TOhb_4jU0 (Type: audio)
+[2025-07-07 20:59:21-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=X8TOhb_4jU0, Type=audio
+[2025-07-07 20:59:21-INFO ][YoutubePage]Using audio_default preset for protocol download.
+[2025-07-07 20:59:21-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=X8TOhb_4jU0, Dir=Z:\AAAAA01
+[2025-07-07 20:59:21-INFO ][YoutubePage]Shown.
+[2025-07-07 20:59:21-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=X8TOhb_4jU0
+[2025-07-07 20:59:21-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-07-07 20:59:21-DEBUG][CLIDownloadWorker]Detected audio-only format (bestaudio[protocol=https][ext=m4a]), skipping merge-output-format
+[2025-07-07 20:59:21-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-07-07 20:59:21-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-07-07 20:59:21-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format 'bestaudio[protocol=https][ext=m4a]' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=X8TOhb_4jU0'
+[2025-07-07 20:59:23-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-07-07 20:59:23-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 70 cookies from firefox
+[2025-07-07 20:59:23-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=X8TOhb_4jU0
+[2025-07-07 20:59:23-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] X8TOhb_4jU0: Downloading webpage
+[2025-07-07 20:59:26-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] X8TOhb_4jU0: Downloading tv client config
+[2025-07-07 20:59:26-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] X8TOhb_4jU0: Downloading tv player API JSON
+[2025-07-07 20:59:27-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] X8TOhb_4jU0: Downloading player e12fbea4-main
+[2025-07-07 20:59:28-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-07-07 20:59:28-INFO ][CLIDownloadWorker]Process finished naturally with code: 1
+[2025-07-07 20:59:28-DEBUG][CLIDownloadWorker]Final Standard error output:
+WARNING: [youtube] X8TOhb_4jU0: Signature extraction failed: Some formats may be missing
+         player = https://www.youtube.com/s/player/e12fbea4/player_ias.vflset/en_US/base.js
+         Please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+WARNING: [youtube] X8TOhb_4jU0: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+WARNING: Only images are available for download. use --list-formats to see them
+ERROR: [youtube] X8TOhb_4jU0: Requested format is not available. Use --list-formats for a list of available formats
+
+[2025-07-07 20:59:28-ERROR][CLIDownloadWorker]Error from stderr: ERROR: [youtube] X8TOhb_4jU0: Requested format is not available. Use --list-formats for a list of available formats
+[2025-07-07 20:59:28-WARNING][CLIDownloadWorker]yt-dlp process exited with code 1 (Cancelled: False) URL: https://www.youtube.com/watch?v=X8TOhb_4jU0
+[2025-07-07 20:59:28-DEBUG][CLIDownloadWorker]No temporary filenames were tracked for cleanup.
+[2025-07-07 20:59:28-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=X8TOhb_4jU0. Emitting finished signal.
+[2025-07-07 20:59:28-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=X8TOhb_4jU0
+[2025-07-07 20:59:28-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=X8TOhb_4jU0 from active. Count: 0
+[2025-07-07 20:59:28-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=X8TOhb_4jU0
+[2025-07-07 21:04:22-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=X8TOhb_4jU0, Dir=Z:\AAAAA01, Options={'extractor_args': {'youtube': {}}, 'cookies_from_browser': 'firefox', 'format': 'bestaudio/best'}
+[2025-07-07 21:04:22-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=X8TOhb_4jU0
+[2025-07-07 21:04:22-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-07-07 21:04:22-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-07-07 21:04:22-DEBUG][CLIDownloadWorker]Executing command: yt-dlp --format bestaudio/best --output 'Z:\AAAAA01\%(title)s.%(ext)s' --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=X8TOhb_4jU0'
+[2025-07-07 21:04:24-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-07-07 21:04:24-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 70 cookies from firefox
+[2025-07-07 21:04:24-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=X8TOhb_4jU0
+[2025-07-07 21:04:24-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] X8TOhb_4jU0: Downloading webpage
+[2025-07-07 21:04:27-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] X8TOhb_4jU0: Downloading tv client config
+[2025-07-07 21:04:27-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] X8TOhb_4jU0: Downloading tv player API JSON
+[2025-07-07 21:04:28-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] X8TOhb_4jU0: Downloading player e12fbea4-main
+[2025-07-07 21:04:32-INFO ][CLIDownloadWorker][yt-dlp output] [info] X8TOhb_4jU0: Downloading 1 format(s): 251
+[2025-07-07 21:04:34-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Gipsy Kings - Volare (Nel Blu di Pinto di Blu) (Official HD Video).webm
+[2025-07-07 21:04:34-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Gipsy Kings - Volare (Nel Blu di Pinto di Blu) (Official HD Video).webm
+[2025-07-07 21:04:34-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Gipsy Kings - Volare (Nel Blu di Pinto di Blu) (Official HD Video).webm
+[2025-07-07 21:04:34-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-07-07 21:04:37-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-07-07 21:04:37-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-07-07 21:04:37-INFO ][CLIDownloadWorker]Assuming last tracked media destination is final file: Gipsy Kings - Volare (Nel Blu di Pinto di Blu) (Official HD Video).webm
+[2025-07-07 21:04:38-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=X8TOhb_4jU0. Emitting finished signal.
+[2025-07-07 21:04:38-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=X8TOhb_4jU0
+[2025-07-07 21:04:38-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=X8TOhb_4jU0 from active. Count: 0
+[2025-07-07 21:04:38-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=X8TOhb_4jU0
+[2025-07-07 21:04:43-INFO ][MusicPlayerDashboard]Handling single file request: Z:\AAAAA01\Gipsy Kings - Volare (Nel Blu di Pinto di Blu) (Official HD Video).webm
+[2025-07-07 21:04:43-INFO ][MusicPlayerDashboard]Unified media loading completed successfully.
+[2025-07-07 21:04:54-INFO ][MusicPlayerDashboard]Main window close event triggered.
+[2025-07-07 21:04:54-INFO ][MusicPlayerDashboard]Saving position 10881ms at 1.0x rate before app exit
+[2025-07-07 21:04:55-INFO ][MusicPlayerDashboard]Position, rate, and subtitle state saved successfully on app exit
+[2025-07-07 21:04:55-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
+[2025-07-07 21:04:55-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
+[2025-07-07 21:04:55-INFO ][DownloadManager]No active downloads to shut down.
+[2025-07-07 21:04:55-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.

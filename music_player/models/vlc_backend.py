@@ -738,6 +738,77 @@ class VLCBackend(QObject):
             #     print(f"[VLCBackend] Warning: Failed to set mouse input to True on detach - {e}")
     # ------------------------------------- 
 
+    # --- Add methods for audio track handling ---
+    def has_multiple_audio_tracks(self) -> bool:
+        """Check if the current media has more than one audio track."""
+        if not self.media_player:
+            return False
+        try:
+            return self.media_player.audio_get_track_count() > 1
+        except Exception as e:
+            print(f"[VLCBackend] Error checking audio track count: {e}")
+            return False
+
+    def get_audio_tracks(self) -> list:
+        """
+        Get a list of available audio tracks.
+        
+        Returns:
+            list: List of dicts with id and name of each audio track.
+        """
+        tracks = []
+        if not self.media_player:
+            print("[VLCBackend] No media player available for getting audio tracks")
+            return tracks
+            
+        try:
+            track_description = self.media_player.audio_get_track_description()
+            
+            if track_description:
+                for track_id, track_name in track_description:
+                    tracks.append({'id': track_id, 'name': track_name})
+                    
+            return tracks
+        except Exception as e:
+            print(f"[VLCBackend] Error getting audio tracks: {e}")
+            return tracks
+
+    def get_current_audio_track(self) -> int:
+        """Get the ID of the current audio track."""
+        if not self.media_player:
+            return -1
+        try:
+            return self.media_player.audio_get_track()
+        except Exception as e:
+            print(f"[VLCBackend] Error getting current audio track: {e}")
+            return -1
+
+    def set_audio_track(self, track_id: int) -> bool:
+        """
+        Set the audio track.
+        
+        Args:
+            track_id (int): The ID of the track to set.
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        if not self.media_player:
+            return False
+        
+        try:
+            result = self.media_player.audio_set_track(track_id)
+            if result == 0:
+                print(f"[VLCBackend] Set audio track to {track_id}")
+                return True
+            else:
+                print(f"[VLCBackend] Failed to set audio track to {track_id}")
+                return False
+        except Exception as e:
+            print(f"[VLCBackend] Error setting audio track: {e}")
+            return False
+    # ----------------------------------------
+
     # --- Add methods for subtitle handling ---
     def has_subtitle_tracks(self):
         """Check if the current media has any subtitle tracks."""

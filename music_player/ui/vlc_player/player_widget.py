@@ -15,6 +15,7 @@ from .volume_control import VolumeControl
 from .speed_overlay import SpeedOverlay
 from .repeat_button import RepeatButton
 from .subtitle_controls import SubtitleControls
+from .audio_control import AudioControls
 
 
 class PlayerWidget(QWidget):
@@ -34,6 +35,7 @@ class PlayerWidget(QWidget):
     toggle_subtitles = pyqtSignal()  # Signal for toggling subtitles
     next_subtitle = pyqtSignal()     # Signal for cycling to next subtitle track
     subtitle_selected = pyqtSignal(int)  # Signal for selecting a specific subtitle track
+    audio_track_selected = pyqtSignal(int) # Signal for selecting an audio track
     
     def __init__(self, parent=None, persistent=False):
         super().__init__(parent)
@@ -48,6 +50,7 @@ class PlayerWidget(QWidget):
         self.speed_overlay = SpeedOverlay(self)
         self.repeat_button = RepeatButton(self, size=29)  # Increased size to compensate for 20% growth inside the component
         self.subtitle_controls = SubtitleControls(self) # New: subtitle controls
+        self.audio_controls = AudioControls(self) # New: audio controls
         
         # Track info components
         self.track_title = QLabel("No Track")
@@ -116,6 +119,7 @@ class PlayerWidget(QWidget):
         # Add album art and subtitle controls to container
         media_layout.addWidget(self.album_art)
         media_layout.addWidget(self.subtitle_controls)
+        media_layout.addWidget(self.audio_controls)
         
         # Add the media container to the left section
         left_section.addWidget(media_container)
@@ -247,6 +251,9 @@ class PlayerWidget(QWidget):
         self.subtitle_controls.next_subtitle.connect(self.next_subtitle)
         self.subtitle_controls.subtitle_selected.connect(self.subtitle_selected)
         
+        # Connect audio control signals
+        self.audio_controls.audio_track_selected.connect(self.audio_track_selected)
+        
     def update_track_info(self, title, artist, album, artwork_path=None):
         """Update displayed track information"""
         if artwork_path:
@@ -340,4 +347,8 @@ class PlayerWidget(QWidget):
             language (str): Language code of current subtitles
             tracks (list, optional): List of available subtitle tracks for the context menu
         """
-        self.subtitle_controls.set_state(has_subtitles, is_enabled, language, tracks) 
+        self.subtitle_controls.set_state(has_subtitles, is_enabled, language, tracks)
+        
+    def update_audio_state(self, has_multiple_tracks, current_language, tracks):
+        """Update audio controls."""
+        self.audio_controls.set_state(has_multiple_tracks, current_language, tracks) 
