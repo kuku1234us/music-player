@@ -16,6 +16,13 @@ from qt_base_app.models.logger import Logger
 import threading
 import psutil
 
+# Import yt-dlp updater PathManager to locate yt-dlp.exe
+try:
+    from .yt_dlp_updater.file_manager import PathManager as YtDlpPathManager
+    YTDLP_PATH_MANAGER_AVAILABLE = True
+except ImportError:
+    YTDLP_PATH_MANAGER_AVAILABLE = False
+
 # --- Define Subtitle Extensions --- 
 # Used to filter out subtitle files when determining the final media file
 # in the fallback logic if the Merger step doesn't specify it.
@@ -479,9 +486,41 @@ class CLIDownloadWorker(QObject):
             with self._process_lock:
                 self.process = None # Allow garbage collection
     
+    def _get_ytdlp_executable_path(self):
+        """
+        Get the path to the yt-dlp executable.
+        Uses the updater's PathManager if available, otherwise tries to find in PATH.
+        
+        Returns:
+            str: Path to yt-dlp executable
+        """
+        if YTDLP_PATH_MANAGER_AVAILABLE:
+            try:
+                path_manager = YtDlpPathManager()
+                install_path = path_manager.get_install_path()
+                
+                # Check if the file exists at the expected location
+                if os.path.exists(install_path):
+                    self.logger.debug(caller="CLIDownloadWorker", 
+                                     msg=f"Using yt-dlp from updater path: {install_path}")
+                    return install_path
+                else:
+                    self.logger.warning(caller="CLIDownloadWorker", 
+                                       msg=f"yt-dlp not found at expected path: {install_path}")
+            except Exception as e:
+                self.logger.warning(caller="CLIDownloadWorker", 
+                                   msg=f"Error getting yt-dlp path from updater: {e}")
+        
+        # Fallback to trying PATH
+        self.logger.debug(caller="CLIDownloadWorker", 
+                         msg="Falling back to searching for yt-dlp in system PATH")
+        return "yt-dlp"
+
     def _build_ytdlp_command(self):
         """Build the yt-dlp command with all necessary options."""
-        cmd = ["yt-dlp"]
+        # Get the correct yt-dlp executable path
+        ytdlp_path = self._get_ytdlp_executable_path()
+        cmd = [ytdlp_path]
         
         # Add the format option
         if isinstance(self.format_options, dict) and 'format' in self.format_options:

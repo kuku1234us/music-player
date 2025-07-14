@@ -5,144 +5,55 @@ This module manages the automatic saving and restoring of playback positions
 using SQLite database storage in the user-configurable working directory.
 """
 import os
-import sqlite3
-import threading
 from datetime import datetime
 from typing import Optional, Dict, Any
 from pathlib import Path
-import time
 
-from qt_base_app.models.settings_manager import SettingsManager, SettingType
-from qt_base_app.models.logger import Logger
-from music_player.models.settings_defs import PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR
+from music_player.models.database import BaseDatabaseManager, DatabaseUtils
 
 
-class PlaybackPositionManager:
+class PlaybackPositionManager(BaseDatabaseManager):
     """
     Singleton manager for saving and restoring playback positions using SQLite.
     Positions are stored in the user-configurable Working Directory.
     """
-    
-    _instance = None
-    _lock = threading.Lock()
-    
-    def __new__(cls):
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-        return cls._instance
-    
-    def __init__(self):
-        # Prevent multiple initialization
-        if hasattr(self, '_initialized'):
-            return
-        self._initialized = True
-        
-        self.settings = SettingsManager.instance()
-        self.logger = Logger.instance()
-        self._db_lock = threading.Lock()
-        self._retry_count = 3
-        self._retry_delay = 0.1  # 100ms delay between retries
-        
-        self._init_database()
-    
-    @classmethod
-    def instance(cls):
-        """Get the singleton instance of PlaybackPositionManager."""
-        return cls()
-    
-    def _get_database_path(self) -> str:
-        """Get the path to the SQLite database file."""
-        working_dir = self.settings.get(PREF_WORKING_DIR_KEY, 
-                                       DEFAULT_WORKING_DIR, 
-                                       SettingType.PATH)
-        working_dir = Path(working_dir)
-        working_dir.mkdir(parents=True, exist_ok=True)
-        return str(working_dir / "playback_positions.db")
     
     def _init_database(self):
         """Initialize the SQLite database and create tables if they don't exist."""
         db_path = self._get_database_path()
         self.logger.info(self.__class__.__name__, f"Initializing position database at: {db_path}")
         
-        try:
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # Create table with proper schema including playback_rate and subtitle state
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS playback_positions (
-                        file_path TEXT PRIMARY KEY,
-                        position_ms INTEGER NOT NULL,
-                        duration_ms INTEGER NOT NULL,
-                        playback_rate REAL NOT NULL DEFAULT 1.0,
-                        subtitle_enabled INTEGER NOT NULL DEFAULT 0,
-                        subtitle_track_id INTEGER NOT NULL DEFAULT -1,
-                        subtitle_language TEXT DEFAULT '',
-                        audio_track_id INTEGER NOT NULL DEFAULT -1,
-                        last_updated TEXT NOT NULL,
-                        created_at TEXT NOT NULL
-                    )
-                """)
-                
-                # Check if columns exist, add them if missing (for existing databases)
-                cursor.execute("PRAGMA table_info(playback_positions)")
-                columns = [column[1] for column in cursor.fetchall()]
-                
-                if 'playback_rate' not in columns:
-                    self.logger.info(self.__class__.__name__, "Adding playback_rate column to existing database")
-                    cursor.execute("ALTER TABLE playback_positions ADD COLUMN playback_rate REAL NOT NULL DEFAULT 1.0")
-                
-                if 'subtitle_enabled' not in columns:
-                    self.logger.info(self.__class__.__name__, "Adding subtitle state columns to existing database")
-                    cursor.execute("ALTER TABLE playback_positions ADD COLUMN subtitle_enabled INTEGER NOT NULL DEFAULT 0")
-                    cursor.execute("ALTER TABLE playback_positions ADD COLUMN subtitle_track_id INTEGER NOT NULL DEFAULT -1")
-                    cursor.execute("ALTER TABLE playback_positions ADD COLUMN subtitle_language TEXT DEFAULT ''")
-                
-                if 'audio_track_id' not in columns:
-                    self.logger.info(self.__class__.__name__, "Adding audio_track_id column to existing database")
-                    cursor.execute("ALTER TABLE playback_positions ADD COLUMN audio_track_id INTEGER NOT NULL DEFAULT -1")
-                
-                # Create index for performance
-                cursor.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_last_updated 
-                    ON playback_positions(last_updated)
-                """)
-                
-                conn.commit()
-                self.logger.info(self.__class__.__name__, "Position database initialized successfully")
-                
-        except sqlite3.Error as e:
-            self.logger.error(self.__class__.__name__, f"Failed to initialize database: {e}")
-            raise RuntimeError(f"Database initialization failed: {e}")
-    
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get a connection to the SQLite database with retry logic."""
-        db_path = self._get_database_path()
+        # Create table with proper schema including playback_rate and subtitle state
+        table_creation_query = """
+            CREATE TABLE IF NOT EXISTS playback_positions (
+                file_path TEXT PRIMARY KEY,
+                position_ms INTEGER NOT NULL,
+                duration_ms INTEGER NOT NULL,
+                playback_rate REAL NOT NULL DEFAULT 1.0,
+                subtitle_enabled INTEGER NOT NULL DEFAULT 0,
+                subtitle_track_id INTEGER NOT NULL DEFAULT -1,
+                subtitle_language TEXT DEFAULT '',
+                audio_track_id INTEGER NOT NULL DEFAULT -1,
+                last_updated TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """
         
-        for attempt in range(self._retry_count):
-            try:
-                # Set timeout to handle database locking
-                conn = sqlite3.connect(db_path, timeout=5.0)
-                conn.execute("PRAGMA foreign_keys = ON")
-                return conn
-                
-            except sqlite3.OperationalError as e:
-                if "database is locked" in str(e).lower() and attempt < self._retry_count - 1:
-                    self.logger.warning(self.__class__.__name__, 
-                                      f"Database locked, retrying in {self._retry_delay}s (attempt {attempt + 1}/{self._retry_count})")
-                    time.sleep(self._retry_delay)
-                    self._retry_delay *= 2  # Exponential backoff
-                    continue
-                else:
-                    self.logger.error(self.__class__.__name__, f"Database connection failed: {e}")
-                    raise
-            except sqlite3.Error as e:
-                self.logger.error(self.__class__.__name__, f"Database error: {e}")
-                raise
+        result = self._execute_with_retry(table_creation_query)
+        if result is None:
+            raise RuntimeError("Database initialization failed")
         
-        raise sqlite3.OperationalError(f"Failed to connect to database after {self._retry_count} attempts")
+        # Add columns if missing (for existing databases)
+        self._add_column_if_missing("playback_positions", "playback_rate", "REAL NOT NULL DEFAULT 1.0")
+        self._add_column_if_missing("playback_positions", "subtitle_enabled", "INTEGER NOT NULL DEFAULT 0")
+        self._add_column_if_missing("playback_positions", "subtitle_track_id", "INTEGER NOT NULL DEFAULT -1")
+        self._add_column_if_missing("playback_positions", "subtitle_language", "TEXT DEFAULT ''")
+        self._add_column_if_missing("playback_positions", "audio_track_id", "INTEGER NOT NULL DEFAULT -1")
+        
+        # Create index for performance
+        self._create_index("idx_last_updated", "playback_positions", "last_updated")
+        
+        self.logger.info(self.__class__.__name__, "Position database initialized successfully")
     
     def save_position(self, file_path: str, position_ms: int, duration_ms: int, playback_rate: float = 1.0,
                      subtitle_enabled: bool = False, subtitle_track_id: int = -1, subtitle_language: str = '',
@@ -181,46 +92,32 @@ class PlaybackPositionManager:
             playback_rate = 1.0
         
         # Normalize file path
-        try:
-            normalized_path = os.path.abspath(file_path)
-            
-            # Handle network drive mappings for consistency with MediaManager
-            if os.name == 'nt':
-                normalized_path = self._resolve_network_path(normalized_path)
-                
-        except Exception as e:
-            self.logger.error(self.__class__.__name__, f"Failed to normalize path {file_path}: {e}")
+        normalized_path = DatabaseUtils.validate_path(file_path)
+        if not normalized_path:
+            self.logger.error(self.__class__.__name__, f"Failed to normalize path {file_path}")
             return False
+        
+        # Handle network drive mappings for consistency with MediaManager
+        if os.name == 'nt':
+            normalized_path = self._resolve_network_path(normalized_path)
         
         # Check if file exists
         if not os.path.exists(normalized_path):
             self.logger.warning(self.__class__.__name__, f"File does not exist: {normalized_path}")
             return False
         
-        timestamp = datetime.now().isoformat()
+        timestamp = DatabaseUtils.normalize_timestamp()
         
-        try:
-            with self._db_lock:
-                with self._get_connection() as conn:
-                    cursor = conn.cursor()
-                    
-                    # Use INSERT OR REPLACE for upsert functionality
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO playback_positions 
-                        (file_path, position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id, last_updated, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 
-                               COALESCE((SELECT created_at FROM playback_positions WHERE file_path = ?), ?))
-                    """, (normalized_path, position_ms, duration_ms, playback_rate, int(subtitle_enabled), subtitle_track_id, subtitle_language, audio_track_id, timestamp, normalized_path, timestamp))
-                    
-                    conn.commit()
-                    return True
-                    
-        except sqlite3.Error as e:
-            self.logger.error(self.__class__.__name__, f"Failed to save position for {file_path}: {e}")
-            return False
-        except Exception as e:
-            self.logger.error(self.__class__.__name__, f"Unexpected error saving position: {e}")
-            return False
+        # Use INSERT OR REPLACE for upsert functionality
+        result = self._execute_with_retry("""
+            INSERT OR REPLACE INTO playback_positions 
+            (file_path, position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id, last_updated, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                   COALESCE((SELECT created_at FROM playback_positions WHERE file_path = ?), ?))
+        """, (normalized_path, position_ms, duration_ms, playback_rate, int(subtitle_enabled), 
+              subtitle_track_id, subtitle_language, audio_track_id, timestamp, normalized_path, timestamp))
+        
+        return result is not None
     
     def get_saved_position(self, file_path: str) -> tuple[Optional[int], float, bool, int, str, int]:
         """
@@ -236,64 +133,50 @@ class PlaybackPositionManager:
             return None, 1.0, False, -1, '', -1
         
         # Normalize file path
-        try:
-            normalized_path = os.path.abspath(file_path)
-            
-            # Handle network drive mappings for consistency with MediaManager
-            if os.name == 'nt':
-                normalized_path = self._resolve_network_path(normalized_path)
-                
-        except Exception as e:
-            self.logger.error(self.__class__.__name__, f"Failed to normalize path {file_path}: {e}")
+        normalized_path = DatabaseUtils.validate_path(file_path)
+        if not normalized_path:
+            self.logger.error(self.__class__.__name__, f"Failed to normalize path {file_path}")
             return None, 1.0, False, -1, '', -1
         
-        try:
-            with self._db_lock:
-                with self._get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        "SELECT position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id FROM playback_positions WHERE file_path = ?",
-                        (normalized_path,)
-                    )
-                    result = cursor.fetchone()
-                    
-                    if result:
-                        position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id = result
-                        
-                        # Handle case where fields might be None from old database entries
-                        if playback_rate is None:
-                            playback_rate = 1.0
-                        if subtitle_enabled is None:
-                            subtitle_enabled = False
-                        if subtitle_track_id is None:
-                            subtitle_track_id = -1
-                        if subtitle_language is None:
-                            subtitle_language = ''
-                        if audio_track_id is None:
-                            audio_track_id = -1
-                        
-                        # Convert subtitle_enabled from integer back to boolean
-                        subtitle_enabled = bool(subtitle_enabled)
-                        
-                        # Validate that the saved position is reasonable
-                        if 0 <= position_ms <= duration_ms:
-                            return position_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id
-                        else:
-                            self.logger.warning(self.__class__.__name__, 
-                                              f"Invalid saved position {position_ms}ms (duration: {duration_ms}ms) for {file_path}")
-                            # Clean up the invalid entry
-                            self.clear_position(normalized_path)
-                            return None, 1.0, False, -1, '', -1
-                    
-                    return None, 1.0, False, -1, '', -1
-                    
-        except sqlite3.Error as e:
-            self.logger.error(self.__class__.__name__, f"Failed to get position for {file_path}: {e}")
-            return None, 1.0, False, -1, '', -1
-        except Exception as e:
-            self.logger.error(self.__class__.__name__, f"Unexpected error getting position: {e}")
-            return None, 1.0, False, -1, '', -1
-    
+        # Handle network drive mappings for consistency with MediaManager
+        if os.name == 'nt':
+            normalized_path = self._resolve_network_path(normalized_path)
+        
+        result = self._execute_with_retry(
+            "SELECT position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id FROM playback_positions WHERE file_path = ?",
+            (normalized_path,), fetch_one=True
+        )
+        
+        if result:
+            position_ms, duration_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id = result
+            
+            # Handle case where fields might be None from old database entries
+            if playback_rate is None:
+                playback_rate = 1.0
+            if subtitle_enabled is None:
+                subtitle_enabled = False
+            if subtitle_track_id is None:
+                subtitle_track_id = -1
+            if subtitle_language is None:
+                subtitle_language = ''
+            if audio_track_id is None:
+                audio_track_id = -1
+            
+            # Convert subtitle_enabled from integer back to boolean
+            subtitle_enabled = bool(subtitle_enabled)
+            
+            # Validate that the saved position is reasonable
+            if 0 <= position_ms <= duration_ms:
+                return position_ms, playback_rate, subtitle_enabled, subtitle_track_id, subtitle_language, audio_track_id
+            else:
+                self.logger.warning(self.__class__.__name__, 
+                                  f"Invalid saved position {position_ms}ms (duration: {duration_ms}ms) for {file_path}")
+                # Clean up the invalid entry
+                self.clear_position(normalized_path)
+                return None, 1.0, False, -1, '', -1
+        
+        return None, 1.0, False, -1, '', -1
+
     def _resolve_network_path(self, path: str) -> str:
         """
         Resolve mapped network drives to their UNC paths for consistent database storage.
@@ -371,32 +254,17 @@ class PlaybackPositionManager:
             return False
         
         # Normalize file path
-        try:
-            normalized_path = os.path.abspath(file_path)
-            
-            # Handle network drive mappings for consistency with MediaManager
-            if os.name == 'nt':
-                normalized_path = self._resolve_network_path(normalized_path)
-                
-        except Exception as e:
-            self.logger.error(self.__class__.__name__, f"Failed to normalize path {file_path}: {e}")
+        normalized_path = DatabaseUtils.validate_path(file_path)
+        if not normalized_path:
+            self.logger.error(self.__class__.__name__, f"Failed to normalize path {file_path}")
             return False
         
-        try:
-            with self._db_lock:
-                with self._get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM playback_positions WHERE file_path = ?", (normalized_path,))
-                    conn.commit()
-                    
-                    return cursor.rowcount > 0
-                        
-        except sqlite3.Error as e:
-            self.logger.error(self.__class__.__name__, f"Failed to clear position for {file_path}: {e}")
-            return False
-        except Exception as e:
-            self.logger.error(self.__class__.__name__, f"Unexpected error clearing position: {e}")
-            return False
+        # Handle network drive mappings for consistency with MediaManager
+        if os.name == 'nt':
+            normalized_path = self._resolve_network_path(normalized_path)
+        
+        result = self._execute_with_retry("DELETE FROM playback_positions WHERE file_path = ?", (normalized_path,))
+        return result is not None and result > 0
     
     def cleanup_deleted_files(self) -> int:
         """
@@ -405,46 +273,39 @@ class PlaybackPositionManager:
         Returns:
             int: Number of entries removed
         """
-        removed_count = 0
+        # Get all file paths from database
+        all_paths_result = self._execute_with_retry("SELECT file_path FROM playback_positions", fetch_all=True)
+        if not all_paths_result:
+            self.logger.info(self.__class__.__name__, "No entries found to cleanup")
+            return 0
         
-        try:
-            with self._db_lock:
-                with self._get_connection() as conn:
-                    cursor = conn.cursor()
-                    
-                    # Get all file paths from database
-                    cursor.execute("SELECT file_path FROM playback_positions")
-                    all_paths = cursor.fetchall()
-                    
-                    paths_to_remove = []
-                    for (file_path,) in all_paths:
-                        try:
-                            if not os.path.exists(file_path):
-                                paths_to_remove.append(file_path)
-                        except (OSError, ValueError) as e:
-                            # Handle invalid paths or permission errors
-                            self.logger.warning(self.__class__.__name__, 
-                                              f"Cannot check existence of {file_path}: {e}")
-                            paths_to_remove.append(file_path)
-                    
-                    # Remove non-existent files in batch
-                    if paths_to_remove:
-                        cursor.executemany("DELETE FROM playback_positions WHERE file_path = ?", 
-                                         [(path,) for path in paths_to_remove])
-                        removed_count = cursor.rowcount
-                        conn.commit()
-                        
-                        self.logger.info(self.__class__.__name__, 
-                                       f"Cleanup removed {removed_count} entries for deleted/invalid files")
-                    else:
-                        self.logger.info(self.__class__.__name__, "Cleanup found no deleted files to remove")
-                    
-        except sqlite3.Error as e:
-            self.logger.error(self.__class__.__name__, f"Database error during cleanup: {e}")
-        except Exception as e:
-            self.logger.error(self.__class__.__name__, f"Unexpected error during cleanup: {e}")
+        paths_to_remove = []
+        for (file_path,) in all_paths_result:
+            try:
+                if not os.path.exists(file_path):
+                    paths_to_remove.append(file_path)
+            except (OSError, ValueError) as e:
+                # Handle invalid paths or permission errors
+                self.logger.warning(self.__class__.__name__, 
+                                  f"Cannot check existence of {file_path}: {e}")
+                paths_to_remove.append(file_path)
         
-        return removed_count
+        # Remove non-existent files in batch
+        if paths_to_remove:
+            operations = [("DELETE FROM playback_positions WHERE file_path = ?", (path,)) for path in paths_to_remove]
+            success = self._execute_transaction(operations)
+            
+            if success:
+                removed_count = len(paths_to_remove)
+                self.logger.info(self.__class__.__name__, 
+                               f"Cleanup removed {removed_count} entries for deleted/invalid files")
+                return removed_count
+            else:
+                self.logger.error(self.__class__.__name__, "Failed to cleanup deleted files")
+                return 0
+        else:
+            self.logger.info(self.__class__.__name__, "Cleanup found no deleted files to remove")
+            return 0
     
     def get_database_stats(self) -> Dict[str, Any]:
         """
@@ -463,43 +324,38 @@ class PlaybackPositionManager:
             'newest_entry': None
         }
         
-        try:
-            with self._db_lock:
-                with self._get_connection() as conn:
-                    cursor = conn.cursor()
-                    
-                    # Count total files
-                    cursor.execute("SELECT COUNT(*) FROM playback_positions")
-                    stats['total_files'] = cursor.fetchone()[0]
-                    
-                    if stats['total_files'] > 0:
-                        # Calculate total saved time (positions)
-                        cursor.execute("SELECT SUM(position_ms) FROM playback_positions")
-                        total_position_ms = cursor.fetchone()[0] or 0
-                        stats['total_hours'] = total_position_ms / (1000 * 60 * 60)
-                        
-                        # Calculate total duration time
-                        cursor.execute("SELECT SUM(duration_ms) FROM playback_positions")
-                        total_duration_ms = cursor.fetchone()[0] or 0
-                        stats['total_duration_hours'] = total_duration_ms / (1000 * 60 * 60)
-                        
-                        # Get oldest and newest entries
-                        cursor.execute("SELECT MIN(created_at) FROM playback_positions")
-                        stats['oldest_entry'] = cursor.fetchone()[0]
-                        
-                        cursor.execute("SELECT MAX(last_updated) FROM playback_positions")
-                        stats['newest_entry'] = cursor.fetchone()[0]
+        # Count total files
+        total_files_result = self._execute_with_retry("SELECT COUNT(*) FROM playback_positions", fetch_one=True)
+        if total_files_result:
+            stats['total_files'] = total_files_result[0]
+        
+        if stats['total_files'] > 0:
+            # Calculate total saved time (positions)
+            total_position_result = self._execute_with_retry("SELECT SUM(position_ms) FROM playback_positions", fetch_one=True)
+            if total_position_result:
+                total_position_ms = total_position_result[0] or 0
+                stats['total_hours'] = total_position_ms / (1000 * 60 * 60)
             
-            # Get database file size
-            db_path = self._get_database_path()
-            if os.path.exists(db_path):
-                stats['database_size_bytes'] = os.path.getsize(db_path)
-                stats['database_size_mb'] = stats['database_size_bytes'] / (1024 * 1024)
-                
-        except sqlite3.Error as e:
-            self.logger.error(self.__class__.__name__, f"Database error getting stats: {e}")
-        except Exception as e:
-            self.logger.error(self.__class__.__name__, f"Unexpected error getting stats: {e}")
+            # Calculate total duration time
+            total_duration_result = self._execute_with_retry("SELECT SUM(duration_ms) FROM playback_positions", fetch_one=True)
+            if total_duration_result:
+                total_duration_ms = total_duration_result[0] or 0
+                stats['total_duration_hours'] = total_duration_ms / (1000 * 60 * 60)
+            
+            # Get oldest and newest entries
+            oldest_result = self._execute_with_retry("SELECT MIN(created_at) FROM playback_positions", fetch_one=True)
+            if oldest_result:
+                stats['oldest_entry'] = oldest_result[0]
+            
+            newest_result = self._execute_with_retry("SELECT MAX(last_updated) FROM playback_positions", fetch_one=True)
+            if newest_result:
+                stats['newest_entry'] = newest_result[0]
+        
+        # Get database file size
+        db_path = self._get_database_path()
+        if os.path.exists(db_path):
+            stats['database_size_bytes'] = os.path.getsize(db_path)
+            stats['database_size_mb'] = stats['database_size_bytes'] / (1024 * 1024)
         
         return stats
     

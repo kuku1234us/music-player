@@ -317,7 +317,7 @@ class MainPlayer(QWidget):
         
         print("[MainPlayer] Clipping failure handled, original media state preserved")
     # -------------------------------------------------------------------
-
+        
     def _on_play_requested(self):
         """Handle play requested from UI"""
         # Handle the simplest cases first
@@ -526,24 +526,24 @@ class MainPlayer(QWidget):
             self.playback_state_changed.emit(STATE_PAUSED)
             
         # Always perform immediate seeking for frame-accurate positioning
-        # Set blocking flag to prevent position update loop
-        self.block_position_updates = True
-        seek_successful = False
-        try:
-            # Perform the seek operation
-            seek_successful = self.backend.seek(position_ms)
-            
-            # If we're in playing state, ensure playback continues
-            if self.app_state == STATE_PLAYING and not self.backend.is_playing:
-                self.backend.play()
+            # Set blocking flag to prevent position update loop
+            self.block_position_updates = True
+            seek_successful = False
+            try:
+                # Perform the seek operation
+                seek_successful = self.backend.seek(position_ms)
                 
-        finally:
-            # Always unblock updates when done
-            self.block_position_updates = False
+                # If we're in playing state, ensure playback continues
+                if self.app_state == STATE_PLAYING and not self.backend.is_playing:
+                    self.backend.play()
+                    
+            finally:
+                # Always unblock updates when done
+                self.block_position_updates = False
                 
         # Update UI timeline immediately after seek
-        if seek_successful:
-            self.player_widget.timeline.set_position(position_ms)
+            if seek_successful:
+                self.player_widget.timeline.set_position(position_ms)
         else:
             print(f"[MainPlayer] Seek to {position_ms}ms failed")
             # Keep the UI in sync even if seek failed
@@ -640,7 +640,7 @@ class MainPlayer(QWidget):
         
         # Stop playback and clean up
         self.backend.stop()
-
+        
     def _on_volume_changed(self, volume):
         """
         Handle volume change from UI.
@@ -855,14 +855,14 @@ class MainPlayer(QWidget):
                 self._video_widget.setVisible(True)
             
             return False
-
+    
     def load_media(self):
         """Open a file dialog to select and load a SINGLE media file. Sets mode to 'single'."""
         # Store video widget state
         video_widget_was_hidden = False
         if hasattr(self, '_video_widget') and self._video_widget:
             video_widget_was_hidden = not self._video_widget.isVisible()
-            self._video_widget.setVisible(False)
+        self._video_widget.setVisible(False)
 
         last_dir = self.settings.get('player/last_directory', os.path.expanduser("~"), SettingType.STRING)
         
@@ -942,7 +942,7 @@ class MainPlayer(QWidget):
                         print(f"[MainPlayer] Failed to enable subtitle track {suitable_track['id']}")
                 else:
                     print("[MainPlayer] No suitable subtitle track found")
-                
+                        
                 # Update subtitle controls in PlayerWidget
                 self._update_subtitle_controls()
             else:
@@ -1237,7 +1237,7 @@ class MainPlayer(QWidget):
             
         # Get the next track from SubtitleManager
         next_track = self.subtitle_manager.get_next_subtitle_track()
-        
+            
         # Enable the new track if found
         if next_track:
             track_id = next_track['id']

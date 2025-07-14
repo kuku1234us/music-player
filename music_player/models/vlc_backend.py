@@ -625,7 +625,7 @@ class VLCBackend(QObject):
                 # For Windows paths that start with a drive letter
                 if os.name == 'nt' and file_path.startswith('/'):
                     file_path = file_path[1:]
-                
+                    
                 # Normalize the path to ensure consistency with position manager
                 try:
                     normalized_path = os.path.abspath(file_path)

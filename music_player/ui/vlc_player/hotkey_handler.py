@@ -110,7 +110,7 @@ class HotkeyHandler(QObject):
             elif key == Qt.Key.Key_S:
                 if self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
                     self._perform_clip()
-                    return True
+                return True
         # -----------------------------------------------------------------
         
         # Handle left/right seeking in both playing and paused states (for clipping accuracy)

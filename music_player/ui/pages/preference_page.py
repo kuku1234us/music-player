@@ -4,15 +4,17 @@ Preferences page for the Music Player application.
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QSpinBox, QFormLayout, QGroupBox,
-    QLineEdit, QFileDialog, QMessageBox, QDoubleSpinBox
+    QLineEdit, QFileDialog, QMessageBox, QDoubleSpinBox,
+    QCheckBox, QProgressBar
 )
-from PyQt6.QtCore import Qt, QRegularExpression
+from PyQt6.QtCore import Qt, QRegularExpression, QTimer, pyqtSlot
 from PyQt6.QtGui import QFont, QColor, QRegularExpressionValidator
 from pathlib import Path
 
 # Import from the framework
 from qt_base_app.theme.theme_manager import ThemeManager
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
+from qt_base_app.models.logger import Logger
 # Import keys and defaults from settings_defs
 from music_player.models.settings_defs import (
     PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL,
@@ -24,6 +26,16 @@ from music_player.models.settings_defs import (
     # --- NEW: Import Conversion Setting --- #
     CONVERSION_MP3_BITRATE_KEY, DEFAULT_CONVERSION_MP3_BITRATE
 )
+
+# Import yt-dlp updater settings and components
+try:
+    from music_player.models.yt_dlp_updater.updater import YtDlpUpdater
+    from music_player.models.yt_dlp_updater.update_database_manager import YtDlpUpdateManager
+    from music_player.models.yt_dlp_updater.version_manager import VersionManager
+    YTDLP_UPDATER_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: yt-dlp updater not available in preferences: {e}")
+    YTDLP_UPDATER_AVAILABLE = False
 
 
 class PreferencePage(QWidget):
@@ -39,6 +51,7 @@ class PreferencePage(QWidget):
         # Initialize settings
         self.settings = SettingsManager.instance()
         self.theme = ThemeManager.instance()
+        self.logger = Logger.instance()
         
         self.setup_ui()
         self.load_settings()
@@ -212,6 +225,101 @@ class PreferencePage(QWidget):
 
         form_layout.addRow(self.position_cleanup_label, self.position_cleanup_container)
 
+        # --- Yt-dlp Update Settings ---
+        if YTDLP_UPDATER_AVAILABLE:
+            # Enable automatic updates
+            self.ytdlp_enabled_label = QLabel("Enable yt-dlp Updates:")
+            self.ytdlp_enabled_label.setStyleSheet(label_style)
+            
+            self.ytdlp_enabled_checkbox = QCheckBox()
+            self.ytdlp_enabled_checkbox.setChecked(True)  # Default value
+            self.ytdlp_enabled_checkbox.stateChanged.connect(self._save_ytdlp_enabled)
+            
+            form_layout.addRow(self.ytdlp_enabled_label, self.ytdlp_enabled_checkbox)
+            
+            # Auto-update setting
+            self.ytdlp_auto_update_label = QLabel("Enable Auto-Updates:")
+            self.ytdlp_auto_update_label.setStyleSheet(label_style)
+            
+            self.ytdlp_auto_update_checkbox = QCheckBox()
+            self.ytdlp_auto_update_checkbox.setChecked(True)  # Default value
+            self.ytdlp_auto_update_checkbox.stateChanged.connect(self._save_ytdlp_auto_update)
+            
+            form_layout.addRow(self.ytdlp_auto_update_label, self.ytdlp_auto_update_checkbox)
+            
+            # Check interval setting
+            self.ytdlp_check_interval_label = QLabel("Check Interval (hours):")
+            self.ytdlp_check_interval_label.setStyleSheet(label_style)
+            
+            self.ytdlp_check_interval_spinbox = QSpinBox()
+            self.ytdlp_check_interval_spinbox.setMinimum(1)
+            self.ytdlp_check_interval_spinbox.setMaximum(168)  # 1 week
+            self.ytdlp_check_interval_spinbox.setValue(24)  # Default value
+            self.ytdlp_check_interval_spinbox.valueChanged.connect(self._save_ytdlp_check_interval)
+            self.ytdlp_check_interval_spinbox.setStyleSheet(input_style)
+            
+            form_layout.addRow(self.ytdlp_check_interval_label, self.ytdlp_check_interval_spinbox)
+            
+            # Installation path setting
+            self.ytdlp_install_path_label = QLabel("Installation Path:")
+            self.ytdlp_install_path_label.setStyleSheet(label_style)
+            
+            self.ytdlp_install_path_container = QWidget()
+            self.ytdlp_install_path_layout = QHBoxLayout(self.ytdlp_install_path_container)
+            self.ytdlp_install_path_layout.setContentsMargins(0, 0, 0, 0)
+            self.ytdlp_install_path_layout.setSpacing(8)
+            
+            self.ytdlp_install_path_edit = QLineEdit()
+            self.ytdlp_install_path_edit.setPlaceholderText("Choose yt-dlp installation path")
+            self.ytdlp_install_path_edit.setText(r'C:\yt-dlp\yt-dlp.exe')  # Default value
+            self.ytdlp_install_path_edit.textChanged.connect(self._save_ytdlp_install_path)
+            self.ytdlp_install_path_edit.setStyleSheet(input_style)
+            
+            self.browse_ytdlp_install_path_button = QPushButton("Browse...")
+            self.browse_ytdlp_install_path_button.setMaximumWidth(100)
+            self.browse_ytdlp_install_path_button.clicked.connect(self.browse_ytdlp_install_path)
+            self.browse_ytdlp_install_path_button.setStyleSheet(button_style)
+            
+            self.ytdlp_install_path_layout.addWidget(self.ytdlp_install_path_edit)
+            self.ytdlp_install_path_layout.addWidget(self.browse_ytdlp_install_path_button)
+            
+            form_layout.addRow(self.ytdlp_install_path_label, self.ytdlp_install_path_container)
+            
+            # Current status display
+            self.ytdlp_status_label = QLabel("Current Status:")
+            self.ytdlp_status_label.setStyleSheet(label_style)
+            
+            self.ytdlp_status_container = QWidget()
+            self.ytdlp_status_layout = QVBoxLayout(self.ytdlp_status_container)
+            self.ytdlp_status_layout.setContentsMargins(0, 0, 0, 0)
+            self.ytdlp_status_layout.setSpacing(4)
+            
+            self.ytdlp_version_label = QLabel("Version: Loading...")
+            self.ytdlp_version_label.setStyleSheet(input_style + """
+                border: none;
+                background-color: transparent;
+                padding: 4px;
+            """)
+            self.ytdlp_version_label.setWordWrap(True)
+            
+            self.ytdlp_last_check_label = QLabel("Last Check: Loading...")
+            self.ytdlp_last_check_label.setStyleSheet(input_style + """
+                border: none;
+                background-color: transparent;
+                padding: 4px;
+            """)
+            self.ytdlp_last_check_label.setWordWrap(True)
+            
+            self.ytdlp_check_now_button = QPushButton("Check Now")
+            self.ytdlp_check_now_button.clicked.connect(self.check_ytdlp_update_now)
+            self.ytdlp_check_now_button.setStyleSheet(button_style)
+            
+            self.ytdlp_status_layout.addWidget(self.ytdlp_version_label)
+            self.ytdlp_status_layout.addWidget(self.ytdlp_last_check_label)
+            self.ytdlp_status_layout.addWidget(self.ytdlp_check_now_button)
+            
+            form_layout.addRow(self.ytdlp_status_label, self.ytdlp_status_container)
+
         self.main_layout.addLayout(form_layout)
         
         # --- Buttons --- 
@@ -251,6 +359,22 @@ class PreferencePage(QWidget):
         mp3_bitrate = self.settings.get(CONVERSION_MP3_BITRATE_KEY, DEFAULT_CONVERSION_MP3_BITRATE, SettingType.INT)
         self.mp3_bitrate_spinbox.setValue(mp3_bitrate)
         # --- END NEW --- #
+        
+        # Load yt-dlp update settings
+        if YTDLP_UPDATER_AVAILABLE:
+            try:
+                db_manager = YtDlpUpdateManager.instance()
+                ytdlp_settings = db_manager.get_settings()
+                
+                self.ytdlp_enabled_checkbox.setChecked(ytdlp_settings.get('enabled', True))
+                self.ytdlp_auto_update_checkbox.setChecked(ytdlp_settings.get('auto_update', True))
+                self.ytdlp_check_interval_spinbox.setValue(ytdlp_settings.get('check_interval_hours', 24))
+                self.ytdlp_install_path_edit.setText(ytdlp_settings.get('install_path', r'C:\yt-dlp\yt-dlp.exe'))
+                
+                # Update yt-dlp status display
+                self.update_ytdlp_status()
+            except Exception as e:
+                self.logger.error("PreferencePage", f"Error loading yt-dlp settings: {e}")
         
         # Update position database stats
         self.update_position_stats()
@@ -297,19 +421,38 @@ class PreferencePage(QWidget):
         self.mp3_bitrate_spinbox.setValue(DEFAULT_CONVERSION_MP3_BITRATE)
         # --- END NEW --- #
         
+        # Reset yt-dlp update settings UI
+        if YTDLP_UPDATER_AVAILABLE:
+            self.ytdlp_enabled_checkbox.setChecked(True)
+            self.ytdlp_auto_update_checkbox.setChecked(True)
+            self.ytdlp_check_interval_spinbox.setValue(24)
+            self.ytdlp_install_path_edit.setText(r'C:\yt-dlp\yt-dlp.exe')
+        
         # Set QSettings back to defaults
         self.settings.set(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
         self.settings.set(PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR, SettingType.PATH)
         self.settings.set(YT_DOWNLOAD_DIR_KEY, DEFAULT_YT_DOWNLOAD_DIR, SettingType.PATH)
         self.settings.set(YT_API_QSETTINGS_KEY, DEFAULT_YT_API_KEY, SettingType.STRING)
         self.settings.set(GROQ_API_QSETTINGS_KEY, DEFAULT_GROQ_API_KEY, SettingType.STRING)
-        # Add sets for any other QSettings managed here
         # --- NEW: Reset MP3 Bitrate in QSettings --- #
         self.settings.set(CONVERSION_MP3_BITRATE_KEY, DEFAULT_CONVERSION_MP3_BITRATE, SettingType.INT)
         # --- END NEW --- #
         
+        # Reset yt-dlp database settings
+        if YTDLP_UPDATER_AVAILABLE:
+            try:
+                db_manager = YtDlpUpdateManager.instance()
+                db_manager.reset_settings_to_defaults()
+            except Exception as e:
+                self.logger.error("PreferencePage", f"Error resetting yt-dlp settings: {e}")
+        
         self.settings.sync()
-        print("[PreferencePage] Settings reset.")
+        self.logger.info("PreferencePage", "Settings reset to defaults")
+        
+        # Update status displays
+        self.update_position_stats()
+        if YTDLP_UPDATER_AVAILABLE:
+            self.update_ytdlp_status()
         
     def showEvent(self, event):
         """Reload settings when the page becomes visible"""
@@ -427,5 +570,175 @@ class PreferencePage(QWidget):
             self.position_stats_label.setText(stats_text)
             
         except Exception as e:
-            self.position_stats_label.setText(f"Error: {str(e)}")
-            print(f"[PreferencePage] Error updating position stats: {e}")
+            self.position_stats_label.setText(f"Error loading stats: {str(e)}")
+
+    # --- Yt-dlp Update Methods ---
+    
+    def _save_ytdlp_enabled(self):
+        """Save the yt-dlp updates enabled setting."""
+        if not YTDLP_UPDATER_AVAILABLE:
+            return
+        enabled = self.ytdlp_enabled_checkbox.isChecked()
+        try:
+            db_manager = YtDlpUpdateManager.instance()
+            db_manager.update_setting('enabled', enabled)
+            self.logger.info("PreferencePage", f"yt-dlp updates enabled: {enabled}")
+        except Exception as e:
+            self.logger.error("PreferencePage", f"Error saving yt-dlp enabled setting: {e}")
+
+    def _save_ytdlp_auto_update(self):
+        """Save the yt-dlp auto-update setting."""
+        if not YTDLP_UPDATER_AVAILABLE:
+            return
+        auto_update = self.ytdlp_auto_update_checkbox.isChecked()
+        try:
+            db_manager = YtDlpUpdateManager.instance()
+            db_manager.update_setting('auto_update', auto_update)
+            self.logger.info("PreferencePage", f"yt-dlp auto-update: {auto_update}")
+        except Exception as e:
+            self.logger.error("PreferencePage", f"Error saving yt-dlp auto-update setting: {e}")
+
+    def _save_ytdlp_check_interval(self):
+        """Save the yt-dlp check interval setting."""
+        if not YTDLP_UPDATER_AVAILABLE:
+            return
+        interval = self.ytdlp_check_interval_spinbox.value()
+        try:
+            db_manager = YtDlpUpdateManager.instance()
+            db_manager.update_setting('check_interval_hours', interval)
+            self.logger.info("PreferencePage", f"yt-dlp check interval: {interval} hours")
+        except Exception as e:
+            self.logger.error("PreferencePage", f"Error saving yt-dlp check interval setting: {e}")
+
+    def _save_ytdlp_install_path(self):
+        """Save the yt-dlp installation path setting."""
+        if not YTDLP_UPDATER_AVAILABLE:
+            return
+        path = self.ytdlp_install_path_edit.text()
+        try:
+            db_manager = YtDlpUpdateManager.instance()
+            db_manager.update_setting('install_path', path)
+            self.logger.info("PreferencePage", f"yt-dlp install path: {path}")
+        except Exception as e:
+            self.logger.error("PreferencePage", f"Error saving yt-dlp install path setting: {e}")
+
+    def browse_ytdlp_install_path(self):
+        """Browse for yt-dlp installation path."""
+        if not YTDLP_UPDATER_AVAILABLE:
+            return
+        
+        current_path = self.ytdlp_install_path_edit.text()
+        if current_path:
+            initial_dir = str(Path(current_path).parent)
+        else:
+            initial_dir = str(Path.home())
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Choose yt-dlp installation location",
+            initial_dir + "/yt-dlp.exe",
+            "Executable Files (*.exe);;All Files (*)"
+        )
+        
+        if file_path:
+            self.ytdlp_install_path_edit.setText(file_path)
+
+    def check_ytdlp_update_now(self):
+        """Manually trigger yt-dlp update check."""
+        if not YTDLP_UPDATER_AVAILABLE:
+            QMessageBox.warning(self, "Update Check", "yt-dlp updater is not available.")
+            return
+        
+        # Disable the button during update check
+        self.ytdlp_check_now_button.setEnabled(False)
+        self.ytdlp_check_now_button.setText("Checking...")
+        
+        try:
+            updater = YtDlpUpdater.instance()
+            result = updater.check_and_update_async(force_check=True)
+            
+            if result.success:
+                if result.updated:
+                    QMessageBox.information(
+                        self, 
+                        "Update Complete", 
+                        f"yt-dlp has been updated to {result.latest_version}"
+                    )
+                else:
+                    QMessageBox.information(
+                        self, 
+                        "No Update Needed", 
+                        f"yt-dlp is already up to date: {result.current_version}"
+                    )
+            else:
+                QMessageBox.warning(
+                    self, 
+                    "Update Failed", 
+                    f"Failed to check for updates: {result.error_message}"
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self, 
+                "Update Error", 
+                f"An error occurred during update check: {str(e)}"
+            )
+        finally:
+            # Re-enable the button and update status
+            self.ytdlp_check_now_button.setEnabled(True)
+            self.ytdlp_check_now_button.setText("Check Now")
+            self.update_ytdlp_status()
+
+    def update_ytdlp_status(self):
+        """Update the yt-dlp status display."""
+        if not YTDLP_UPDATER_AVAILABLE:
+            return
+        
+        try:
+            updater = YtDlpUpdater.instance()
+            status = updater.get_update_status()
+            
+            # Format current version
+            current_version = status.get('current_version', 'Unknown')
+            if current_version == 'unknown':
+                if status.get('file_exists', False):
+                    current_version = "Installed (version unknown)"
+                else:
+                    current_version = "Not installed"
+            
+            self.ytdlp_version_label.setText(f"Version: {current_version}")
+            
+            # Format last check time
+            last_check = status.get('last_check_time')
+            if last_check:
+                if isinstance(last_check, str):
+                    from datetime import datetime
+                    try:
+                        last_check_dt = datetime.fromisoformat(last_check)
+                        time_diff = datetime.now() - last_check_dt
+                        if time_diff.days > 0:
+                            last_check_text = f"{time_diff.days} days ago"
+                        elif time_diff.seconds > 3600:
+                            hours = time_diff.seconds // 3600
+                            last_check_text = f"{hours} hours ago"
+                        else:
+                            minutes = time_diff.seconds // 60
+                            last_check_text = f"{minutes} minutes ago"
+                    except ValueError:
+                        last_check_text = "Recently"
+                else:
+                    last_check_text = "Recently"
+            else:
+                last_check_text = "Never"
+            
+            self.ytdlp_last_check_label.setText(f"Last Check: {last_check_text}")
+            
+            # Show error if there was one
+            if status.get('last_error'):
+                self.ytdlp_last_check_label.setText(
+                    f"Last Check: {last_check_text} (Error: {status['last_error']})"
+                )
+                
+        except Exception as e:
+            self.ytdlp_version_label.setText(f"Version: Error loading status")
+            self.ytdlp_last_check_label.setText(f"Last Check: Error ({str(e)})")
+            self.logger.error("PreferencePage", f"Error updating yt-dlp status: {e}")

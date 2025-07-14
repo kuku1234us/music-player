@@ -1043,21 +1043,20 @@ class ClippingManager(QObject):
                                 ] + encoder_support['encoding_params'] + [
                                     "-c:a", "libopus" if encoder_support.get('codec_name') == 'vp9' else "aac", 
                                     "-b:a", "128k",
-                                    temp_output_path
-                                ]
+                    temp_output_path
+                ]
                 
-                # Execute the chosen ffmpeg command (for Options A, C, and basic re-encoding)
-                if 'ffmpeg_cmd' in locals():
-                    creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-                    process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, creationflags=creationflags)
-                    
-                    if process.returncode != 0:
-                        error_message = f"ffmpeg failed for segment {i}. Error: {process.stderr.strip()}"
-                        self._logger.error("ClippingManager", error_message)
-                        self.clip_failed.emit(media_path, error_message)
-                        return None
-                    else:
-                        self._logger.info("ClippingManager", f"Segment {i+1} processed successfully")
+                                # Execute the chosen ffmpeg command (for Options A, C, and basic re-encoding)
+                                if 'ffmpeg_cmd' in locals():
+                                    creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                                    process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, creationflags=creationflags)
+                                    if process.returncode != 0:
+                                        error_message = f"ffmpeg failed for segment {i}. Error: {process.stderr.strip()}"
+                                        self._logger.error("ClippingManager", error_message)
+                                        self.clip_failed.emit(media_path, error_message)
+                                        return None
+                                    else:
+                                        self._logger.info("ClippingManager", f"Segment {i+1} processed successfully")
 
             # 6. Concatenate all processed segments into final output
             self._logger.info("ClippingManager", f"\nConcatenating {len(temp_files)} processed segments")

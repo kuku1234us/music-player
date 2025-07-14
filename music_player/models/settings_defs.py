@@ -30,12 +30,6 @@ YT_MAX_CONCURRENT_KEY = 'youtube_downloader/max_concurrent'
 # --- NEW: Conversion Settings ---
 CONVERSION_MP3_BITRATE_KEY = 'conversion/mp3_bitrate_kbps'
 
-# --- Environment Variable Keys (For .env fallback) ---
-# Only YT needed if hybrid approach was kept, remove otherwise.
-# Assuming QSettings only now, remove both:
-# YT_API_ENV_KEY = 'YOUTUBE_API_KEY'
-# GROQ_API_ENV_KEY = 'GROQ_API_KEY'
-
 # --- Define Default Values ---
 DEFAULT_PLAYER_VOLUME = 100
 DEFAULT_SEEK_INTERVAL = 3

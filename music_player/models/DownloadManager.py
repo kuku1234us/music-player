@@ -15,6 +15,16 @@ from qt_base_app.models.logger import Logger
 from .SiteModel import SiteModel
 from .CLIDownloadWorker import CLIDownloadWorker
 
+# Import yt-dlp updater for automatic updates
+try:
+    from .yt_dlp_updater.updater import YtDlpUpdater
+    from .yt_dlp_updater.version_manager import VersionManager
+    YTDLP_UPDATER_AVAILABLE = True
+except ImportError as e:
+    # Log the import error but don't fail
+    print(f"Warning: yt-dlp updater not available: {e}")
+    YTDLP_UPDATER_AVAILABLE = False
+
 class DownloadManager(QObject):
     """Manager for handling multiple YouTube downloads."""
     
@@ -46,6 +56,10 @@ class DownloadManager(QObject):
         
         # Quick metadata fetch thread tracking (remains the same)
         self._quick_metadata_threads = {} 
+        
+        # yt-dlp update tracking
+        self._update_check_in_progress = False
+        self._last_update_check_time = None
     
     def get_max_concurrent(self):
         """Get the maximum number of concurrent downloads."""
@@ -423,6 +437,10 @@ class DownloadManager(QObject):
         for url in urls_to_update:
             self.download_progress.emit(url, 0, "Initializing...")
         
+        # Check for yt-dlp updates before starting downloads (Phase 3)
+        if urls_to_process and YTDLP_UPDATER_AVAILABLE:
+            self._check_ytdlp_update_async()
+        
         # Process outside lock
         for url, format_options, output_dir in urls_to_process:
             
@@ -672,3 +690,120 @@ class DownloadManager(QObject):
              self.logger.info(caller="DownloadManager", msg="All active download threads finished gracefully.")
         else:
              self.logger.warning(caller="DownloadManager", msg="Some download threads did not finish gracefully during shutdown.") 
+
+    def _check_ytdlp_update_async(self):
+        """
+        Check for yt-dlp updates asynchronously without blocking downloads.
+        This method ensures updates are checked only once per session and 
+        doesn't interfere with download operations.
+        """
+        if not YTDLP_UPDATER_AVAILABLE:
+            return
+        
+        # Avoid multiple simultaneous update checks
+        if self._update_check_in_progress:
+            return
+        
+        # Throttle update checks - only check once per hour
+        current_time = time.time()
+        if (self._last_update_check_time is not None and 
+            current_time - self._last_update_check_time < 3600):  # 1 hour
+            return
+        
+        self._update_check_in_progress = True
+        self._last_update_check_time = current_time
+        
+        class YtDlpUpdateThread(QThread):
+            """Background thread for yt-dlp update checking."""
+            update_result = pyqtSignal(bool, bool, str, str)  # success, updated, current_version, latest_version
+            
+            def __init__(self, parent=None):
+                super().__init__(parent)
+                
+            def run(self):
+                try:
+                    updater = YtDlpUpdater.instance()
+                    
+                    # Check if update checking is enabled
+                    if not updater.should_check_for_update():
+                        self.update_result.emit(True, False, "", "No check needed")
+                        return
+                    
+                    # Perform the update check and installation
+                    result = updater.check_and_update_async(force_check=False)
+                    
+                    self.update_result.emit(
+                        result.success,
+                        result.updated, 
+                        result.current_version,
+                        result.latest_version
+                    )
+                    
+                except Exception as e:
+                    # Log error but don't fail the download process
+                    self.update_result.emit(False, False, "", f"Update check failed: {e}")
+        
+        # Create and start update thread
+        update_thread = YtDlpUpdateThread(parent=self)
+        update_thread.update_result.connect(self._on_ytdlp_update_result)
+        update_thread.finished.connect(update_thread.deleteLater)
+        update_thread.start()
+    
+    def _on_ytdlp_update_result(self, success: bool, updated: bool, current_version: str, latest_version: str):
+        """Handle the result of yt-dlp update check."""
+        self._update_check_in_progress = False
+        
+        if not success:
+            self.logger.warning("DownloadManager", f"yt-dlp update check failed: {latest_version}")
+            return
+        
+        if updated:
+            # Log successful update
+            version_display = latest_version or "latest"
+            self.logger.info("DownloadManager", f"yt-dlp updated to {version_display}")
+            
+            # Log update completion for downloads about to start
+            if self._queue or self._active:
+                self.logger.info("DownloadManager", "yt-dlp update completed, downloads will use updated version")
+            
+        else:
+            # Log that no update was needed (debug level)
+            if current_version:
+                self.logger.debug("DownloadManager", f"yt-dlp is up to date: {current_version}")
+            else:
+                self.logger.debug("DownloadManager", "yt-dlp update check completed, no update needed")
+                
+    def get_ytdlp_update_status(self) -> Dict[str, Any]:
+        """
+        Get current yt-dlp update status for debugging/UI purposes.
+        
+        Returns:
+            Dict: Status information about yt-dlp updater
+        """
+        if not YTDLP_UPDATER_AVAILABLE:
+            return {
+                'available': False,
+                'error': 'yt-dlp updater not available'
+            }
+        
+        try:
+            updater = YtDlpUpdater.instance()
+            status = updater.get_update_status()
+            
+            return {
+                'available': True,
+                'check_in_progress': self._update_check_in_progress,
+                'last_check_time': self._last_update_check_time,
+                'enabled': status.get('enabled', False),
+                'auto_update': status.get('auto_update', False),
+                'current_version': status.get('current_version', 'unknown'),
+                'file_exists': status.get('file_exists', False),
+                'path_valid': status.get('path_valid', False),
+                'should_check': status.get('should_check', False)
+            }
+            
+        except Exception as e:
+            return {
+                'available': True,
+                'error': f'Failed to get update status: {e}'
+            } 

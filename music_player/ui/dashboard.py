@@ -188,7 +188,7 @@ class MusicPlayerDashboard(BaseWindow):
                 lambda filepath: self.player.load_media_unified(filepath, "selection_pool")
             )
             self.logger.info(self.__class__.__name__, "Connected SelectionPool to unified media loading")
-            
+        
         # Connect signals from DashboardPage for recently played items
         if hasattr(dashboard_page, 'play_single_file_requested'):
             # Use the new comprehensive unified loading method for consistent behavior
@@ -196,7 +196,7 @@ class MusicPlayerDashboard(BaseWindow):
                 lambda filepath: self.player.load_media_unified(filepath, "dashboard_recent_files")
             )
             self.logger.info(self.__class__.__name__, "Connected DashboardPage to unified media loading")
-        
+            
         if hasattr(dashboard_page, 'play_playlist_requested'):
             dashboard_page.play_playlist_requested.connect(self._handle_play_playlist_from_dashboard)
         
