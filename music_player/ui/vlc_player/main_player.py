@@ -526,24 +526,24 @@ class MainPlayer(QWidget):
             self.playback_state_changed.emit(STATE_PAUSED)
             
         # Always perform immediate seeking for frame-accurate positioning
-            # Set blocking flag to prevent position update loop
-            self.block_position_updates = True
-            seek_successful = False
-            try:
-                # Perform the seek operation
-                seek_successful = self.backend.seek(position_ms)
+        # Set blocking flag to prevent position update loop
+        self.block_position_updates = True
+        seek_successful = False
+        try:
+            # Perform the seek operation
+            seek_successful = self.backend.seek(position_ms)
+            
+            # If we're in playing state, ensure playback continues
+            if self.app_state == STATE_PLAYING and not self.backend.is_playing:
+                self.backend.play()
                 
-                # If we're in playing state, ensure playback continues
-                if self.app_state == STATE_PLAYING and not self.backend.is_playing:
-                    self.backend.play()
-                    
-            finally:
-                # Always unblock updates when done
-                self.block_position_updates = False
-                
+        finally:
+            # Always unblock updates when done
+            self.block_position_updates = False
+            
         # Update UI timeline immediately after seek
-            if seek_successful:
-                self.player_widget.timeline.set_position(position_ms)
+        if seek_successful:
+            self.player_widget.timeline.set_position(position_ms)
         else:
             print(f"[MainPlayer] Seek to {position_ms}ms failed")
             # Keep the UI in sync even if seek failed

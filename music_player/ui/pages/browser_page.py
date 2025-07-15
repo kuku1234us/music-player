@@ -31,6 +31,10 @@ from music_player.ui.components.upload_status_overlay import UploadStatusOverlay
 from music_player.models.conversion_manager import ConversionManager
 from music_player.ui.components.browser_components.conversion_progress import ConversionProgress
 # --- END NEW IMPORTS --- #
+# --- NEW IMPORTS FOR VIDEO COMPRESSION --- #
+from music_player.models.video_compression_manager import VideoCompressionManager
+from music_player.ui.components.browser_components.video_compression_progress import VideoCompressionProgress
+# --- END NEW IMPORTS --- #
 from music_player.ui.components.base_table import BaseTableModel, ColumnDefinition
 from music_player.ui.components.browser_components.browser_table import BrowserTableView
 
@@ -201,6 +205,11 @@ class BrowserPage(QWidget):
         self.conversion_progress_overlay = ConversionProgress(self)
         # --- END NEW --- #
 
+        # --- NEW: Video Compression Manager and Progress UI --- #
+        self.video_compression_manager = VideoCompressionManager(self)
+        self.video_compression_progress_overlay = VideoCompressionProgress(self)
+        # --- END NEW --- #
+
         # Timer for temporary messages
         self.temp_message_timer = QTimer(self)
         self.temp_message_timer.setSingleShot(True)
@@ -360,6 +369,17 @@ class BrowserPage(QWidget):
         self.mp3_convert_button.setToolTip("Convert Selected to MP3")
         # --- END NEW --- #
 
+        # --- NEW: Video Compression Button --- #
+        self.video_compress_button = RoundButton(
+            parent=self,
+            icon_name="fa5s.video",  # Video icon
+            diameter=48,
+            icon_size=20,
+            bg_opacity=0.5
+        )
+        self.video_compress_button.setToolTip("Compress Selected Videos to 720p")
+        # --- END NEW --- #
+
         # --- NEW: Cancel Conversion Button --- #
         self.cancel_conversion_button = RoundButton(
             parent=self,
@@ -370,6 +390,18 @@ class BrowserPage(QWidget):
         )
         self.cancel_conversion_button.setToolTip("Cancel Ongoing Conversions")
         self.cancel_conversion_button.hide() # Initially hidden
+        # --- END NEW --- #
+
+        # --- NEW: Cancel Video Compression Button --- #
+        self.cancel_video_compression_button = RoundButton(
+            parent=self,
+            icon_name="fa5s.stop-circle", # Using a stop-circle icon
+            diameter=48,
+            icon_size=24,
+            bg_opacity=0.5
+        )
+        self.cancel_video_compression_button.setToolTip("Cancel Ongoing Video Compressions")
+        self.cancel_video_compression_button.hide() # Initially hidden
         # --- END NEW --- #
 
     def _connect_signals(self):
@@ -399,6 +431,20 @@ class BrowserPage(QWidget):
 
         # --- NEW: Connect Cancel Button --- #
         self.cancel_conversion_button.clicked.connect(self._on_cancel_conversions_clicked)
+        # --- END NEW --- #
+
+        # --- NEW: Connect Video Compression Signals --- #
+        self.video_compress_button.clicked.connect(self._on_video_compress_selected_clicked)
+        self.video_compression_manager.compression_batch_started.connect(self._on_video_compression_batch_started)
+        self.video_compression_manager.compression_file_started.connect(self._on_video_compression_file_started)
+        self.video_compression_manager.compression_file_progress.connect(self._on_video_compression_file_progress)
+        self.video_compression_manager.compression_file_completed.connect(self._on_video_compression_file_completed)
+        self.video_compression_manager.compression_file_failed.connect(self._on_video_compression_file_failed)
+        self.video_compression_manager.compression_batch_finished.connect(self._on_video_compression_batch_finished)
+        # --- END NEW --- #
+
+        # --- NEW: Connect Cancel Video Compression Button --- #
+        self.cancel_video_compression_button.clicked.connect(self._on_cancel_video_compressions_clicked)
         # --- END NEW --- #
 
     def _browse_folder(self):
@@ -704,11 +750,23 @@ class BrowserPage(QWidget):
         self.mp3_convert_button.raise_()
         # --- END NEW --- #
 
+        # --- NEW: Position Video Compression Button --- #
+        video_compress_button_x = mp3_convert_button_x - self.video_compress_button.width() - 10
+        self.video_compress_button.move(video_compress_button_x, button_y)
+        self.video_compress_button.raise_()
+        # --- END NEW --- #
+
         # --- NEW: Position Cancel Conversion Button --- #
         # Position it to the left of the MP3 convert button
-        cancel_conversion_button_x = mp3_convert_button_x - self.cancel_conversion_button.width() - 10
+        cancel_conversion_button_x = video_compress_button_x - self.cancel_conversion_button.width() - 10
         self.cancel_conversion_button.move(cancel_conversion_button_x, button_y)
         self.cancel_conversion_button.raise_()
+        # --- END NEW --- #
+
+        # --- NEW: Position Cancel Video Compression Button --- #
+        cancel_video_compression_button_x = cancel_conversion_button_x - self.cancel_video_compression_button.width() - 10
+        self.cancel_video_compression_button.move(cancel_video_compression_button_x, button_y)
+        self.cancel_video_compression_button.raise_()
         # --- END NEW --- #
 
         # Position the upload status overlay (relative to BrowserPage)
@@ -719,6 +777,10 @@ class BrowserPage(QWidget):
         
         # --- NEW: Position Conversion Progress Overlay --- #
         self._update_conversion_progress_position()
+        # --- END NEW --- #
+
+        # --- NEW: Position Video Compression Progress Overlay --- #
+        self._update_video_compression_progress_position()
         # --- END NEW --- #
 
     def _update_upload_status_position(self):
@@ -1092,6 +1154,93 @@ class BrowserPage(QWidget):
         # Or if a file fails due to cancellation, it might show that message.
     # --- END NEW --- #
 
+    # --- NEW: Video Compression Handlers --- #
+    def _on_video_compress_selected_clicked(self):
+        selected_objects = self.file_table.get_selected_items_data()
+        items_to_process = []
+
+        if not selected_objects:
+            QMessageBox.warning(self, "No Selection", "Please select one or more files or directories to compress.")
+            return
+
+        # Include both video files and directories (for recursive processing)
+        for obj in selected_objects:
+            path_str = obj.get('path')
+            is_dir = obj.get('is_dir', False)
+            if path_str and os.path.exists(path_str):
+                if is_dir:
+                    # Include directories for recursive processing
+                    items_to_process.append(obj)
+                    print(f"[BrowserPage] Added directory for recursive compression: {path_str}")
+                else:
+                    # Check for video extensions
+                    if any(path_str.lower().endswith(ext) for ext in ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v', '.flv', '.wmv', '.mpg', '.mpeg']):
+                        items_to_process.append(obj)
+                        print(f"[BrowserPage] Added video file for compression: {path_str}")
+                    else:
+                        print(f"[BrowserPage] Skipping non-video file for compression: {path_str}")
+            else:
+                print(f"[BrowserPage] Skipping invalid path: {path_str}")
+
+        if not items_to_process:
+            QMessageBox.information(self, "No Video Files or Directories", "The current selection contains no video files or directories suitable for compression.")
+            return
+
+        if not self._current_directory or not self._current_directory.is_dir():
+            QMessageBox.critical(self, "Error", "Cannot determine output directory. Please select a valid folder first.")
+            return
+        
+        output_directory = str(self._current_directory)
+        print(f"[BrowserPage] Starting video compression for {len(items_to_process)} items to directory: {output_directory}")
+        self.video_compression_manager.start_compressions(items_to_process, output_directory)
+
+    def _on_video_compression_batch_started(self, total_files: int):
+        print(f"[BrowserPage] Video compression batch started for {total_files} files.")
+        self.video_compression_progress_overlay.show_compression_started(total_files)
+        self._update_video_compression_progress_position()
+        self.cancel_video_compression_button.show() # Show cancel button when batch starts
+
+    def _on_video_compression_file_started(self, task_id: str, original_filename: str, file_index: int, total_files: int):
+        print(f"[BrowserPage] Video compression started for file {file_index + 1}/{total_files}: {original_filename} (Task ID: {task_id})")
+        # Pass task_id to show_file_progress, percentage is 0.0 initially
+        self.video_compression_progress_overlay.show_file_progress(task_id, os.path.basename(original_filename), file_index, total_files, 0.0)
+        self._update_video_compression_progress_position() # Ensure visible and positioned
+
+    def _on_video_compression_file_progress(self, task_id: str, percentage: float):
+        # Now directly call the new update method on the overlay
+        self.video_compression_progress_overlay.update_current_file_progress(task_id, percentage)
+        # print(f"[BrowserPage] Video compression progress for Task ID {task_id}: {percentage*100:.1f}%") # Can be noisy
+
+    def _on_video_compression_file_completed(self, task_id: str, original_filename: str, compressed_filename: str):
+        print(f"[BrowserPage] Video compression completed: {original_filename} -> {compressed_filename} (Task ID: {task_id})")
+        # The VideoCompressionProgress overlay might already show "Completed: ..." based on its own logic
+        # or simply wait for the next file to start.
+        # We can call show_file_completed to ensure the filename is updated if it was showing an error previously.
+        self.video_compression_progress_overlay.show_file_completed(os.path.basename(original_filename), os.path.basename(compressed_filename))
+        self._update_video_compression_progress_position()
+
+    def _on_video_compression_file_failed(self, task_id: str, original_filename: str, error_message: str):
+        print(f"[BrowserPage] Video compression failed for {original_filename} (Task ID: {task_id}): {error_message}")
+        self.video_compression_progress_overlay.show_file_failed(os.path.basename(original_filename), error_message)
+        self._update_video_compression_progress_position()
+
+    def _on_video_compression_batch_finished(self):
+        print("[BrowserPage] Video compression batch finished.")
+        self.video_compression_progress_overlay.show_batch_finished()
+        self.cancel_video_compression_button.hide() # Hide cancel button when batch finishes
+        self._update_video_compression_progress_position() # Ensure final message is positioned
+        # Refresh the browser view to show newly compressed files
+        QTimer.singleShot(500, self._refresh_view) # Short delay before refresh
+
+    def _on_cancel_video_compressions_clicked(self):
+        print("[BrowserPage] Cancel video compressions button clicked.")
+        if self.video_compression_manager:
+            self.video_compression_manager.cancel_all_compressions()
+        # The VideoCompressionProgress overlay and cancel button will be hidden by
+        # the compression_batch_finished signal if the cancellation leads to that.
+        # Or if a file fails due to cancellation, it might show that message.
+    # --- END NEW --- #
+
     # --- NEW: Conversion Progress Position --- # 
     def _update_conversion_progress_position(self):
         """Update the position of the conversion progress overlay (relative to BrowserPage)"""
@@ -1110,4 +1259,26 @@ class BrowserPage(QWidget):
             print(f"[BrowserPage DEBUG] _update_conversion_progress_position: Moved overlay to ({overlay_x}, {overlay_y}). Size: ({overlay_width}, {overlay_height}). IsVisible: {self.conversion_progress_overlay.isVisible()}")
         else:
             print(f"[BrowserPage DEBUG] _update_conversion_progress_position: Overlay is NOT visible, not attempting to position.")
+    # --- END NEW --- #
+
+    # --- NEW: Video Compression Progress Position --- # 
+    def _update_video_compression_progress_position(self):
+        """Update the position of the video compression progress overlay (relative to BrowserPage)"""
+        if self.video_compression_progress_overlay.isVisible():
+            self.video_compression_progress_overlay.adjustSize()
+            overlay_width = self.video_compression_progress_overlay.width()
+            overlay_height = self.video_compression_progress_overlay.height()
+            
+            overlay_x = (self.width() - overlay_width) // 2
+            overlay_y = 60 
+            if self.upload_status.isVisible():
+                overlay_y = self.upload_status.y() + self.upload_status.height() + 10
+            if self.conversion_progress_overlay.isVisible():
+                overlay_y = self.conversion_progress_overlay.y() + self.conversion_progress_overlay.height() + 10
+            
+            self.video_compression_progress_overlay.move(overlay_x, overlay_y)
+            self.video_compression_progress_overlay.raise_()
+            print(f"[BrowserPage DEBUG] _update_video_compression_progress_position: Moved overlay to ({overlay_x}, {overlay_y}). Size: ({overlay_width}, {overlay_height}). IsVisible: {self.video_compression_progress_overlay.isVisible()}")
+        else:
+            print(f"[BrowserPage DEBUG] _update_video_compression_progress_position: Overlay is NOT visible, not attempting to position.")
     # --- END NEW --- #

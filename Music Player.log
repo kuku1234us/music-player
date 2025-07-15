@@ -1,21 +1,27 @@
-[2025-07-15 08:00:28-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-07-15 08:00:28-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-07-15 08:00:28-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
-[2025-07-15 08:00:28-INFO ][PlaybackPositionManager]Position database initialized successfully
-[2025-07-15 08:00:29-DEBUG][BaseWindow]Restored window geometry.
-[2025-07-15 08:00:29-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-07-15 08:00:30-INFO ][YtDlpUpdateManager]Initializing yt-dlp update table in database: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
-[2025-07-15 08:00:30-INFO ][YtDlpUpdateManager]yt-dlp update table initialized successfully
-[2025-07-15 08:00:32-DEBUG][YtDlpUpdater]Update check not needed: 3:49:01.878111 < 1 day, 0:00:00
-[2025-07-15 08:00:32-INFO ][YoutubePage]UI setup complete.
-[2025-07-15 08:00:32-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-07-15 08:00:32-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-07-15 08:00:32-INFO ][YoutubePage]Initialized.
-[2025-07-15 08:00:32-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
-[2025-07-15 08:00:32-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
-[2025-07-15 08:00:32-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-07-15 08:00:32-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-07-15 08:00:32-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
-[2025-07-15 08:00:32-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-07-15 08:00:33-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-07-15 08:00:39-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-07-15 17:12:30-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-07-15 17:12:30-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-07-15 17:12:30-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-07-15 17:12:30-INFO ][PlaybackPositionManager]Position database initialized successfully
+[2025-07-15 17:12:30-DEBUG][BaseWindow]Restored window geometry.
+[2025-07-15 17:12:30-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-07-15 17:12:31-INFO ][YtDlpUpdateManager]Initializing yt-dlp update table in database: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-07-15 17:12:31-INFO ][YtDlpUpdateManager]yt-dlp update table initialized successfully
+[2025-07-15 17:12:33-DEBUG][YtDlpUpdater]Update check not needed: 13:01:03.285758 < 1 day, 0:00:00
+[2025-07-15 17:12:33-INFO ][YoutubePage]UI setup complete.
+[2025-07-15 17:12:33-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-07-15 17:12:33-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-07-15 17:12:33-INFO ][YoutubePage]Initialized.
+[2025-07-15 17:12:34-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
+[2025-07-15 17:12:34-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
+[2025-07-15 17:12:34-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-07-15 17:12:34-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-07-15 17:12:34-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
+[2025-07-15 17:12:34-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-07-15 17:12:34-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-07-15 17:13:48-INFO ][MusicPlayerDashboard]Main window close event triggered.
+[2025-07-15 17:13:48-INFO ][MusicPlayerDashboard]Saving position 3111985ms at 1.3000000715255737x rate before app exit
+[2025-07-15 17:13:49-INFO ][MusicPlayerDashboard]Position, rate, and subtitle state saved successfully on app exit
+[2025-07-15 17:13:49-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
+[2025-07-15 17:13:49-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
+[2025-07-15 17:13:49-INFO ][DownloadManager]No active downloads to shut down.
+[2025-07-15 17:13:49-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.
