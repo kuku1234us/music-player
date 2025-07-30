@@ -2,16 +2,56 @@
 import os
 import shutil
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 
-from PyQt6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QApplication, QWidget
-from PyQt6.QtGui import QPainter, QIcon
-from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QObject, QSize, QSortFilterProxyModel, QTimer
+from PyQt6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QApplication, QWidget, QToolTip
+from PyQt6.QtGui import QPainter, QIcon, QHelpEvent
+from PyQt6.QtCore import Qt, pyqtSignal, QModelIndex, QObject, QSize, QSortFilterProxyModel, QTimer, QEvent, QPoint, QThreadPool, QRunnable
 
 import qtawesome as qta
 
 from music_player.ui.components.base_table import BaseTableView, BaseTableModel
 from qt_base_app.theme.theme_manager import ThemeManager
+from music_player.models.file_metadata_utils import (
+    get_video_metadata, get_audio_metadata, get_image_metadata,
+    is_video_file, is_audio_file, is_image_file
+)
+from ..custom_tooltip import CustomToolTip
+
+# --- Metadata Worker ---
+
+class MetadataWorker(QRunnable):
+    """Worker for fetching file metadata in background."""
+    
+    def __init__(self, file_path: str, filename: str, callback):
+        super().__init__()
+        self.file_path = file_path
+        self.filename = filename
+        self.callback = callback
+    
+    def run(self):
+        """Fetch metadata and call callback with result."""
+        try:
+            tooltip = None
+            if is_video_file(self.filename):
+                metadata = get_video_metadata(self.file_path)
+                tooltip = f"Dimensions: {metadata.get('dimensions', 'N/A')}\n" \
+                          f"Bitrate: {metadata.get('bitrate', 'N/A')}\n" \
+                          f"Frame Rate: {metadata.get('frame_rate', 'N/A')}\n" \
+                          f"Audio Bitrate: {metadata.get('audio_bitrate', 'N/A')}"
+            elif is_audio_file(self.filename):
+                metadata = get_audio_metadata(self.file_path)
+                tooltip = f"Bitrate: {metadata.get('bitrate', 'N/A')}\n" \
+                          f"Audio Bitrate: {metadata.get('audio_bitrate', 'N/A')}"
+            elif is_image_file(self.filename):
+                metadata = get_image_metadata(self.file_path)
+                tooltip = f"Dimensions: {metadata.get('dimensions', 'N/A')}"
+            
+            # Call callback on main thread
+            self.callback(self.file_path, tooltip)
+        except Exception as e:
+            print(f"[MetadataWorker] Error fetching metadata for {self.file_path}: {e}")
+            self.callback(self.file_path, None)
 
 # --- Icon Delegate ---
 
@@ -102,6 +142,18 @@ class BrowserTableView(BaseTableView):
         # Set the custom delegate for the first column (Filename)
         self.icon_delegate = IconDelegate(self)
         self.setItemDelegateForColumn(0, self.icon_delegate)
+        self.setMouseTracking(True)
+        self.viewport().installEventFilter(self)
+        self._metadata_cache: Dict[str, Optional[str]] = {}  # Cache formatted tooltips by file path
+        self._tooltip_widget = CustomToolTip(self)
+        
+        # Async metadata handling
+        self._thread_pool = QThreadPool()
+        self._thread_pool.setMaxThreadCount(2)  # Limit concurrent metadata fetches
+        self._pending_requests: Dict[str, bool] = {}  # Track files being processed
+        self._prefetch_timer = QTimer()
+        self._prefetch_timer.setSingleShot(True)
+        self._prefetch_timer.timeout.connect(self._prefetch_visible_metadata)
 
     # Override mouseDoubleClickEvent for specific actions
     def mouseDoubleClickEvent(self, event):
@@ -252,4 +304,76 @@ class BrowserTableView(BaseTableView):
 
     # Removed navigate_to_file, _is_file_in_table, _select_file_by_name
     # These are now handled by BrowserPage due to asynchronous loading
+
+    def scrollContentsBy(self, dx: int, dy: int):
+        """Override to trigger metadata prefetching when scrolling."""
+        super().scrollContentsBy(dx, dy)
+        # Start/restart timer to prefetch metadata after scrolling stops
+        self._prefetch_timer.start(100)  # 100ms delay after scroll stops
+
+    def _prefetch_visible_metadata(self):
+        """Prefetch metadata for visible rows in the background."""
+        # Metadata prefetching disabled to prevent UI blocking
+        return
+
+    def _should_fetch_metadata(self, file_path: str, filename: str) -> bool:
+        """Check if metadata should be fetched for this file."""
+        # Skip if already cached or being processed
+        if file_path in self._metadata_cache or file_path in self._pending_requests:
+            return False
+            
+        # Only fetch for supported media files
+        return is_video_file(filename) or is_audio_file(filename) or is_image_file(filename)
+
+    def _fetch_metadata_async(self, file_path: str, filename: str):
+        """Start async metadata fetch for a file."""
+        if file_path in self._pending_requests:
+            return
+            
+        self._pending_requests[file_path] = True
+        worker = MetadataWorker(file_path, filename, self._on_metadata_fetched)
+        self._thread_pool.start(worker)
+
+    def _on_metadata_fetched(self, file_path: str, tooltip: Optional[str]):
+        """Callback when metadata fetch completes."""
+        # Remove from pending requests
+        self._pending_requests.pop(file_path, None)
+        
+        # Store in cache
+        self._metadata_cache[file_path] = tooltip
+        
+        # If tooltip widget is currently showing this file, update it
+        if hasattr(self, '_current_tooltip_path') and self._current_tooltip_path == file_path:
+            if tooltip:
+                self._tooltip_widget.setText(tooltip)
+                self._tooltip_widget.adjustSize()
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        """Event filter for handling tooltip events on the viewport."""
+        # Tooltip functionality disabled to prevent UI blocking
+        if obj == self.viewport() and event.type() == QEvent.Type.ToolTip:
+            # Hide any existing tooltip and consume the event
+            self._tooltip_widget.hide()
+            if hasattr(self, '_current_tooltip_path'):
+                delattr(self, '_current_tooltip_path')
+            return True  # We handled the event (by ignoring it)
+        return super().eventFilter(obj, event)
+
+    def _should_show_tooltip(self, filename: str) -> bool:
+        """Check if tooltip should be shown for this file type."""
+        return is_video_file(filename) or is_audio_file(filename) or is_image_file(filename)
+
+    def _get_formatted_tooltip(self, file_path: str, filename: str) -> Optional[str]:
+        """Get the formatted tooltip string for the file."""
+        # Return cached value if available
+        if file_path in self._metadata_cache:
+            return self._metadata_cache[file_path]
+        
+        # For unsupported file types, return None immediately
+        if not self._should_show_tooltip(filename):
+            self._metadata_cache[file_path] = None
+            return None
+            
+        # If not cached and is supported type, metadata will be fetched async
+        return None
 

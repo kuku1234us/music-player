@@ -208,3 +208,16 @@ def get_extensions_filter_string() -> str:
     """
     extensions = [ext[1:] for ext in SUPPORTED_VIDEO_EXTENSIONS]  # Remove dots
     return f"Video files ({' '.join(['*.' + ext for ext in extensions])})"
+
+def get_all_video_files(directory_path: str) -> List[str]:
+    """
+    Alias for get_video_files_in_directory with recursive=True.
+    Finds all video files in a directory and its subdirectories.
+    
+    Args:
+        directory_path: The root directory to start searching from.
+        
+    Returns:
+        A list of full paths to all found video files.
+    """
+    return get_video_files_in_directory(directory_path, recursive=True)

@@ -12,6 +12,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, QThreadPool
 from .video_compression_task import VideoCompressionTask, CompressionStatus
 from .video_compression_worker import VideoCompressionWorker
 from .video_file_utils import discover_video_files, validate_video_files, get_video_file_info
+from .ffmpeg_utils import get_video_resolution
 
 class VideoCompressionManager(QObject):
     """
@@ -149,6 +150,13 @@ class VideoCompressionManager(QObject):
                 self.error_message.emit("No valid video files found")
                 return
             
+            # Filter out videos that do not need compression
+            files_to_compress = self._filter_videos_for_compression(valid_video_files)
+
+            if not files_to_compress:
+                self.error_message.emit("No videos found that require compression (already 720p or smaller).")
+                return
+
             # Check available disk space
             try:
                 from .video_file_utils import format_file_size
@@ -176,7 +184,7 @@ class VideoCompressionManager(QObject):
                 print(f"[VideoCompressionManager] Disk space check warning: {e}")
             
             # Create tasks
-            tasks = self._create_tasks(valid_video_files, output_directory)
+            tasks = self._create_tasks(files_to_compress, output_directory)
             
             if not tasks:
                 self.error_message.emit("Failed to create compression tasks")
@@ -277,6 +285,24 @@ class VideoCompressionManager(QObject):
         
         return avg_time_per_task * remaining_tasks
     
+    def _filter_videos_for_compression(self, video_files: List[str]) -> List[str]:
+        """Filter list of videos to only include those that need compression."""
+        files_to_compress = []
+        for video_file in video_files:
+            resolution = get_video_resolution(video_file, self.ffmpeg_path)
+            if resolution:
+                width, height = resolution
+                # Compress if larger than 720p in any dimension
+                if width > 720 or height > 720:
+                    files_to_compress.append(video_file)
+                else:
+                    print(f"[VideoCompressionManager] Skipping already small video: {os.path.basename(video_file)} ({width}x{height})")
+            else:
+                # If resolution can't be determined, include it for processing by default
+                print(f"[VideoCompressionManager] Could not determine resolution for {os.path.basename(video_file)}, including for compression.")
+                files_to_compress.append(video_file)
+        return files_to_compress
+
     def _reset_batch_state(self):
         """Reset state for a new batch."""
         self.tasks.clear()

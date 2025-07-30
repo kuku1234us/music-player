@@ -16,6 +16,7 @@ from .ffmpeg_utils import (
     validate_ffmpeg_path, 
     get_ffmpeg_version, 
     get_video_duration,
+    get_video_resolution, # Import new function
     build_compression_command,
     parse_ffmpeg_progress,
     parse_ffmpeg_error
@@ -101,15 +102,22 @@ class VideoCompressionWorker(QRunnable):
                 self._handle_cancellation()
                 return
             
-            # Get video duration for progress calculation
-            self._get_video_duration()
-            
-            if self.cancelled:
-                self._handle_cancellation()
-                return
-            
-            # Execute compression
-            self._compress_video()
+            # Check if compression is needed
+            if not self._is_compression_needed():
+                print(f"[VideoCompressionWorker] Skipping compression for already small video: {self.task.original_filename}")
+                # Since we are skipping compression, the "compressed" file is the original file.
+                # We need to handle this in file operations.
+                self.task.output_path = self.task.input_path 
+            else:
+                # Get video duration for progress calculation
+                self._get_video_duration()
+                
+                if self.cancelled:
+                    self._handle_cancellation()
+                    return
+                
+                # Execute compression
+                self._compress_video()
             
             if self.cancelled:
                 self._handle_cancellation()
@@ -208,6 +216,15 @@ class VideoCompressionWorker(QRunnable):
         self.ffmpeg_validated = True
         print(f"[VideoCompressionWorker] FFmpeg validated: {self.ffmpeg_path} (version: {self.ffmpeg_version})")
     
+    def _is_compression_needed(self) -> bool:
+        """Check if video resolution is larger than 720p."""
+        resolution = get_video_resolution(self.task.input_path, self.ffmpeg_path)
+        if resolution:
+            width, height = resolution
+            if width <= 720 and height <= 720:
+                return False # No compression needed
+        return True # Compress if resolution unknown or larger than 720p
+
     def _get_video_duration(self):
         """Get the total duration of the video for progress calculation."""
         self.total_duration_seconds = get_video_duration(self.task.input_path, self.ffmpeg_path)
@@ -350,6 +367,11 @@ class VideoCompressionWorker(QRunnable):
         final_output_path = self.task.get_final_output_path()
         
         try:
+            # If compression was skipped, the output path is the same as the input path
+            if self.task.output_path == self.task.input_path:
+                print(f"[VideoCompressionWorker] No file operations needed for skipped video: {self.task.original_filename}")
+                return self.task.input_path # The "final" path is the original path
+
             # Verify compressed file exists and is valid
             if not os.path.exists(self.task.output_path):
                 raise Exception("Compressed file does not exist")

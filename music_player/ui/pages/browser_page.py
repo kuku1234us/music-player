@@ -34,9 +34,13 @@ from music_player.ui.components.browser_components.conversion_progress import Co
 # --- NEW IMPORTS FOR VIDEO COMPRESSION --- #
 from music_player.models.video_compression_manager import VideoCompressionManager
 from music_player.ui.components.browser_components.video_compression_progress import VideoCompressionProgress
+from music_player.models.douyin_processor import DouyinProcessor
+from music_player.ui.components.browser_components.douyin_progress import DouyinProgress
+from music_player.ui.components.browser_components.douyin_options_dialog import DouyinOptionsDialog
 # --- END NEW IMPORTS --- #
 from music_player.ui.components.base_table import BaseTableModel, ColumnDefinition
 from music_player.ui.components.browser_components.browser_table import BrowserTableView
+from music_player.models.video_file_utils import is_video_file, get_all_video_files
 
 # --- Helper functions for formatting ---
 def format_file_size(size_bytes):
@@ -210,6 +214,20 @@ class BrowserPage(QWidget):
         self.video_compression_progress_overlay = VideoCompressionProgress(self)
         # --- END NEW --- #
 
+        # --- NEW: Douyin Processor --- #
+        self.douyin_processor = DouyinProcessor(self)
+        self.douyin_progress_overlay = DouyinProgress(self)
+        
+        # Configure concurrent encoding limit based on system capabilities
+        # Recommended values:
+        # - Intel i3/i5: 1-2
+        # - Intel i7/i9: 2-4  
+        # - AMD Ryzen 5: 2-3
+        # - AMD Ryzen 7/9: 3-5
+        # Default: 3 (good for most Intel i7 systems)
+        DouyinProcessor.set_max_concurrent_encoding(3)
+        # --- END NEW --- #
+
         # Timer for temporary messages
         self.temp_message_timer = QTimer(self)
         self.temp_message_timer.setSingleShot(True)
@@ -380,6 +398,16 @@ class BrowserPage(QWidget):
         self.video_compress_button.setToolTip("Compress Selected Videos to 720p")
         # --- END NEW --- #
 
+        # --- NEW: Douyin Process Button --- #
+        self.douyin_button = RoundButton(
+            parent=self,
+            text="抖",
+            diameter=48,
+            bg_opacity=0.5
+        )
+        self.douyin_button.setToolTip("Process Douyin Videos")
+        # --- END NEW --- #
+
         # --- NEW: Cancel Conversion Button --- #
         self.cancel_conversion_button = RoundButton(
             parent=self,
@@ -402,6 +430,25 @@ class BrowserPage(QWidget):
         )
         self.cancel_video_compression_button.setToolTip("Cancel Ongoing Video Compressions")
         self.cancel_video_compression_button.hide() # Initially hidden
+        # --- END NEW --- #
+
+        # --- NEW: Bottom Button Bar --- #
+        self.bottom_button_bar = QWidget(self)
+        self.bottom_button_bar.setObjectName("bottomButtonBar")
+        self.bottom_button_layout = QHBoxLayout(self.bottom_button_bar)
+        self.bottom_button_layout.setContentsMargins(0, 0, 0, 0)
+        self.bottom_button_layout.setSpacing(10)
+        self.bottom_button_layout.addStretch(1)  # Push buttons to the right
+
+        # Add buttons to layout in desired order (left to right)
+        self.bottom_button_layout.addWidget(self.cancel_video_compression_button)
+        self.bottom_button_layout.addWidget(self.cancel_conversion_button)
+        self.bottom_button_layout.addWidget(self.douyin_button)
+        self.bottom_button_layout.addWidget(self.video_compress_button)
+        self.bottom_button_layout.addWidget(self.mp3_convert_button)
+        self.bottom_button_layout.addWidget(self.refresh_button)
+        self.bottom_button_layout.addWidget(self.oplayer_button)
+        self.bottom_button_layout.addWidget(self.browse_button)
         # --- END NEW --- #
 
     def _connect_signals(self):
@@ -443,8 +490,26 @@ class BrowserPage(QWidget):
         self.video_compression_manager.compression_batch_finished.connect(self._on_video_compression_batch_finished)
         # --- END NEW --- #
 
+        # --- NEW: Connect Douyin Processor Signals --- #
+        self.douyin_processor.trim_batch_started.connect(self._on_douyin_batch_started)
+        self.douyin_processor.trim_file_started.connect(self._on_douyin_file_started)
+        self.douyin_processor.trim_file_progress.connect(self._on_douyin_file_progress)
+        self.douyin_processor.trim_file_completed.connect(self._on_douyin_file_completed)
+        self.douyin_processor.trim_file_failed.connect(self._on_douyin_file_failed)
+        self.douyin_processor.trim_batch_finished.connect(self._on_douyin_batch_finished)
+        self.douyin_processor.merge_started.connect(self._on_douyin_merge_started)
+        self.douyin_processor.merge_progress.connect(self._on_douyin_merge_progress)
+        self.douyin_processor.merge_completed.connect(self._on_douyin_merge_completed)
+        self.douyin_processor.merge_failed.connect(self._on_douyin_merge_failed)
+        self.douyin_processor.process_finished.connect(self._on_douyin_process_finished)
+        # --- END NEW --- #
+
         # --- NEW: Connect Cancel Video Compression Button --- #
         self.cancel_video_compression_button.clicked.connect(self._on_cancel_video_compressions_clicked)
+        # --- END NEW --- #
+
+        # --- NEW: Connect Douyin Button --- #
+        self.douyin_button.clicked.connect(self._on_douyin_process_clicked)
         # --- END NEW --- #
 
     def _browse_folder(self):
@@ -733,41 +798,26 @@ class BrowserPage(QWidget):
 
         # --- Position BrowserPage Overlays ---
         margin = 20
-        button_y = self.height() - self.browse_button.height() - margin
-        browse_button_x = self.width() - self.browse_button.width() - margin
-        self.browse_button.move(browse_button_x, button_y)
-        self.browse_button.raise_()
-        oplayer_button_x = browse_button_x - self.oplayer_button.width() - 10
-        self.oplayer_button.move(oplayer_button_x, button_y)
-        self.oplayer_button.raise_()
-        refresh_button_x = oplayer_button_x - self.refresh_button.width() - 10
-        self.refresh_button.move(refresh_button_x, button_y)
-        self.refresh_button.raise_()
+        button_y = self.height() - self.browse_button.height() - margin  # Assuming all buttons have same height
+        current_x = self.width() - margin
 
-        # --- NEW: Position MP3 Convert Button --- #
-        mp3_convert_button_x = refresh_button_x - self.mp3_convert_button.width() - 10
-        self.mp3_convert_button.move(mp3_convert_button_x, button_y)
-        self.mp3_convert_button.raise_()
-        # --- END NEW --- #
+        # List of buttons in desired order (from right to left)
+        self.overlay_buttons = [
+            self.browse_button,
+            self.oplayer_button,
+            self.refresh_button,
+            self.mp3_convert_button,
+            self.video_compress_button,
+            self.douyin_button,
+            self.cancel_conversion_button,
+            self.cancel_video_compression_button
+        ]
 
-        # --- NEW: Position Video Compression Button --- #
-        video_compress_button_x = mp3_convert_button_x - self.video_compress_button.width() - 10
-        self.video_compress_button.move(video_compress_button_x, button_y)
-        self.video_compress_button.raise_()
-        # --- END NEW --- #
-
-        # --- NEW: Position Cancel Conversion Button --- #
-        # Position it to the left of the MP3 convert button
-        cancel_conversion_button_x = video_compress_button_x - self.cancel_conversion_button.width() - 10
-        self.cancel_conversion_button.move(cancel_conversion_button_x, button_y)
-        self.cancel_conversion_button.raise_()
-        # --- END NEW --- #
-
-        # --- NEW: Position Cancel Video Compression Button --- #
-        cancel_video_compression_button_x = cancel_conversion_button_x - self.cancel_video_compression_button.width() - 10
-        self.cancel_video_compression_button.move(cancel_video_compression_button_x, button_y)
-        self.cancel_video_compression_button.raise_()
-        # --- END NEW --- #
+        for button in reversed(self.overlay_buttons):  # Reverse to position from right to left
+            if button.isVisible():
+                button.move(current_x - button.width(), button_y)
+                button.raise_()
+                current_x -= button.width() + 10
 
         # Position the upload status overlay (relative to BrowserPage)
         self._update_upload_status_position()
@@ -781,6 +831,19 @@ class BrowserPage(QWidget):
 
         # --- NEW: Position Video Compression Progress Overlay --- #
         self._update_video_compression_progress_position()
+        # --- END NEW --- #
+
+        # --- NEW: Position Douyin Progress Overlay --- #
+        self._update_douyin_progress_position()
+        # --- END NEW --- #
+
+        # --- NEW: Position Bottom Button Bar --- #
+        margin = 20
+        bar_width = self.width() - 2 * margin
+        bar_height = self.browse_button.height()  # Assuming all buttons same height
+        bar_y = self.height() - bar_height - margin
+        self.bottom_button_bar.setGeometry(margin, bar_y, bar_width, bar_height)
+        self.bottom_button_bar.raise_()
         # --- END NEW --- #
 
     def _update_upload_status_position(self):
@@ -1241,6 +1304,107 @@ class BrowserPage(QWidget):
         # Or if a file fails due to cancellation, it might show that message.
     # --- END NEW --- #
 
+    # --- NEW: Douyin Process Handler --- #
+    def _on_douyin_process_clicked(self):
+        """Handle Douyin process button click."""
+        if not self.file_table.model():
+            QMessageBox.warning(self, "No Selection", "No files selected or directory not loaded.")
+            return
+
+        selected_objects = self.file_table.get_selected_items_data()
+        if not selected_objects:
+            QMessageBox.warning(self, "No Selection", "Please select files or directories to process.")
+            return
+
+        dialog = DouyinOptionsDialog(self)
+        if dialog.exec():
+            options = dialog.get_options()
+            do_trim = options["do_trim"]
+            do_merge = options["do_merge"]
+            
+            if not do_trim and not do_merge:
+                QMessageBox.information(self, "No Operation", "No operation selected.")
+                return
+
+            video_files = []
+            for obj in selected_objects:
+                path_str = obj.get('path') if isinstance(obj, dict) else str(obj)
+                p = Path(path_str)
+                if p.is_dir():
+                    video_files.extend(get_all_video_files(str(p)))
+                elif p.is_file() and is_video_file(p.name):
+                    video_files.append(str(p))
+
+            if not video_files:
+                QMessageBox.information(self, "No Videos", "No video files found in selection.")
+                return
+
+            output_directory = str(self._current_directory)
+            self.douyin_processor.start_processing(video_files, output_directory, do_trim, do_merge)
+    # --- END NEW --- #
+
+    # --- NEW: Douyin Process Handlers --- #
+    def _on_douyin_batch_started(self, total_files: int):
+        self.douyin_progress_overlay.show_trimming_started(total_files)
+        self._update_douyin_progress_position()
+
+    def _on_douyin_file_started(self, task_id: str, original_filename: str, file_index: int, total_files: int):
+        self.douyin_progress_overlay.show_file_progress(task_id, os.path.basename(original_filename), file_index, total_files, 0.0)
+        self._update_douyin_progress_position()
+
+    def _on_douyin_file_progress(self, task_id: str, percentage: float):
+        self.douyin_progress_overlay.update_current_file_progress(task_id, percentage)
+
+    def _on_douyin_file_completed(self, task_id: str, original_filename: str):
+        self.douyin_progress_overlay.show_file_completed(os.path.basename(original_filename), os.path.basename(original_filename))
+        self._update_douyin_progress_position()
+
+    def _on_douyin_file_failed(self, task_id: str, original_filename: str, error_message: str):
+        self.douyin_progress_overlay.show_file_failed(os.path.basename(original_filename), error_message)
+        self._update_douyin_progress_position()
+
+    def _on_douyin_batch_finished(self):
+        self.douyin_progress_overlay.show_batch_finished()
+        # Don't refresh yet, wait for merging to complete
+
+    def _on_douyin_merge_started(self):
+        self.douyin_progress_overlay.show_merge_started()
+        self._update_douyin_progress_position()
+
+    def _on_douyin_merge_progress(self, percent):
+        self.douyin_progress_overlay.show_merge_progress(percent)
+        self._update_douyin_progress_position()
+
+    def _on_douyin_merge_completed(self, output_filename):
+        self.douyin_progress_overlay.show_merge_completed(os.path.basename(output_filename))
+        self._update_douyin_progress_position()
+
+    def _on_douyin_merge_failed(self, error):
+        self.douyin_progress_overlay.show_merge_failed(error)
+        self._update_douyin_progress_position()
+
+    def _on_douyin_process_finished(self):
+        self.douyin_progress_overlay.show_process_finished()
+        QTimer.singleShot(500, self._refresh_view)
+
+    def _update_douyin_progress_position(self):
+        if self.douyin_progress_overlay.isVisible():
+            self.douyin_progress_overlay.adjustSize()
+            overlay_width = self.douyin_progress_overlay.width()
+            overlay_height = self.douyin_progress_overlay.height()
+            overlay_x = (self.width() - overlay_width) // 2
+            overlay_y = 60
+            if self.upload_status.isVisible():
+                overlay_y = self.upload_status.y() + self.upload_status.height() + 10
+            if self.conversion_progress_overlay.isVisible():
+                overlay_y = self.conversion_progress_overlay.y() + self.conversion_progress_overlay.height() + 10
+            if self.video_compression_progress_overlay.isVisible():
+                overlay_y = self.video_compression_progress_overlay.y() + self.video_compression_progress_overlay.height() + 10
+            self.douyin_progress_overlay.move(overlay_x, overlay_y)
+            self.douyin_progress_overlay.raise_()
+
+    # --- END NEW --- #
+
     # --- NEW: Conversion Progress Position --- # 
     def _update_conversion_progress_position(self):
         """Update the position of the conversion progress overlay (relative to BrowserPage)"""
@@ -1281,4 +1445,27 @@ class BrowserPage(QWidget):
             print(f"[BrowserPage DEBUG] _update_video_compression_progress_position: Moved overlay to ({overlay_x}, {overlay_y}). Size: ({overlay_width}, {overlay_height}). IsVisible: {self.video_compression_progress_overlay.isVisible()}")
         else:
             print(f"[BrowserPage DEBUG] _update_video_compression_progress_position: Overlay is NOT visible, not attempting to position.")
+    # --- END NEW --- #
+
+    # --- NEW: Douyin Progress Position --- #
+    def _update_douyin_progress_position(self):
+        """Update the position of the Douyin progress overlay (relative to BrowserPage)"""
+        if self.douyin_progress_overlay.isVisible():
+            self.douyin_progress_overlay.adjustSize()
+            overlay_width = self.douyin_progress_overlay.width()
+            overlay_height = self.douyin_progress_overlay.height()
+
+            overlay_x = (self.width() - overlay_width) // 2
+            overlay_y = 60
+            if self.upload_status.isVisible():
+                overlay_y = self.upload_status.y() + self.upload_status.height() + 10
+            if self.conversion_progress_overlay.isVisible():
+                overlay_y = self.conversion_progress_overlay.y() + self.conversion_progress_overlay.height() + 10
+            if self.video_compression_progress_overlay.isVisible():
+                overlay_y = self.video_compression_progress_overlay.y() + self.video_compression_progress_overlay.height() + 10
+
+            self.douyin_progress_overlay.move(overlay_x, overlay_y)
+            self.douyin_progress_overlay.raise_()
+        else:
+            print(f"[BrowserPage DEBUG] _update_douyin_progress_position: Overlay is NOT visible, not attempting to position.")
     # --- END NEW --- #

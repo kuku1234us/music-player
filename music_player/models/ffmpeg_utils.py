@@ -78,6 +78,43 @@ def get_ffmpeg_version(ffmpeg_path: str = "ffmpeg") -> Optional[str]:
     except Exception:
         return None
 
+def get_video_resolution(input_path: str, ffmpeg_path: str = "ffmpeg") -> Optional[Tuple[int, int]]:
+    """
+    Get video resolution (width, height) using ffprobe.
+
+    Args:
+        input_path: Path to input video file
+        ffmpeg_path: Path to FFmpeg executable (used to find ffprobe)
+
+    Returns:
+        Optional[Tuple[int, int]]: (width, height) or None if not available
+    """
+    ffprobe_path = ffmpeg_path.replace("ffmpeg", "ffprobe")
+    try:
+        cmd = [
+            ffprobe_path,
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height",
+            "-of", "csv=s=x:p=0",
+            input_path
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            encoding='utf-8',
+            errors='replace'
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            width, height = map(int, result.stdout.strip().split('x'))
+            return width, height
+        return None
+    except Exception as e:
+        print(f"[FFmpegUtils] Error getting video resolution: {e}")
+        return None
+
 def check_ffmpeg_requirements(ffmpeg_path: str = "ffmpeg") -> dict:
     """
     Check if FFmpeg meets requirements for video compression.
@@ -225,6 +262,14 @@ def build_compression_command(input_path: str, output_path: str, ffmpeg_path: st
     # Validate and normalize input path
     validated_input = validate_and_normalize_path(input_path)
     
+    # Get video resolution to determine scaling
+    resolution = get_video_resolution(validated_input, ffmpeg_path)
+    scale_filter = "scale=-2:720" # Default for landscape
+    if resolution:
+        width, height = resolution
+        if width < height: # Portrait video
+            scale_filter = "scale=720:-2"
+
     # Ensure output directory exists
     output_dir = Path(output_path).parent
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -232,7 +277,7 @@ def build_compression_command(input_path: str, output_path: str, ffmpeg_path: st
     return [
         ffmpeg_path,
         "-i", validated_input,
-        "-vf", "scale=-2:720",        # Scale video to 720p, maintain aspect ratio
+        "-vf", scale_filter,          # Adaptive scaling
         "-c:v", "libx264",            # Video codec: H.264
         "-crf", "23",                 # Constant Rate Factor for quality
         "-preset", "medium",          # Encoding speed/quality balance
