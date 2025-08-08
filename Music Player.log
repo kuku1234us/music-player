@@ -1,29 +1,323 @@
-[2025-07-31 02:06:53-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-07-31 02:06:53-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-07-31 02:06:53-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
-[2025-07-31 02:06:54-INFO ][PlaybackPositionManager]Position database initialized successfully
-[2025-07-31 02:06:54-DEBUG][BaseWindow]Restored window geometry.
-[2025-07-31 02:06:54-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-07-31 02:06:55-INFO ][YtDlpUpdateManager]Initializing yt-dlp update table in database: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
-[2025-07-31 02:06:55-INFO ][YtDlpUpdateManager]yt-dlp update table initialized successfully
-[2025-07-31 02:06:57-INFO ][YtDlpUpdater]Update check needed: 15 days, 21:55:27.326449 >= 1 day, 0:00:00
-[2025-07-31 02:06:58-INFO ][YoutubePage]UI setup complete.
-[2025-07-31 02:06:58-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-07-31 02:06:58-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-07-31 02:06:58-INFO ][YoutubePage]Initialized.
-[2025-07-31 02:06:58-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
-[2025-07-31 02:06:58-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
-[2025-07-31 02:06:58-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-07-31 02:06:58-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-07-31 02:06:58-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
-[2025-07-31 02:06:58-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-07-31 02:06:58-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-07-31 02:10:53-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-07-31 02:10:59-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-07-31 02:12:13-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-07-31 02:12:15-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-07-31 02:14:02-INFO ][MusicPlayerDashboard]Main window close event triggered.
-[2025-07-31 02:14:02-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
-[2025-07-31 02:14:02-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
-[2025-07-31 02:14:02-INFO ][DownloadManager]No active downloads to shut down.
-[2025-07-31 02:14:02-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.
+[2025-08-07 16:02:58-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-08-07 16:02:58-INFO ][app]Loading fonts from: d:\projects\musicplayer\fonts
+[2025-08-07 16:02:58-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-08-07 16:02:59-INFO ][PlaybackPositionManager]Position database initialized successfully
+[2025-08-07 16:02:59-DEBUG][BaseWindow]Restored window geometry.
+[2025-08-07 16:02:59-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-08-07 16:03:00-INFO ][YtDlpUpdateManager]Initializing yt-dlp update table in database: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-08-07 16:03:01-INFO ][YtDlpUpdateManager]yt-dlp update table initialized successfully
+[2025-08-07 16:03:03-INFO ][YtDlpUpdater]Update check needed: 23 days, 11:51:33.051463 >= 1 day, 0:00:00
+[2025-08-07 16:03:04-INFO ][YoutubePage]UI setup complete.
+[2025-08-07 16:03:04-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-08-07 16:03:04-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-08-07 16:03:04-INFO ][YoutubePage]Initialized.
+[2025-08-07 16:03:04-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
+[2025-08-07 16:03:04-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
+[2025-08-07 16:03:04-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-08-07 16:03:04-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-08-07 16:03:04-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
+[2025-08-07 16:03:04-INFO ][app]Using icon: d:\projects\musicplayer\music_player\resources\play.ico
+[2025-08-07 16:03:04-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-08-08 12:05:20-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=0Uu_VJeVVfo (Type: video)
+[2025-08-08 12:05:20-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=0Uu_VJeVVfo, Type=video
+[2025-08-08 12:05:20-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
+[2025-08-08 12:05:20-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=0Uu_VJeVVfo, Dir=Z:\AAAAA01
+[2025-08-08 12:05:20-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=0Uu_VJeVVfo
+[2025-08-08 12:05:20-INFO ][YoutubePage]Shown.
+[2025-08-08 12:05:20-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-08-08 12:05:20-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
+[2025-08-08 12:05:20-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
+[2025-08-08 12:05:20-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-08-08 12:05:20-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-08-08 12:05:20-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
+[2025-08-08 12:05:20-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-08-08 12:05:20-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-08-08 12:05:20-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-08-08 12:05:20-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=0Uu_VJeVVfo'
+[2025-08-08 12:05:20-INFO ][YtDlpUpdater]Update check needed: 24 days, 7:53:50.429023 >= 1 day, 0:00:00
+[2025-08-08 12:05:20-INFO ][YtDlpUpdater]Update check needed: 24 days, 7:53:50.533455 >= 1 day, 0:00:00
+[2025-08-08 12:05:20-INFO ][YtDlpUpdater]Starting yt-dlp update check
+[2025-08-08 12:05:22-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-08-08 12:05:22-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 117 cookies from firefox
+[2025-08-08 12:05:22-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=0Uu_VJeVVfo
+[2025-08-08 12:05:22-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 0Uu_VJeVVfo: Downloading webpage
+[2025-08-08 12:05:22-INFO ][GitHubClient]Fetching latest release via GitHub API
+[2025-08-08 12:05:22-DEBUG][GitHubClient]Requesting GitHub API: https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest (attempt 1)
+[2025-08-08 12:05:23-DEBUG][GitHubClient]Successfully fetched GitHub API
+[2025-08-08 12:05:23-INFO ][GitHubClient]Successfully fetched release via API: 2025.07.21
+[2025-08-08 12:05:23-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 0Uu_VJeVVfo: Downloading tv client config
+[2025-08-08 12:05:23-DEBUG][YtDlpUpdateManager]Recorded check attempt: https://github.com/yt-dlp/yt-dlp/releases/download/2025.07.21/yt-dlp.exe
+[2025-08-08 12:05:23-INFO ][YtDlpUpdater]Update needed: v2025.06.30 -> v2025.07.21
+[2025-08-08 12:05:23-INFO ][YtDlpUpdater]Starting update: downloading from https://github.com/yt-dlp/yt-dlp/releases/download/2025.07.21/yt-dlp.exe
+[2025-08-08 12:05:23-ERROR][YtDlpUpdater]Install path not writable: C:\yt-dlp\yt-dlp.exe
+[2025-08-08 12:05:23-DEBUG][YtDlpUpdateManager]Recorded update error: Install path not writable: C:\yt-dlp\yt-dlp.exe
+[2025-08-08 12:05:24-DEBUG][YtDlpUpdateManager]Recorded update error: Failed to install yt-dlp update
+[2025-08-08 12:05:24-WARNING][DownloadManager]yt-dlp update check failed: 2025.07.21
+[2025-08-08 12:05:24-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 0Uu_VJeVVfo: Downloading player 761c1f12-main
+[2025-08-08 12:05:24-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 0Uu_VJeVVfo: Downloading tv player API JSON
+[2025-08-08 12:05:25-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 0Uu_VJeVVfo: Downloading ios player API JSON
+[2025-08-08 12:05:26-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 0Uu_VJeVVfo: Downloading m3u8 information
+[2025-08-08 12:05:27-INFO ][CLIDownloadWorker][yt-dlp output] [info] 0Uu_VJeVVfo: Downloading subtitles: en, zh-Hans
+[2025-08-08 12:05:27-INFO ][CLIDownloadWorker][yt-dlp output] [info] 0Uu_VJeVVfo: Downloading 1 format(s): 18
+[2025-08-08 12:05:27-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\Introducing GPT-5.en.srt
+[2025-08-08 12:05:28-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Introducing GPT-5.en.srt
+[2025-08-08 12:05:28-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Introducing GPT-5.en.srt
+[2025-08-08 12:05:28-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Introducing GPT-5.en.srt
+[2025-08-08 12:05:28-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-08-08 12:05:28-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\Introducing GPT-5.zh-Hans.srt
+[2025-08-08 12:05:29-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-08-08 12:05:29-INFO ][CLIDownloadWorker]Process finished naturally with code: 1
+[2025-08-08 12:05:29-DEBUG][CLIDownloadWorker]Final Standard error output:
+WARNING: [youtube] The provided YouTube account cookies are no longer valid. They have likely been rotated in the browser as a security measure. For tips on how to effectively export YouTube cookies, refer to  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies .
+WARNING: [youtube] The provided YouTube account cookies are no longer valid. They have likely been rotated in the browser as a security measure. For tips on how to effectively export YouTube cookies, refer to  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies .
+WARNING: [youtube] The provided YouTube account cookies are no longer valid. They have likely been rotated in the browser as a security measure. For tips on how to effectively export YouTube cookies, refer to  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies .
+WARNING: [youtube] The provided YouTube account cookies are no longer valid. They have likely been rotated in the browser as a security measure. For tips on how to effectively export YouTube cookies, refer to  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies .
+WARNING: [youtube] The provided YouTube account cookies are no longer valid. They have likely been rotated in the browser as a security measure. For tips on how to effectively export YouTube cookies, refer to  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies .
+WARNING: [youtube] 0Uu_VJeVVfo: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+WARNING: [youtube] The provided YouTube account cookies are no longer valid. They have likely been rotated in the browser as a security measure. For tips on how to effectively export YouTube cookies, refer to  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies .
+ERROR: Unable to download video subtitles for 'zh-Hans': HTTP Error 429: Too Many Requests
+
+[2025-08-08 12:05:29-ERROR][CLIDownloadWorker]Error from stderr: ERROR: Unable to download video subtitles for 'zh-Hans': HTTP Error 429: Too Many Requests
+[2025-08-08 12:05:29-WARNING][CLIDownloadWorker]yt-dlp process exited with code 1 (Cancelled: False) URL: https://www.youtube.com/watch?v=0Uu_VJeVVfo
+[2025-08-08 12:05:29-INFO ][CLIDownloadWorker]Attempting cleanup for 1 tracked temporary files in Z:\AAAAA01
+[2025-08-08 12:05:29-DEBUG][CLIDownloadWorker]Cleanup path: Z:\AAAAA01
+[2025-08-08 12:05:29-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\Introducing GPT-5.en.srt
+[2025-08-08 12:05:29-WARNING][CLIDownloadWorker]Failed to remove Introducing GPT-5.en.srt.part after retries.
+[2025-08-08 12:05:29-DEBUG][CLIDownloadWorker]Attempting remove (delay=0.2): Z:\AAAAA01\Introducing GPT-5.en.srt
+[2025-08-08 12:05:29-INFO ][CLIDownloadWorker]Removed temporary file: Introducing GPT-5.en.srt
+[2025-08-08 12:05:29-DEBUG][CLIDownloadWorker]Using filename prefixes for targeted glob cleanup: Introduc
+[2025-08-08 12:05:29-INFO ][CLIDownloadWorker]Cleanup finished, removed 1 files/parts.
+[2025-08-08 12:05:29-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=0Uu_VJeVVfo. Emitting finished signal.
+[2025-08-08 12:05:29-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=0Uu_VJeVVfo
+[2025-08-08 12:05:29-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=0Uu_VJeVVfo from active. Count: 0
+[2025-08-08 12:05:29-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=0Uu_VJeVVfo
+[2025-08-08 12:07:34-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=0Uu_VJeVVfo, Dir=Z:\AAAAA01, Options={'extractor_args': {'youtube': {}}, 'cookies_from_browser': 'firefox', 'writesubtitles': True, 'writeautomaticsub': True, 'subtitleslangs': ['en', 'en-GB', 'en-US', 'en-en-GB'], 'subtitlesformat': 'srt/vtt/ttml/best', 'embedsubtitles': True, 'format': 'bestvideo[height=1080][vcodec^=avc][ext=mp4]+bestaudio[ext=m4a]/bestvideo[width=1080][vcodec^=avc][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080][vcodec^=avc][ext=mp4]+bestaudio[ext=m4a]/best[height=1080][vcodec^=avc][ext=mp4]/best[width=1080][vcodec^=avc][ext=mp4]/best[height<=1080][vcodec^=avc][ext=mp4]/best', 'merge_output_format': 'mp4', 'postprocessors': [{'key': 'FFmpegEmbedSubtitle'}]}
+[2025-08-08 12:07:34-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=0Uu_VJeVVfo
+[2025-08-08 12:07:34-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
+[2025-08-08 12:07:34-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
+[2025-08-08 12:07:34-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-08-08 12:07:34-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-08-08 12:07:34-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB
+[2025-08-08 12:07:34-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-08-08 12:07:34-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-08-08 12:07:34-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-08-08 12:07:34-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestvideo[height=1080][vcodec^=avc][ext=mp4]+bestaudio[ext=m4a]/bestvideo[width=1080][vcodec^=avc][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080][vcodec^=avc][ext=mp4]+bestaudio[ext=m4a]/best[height=1080][vcodec^=avc][ext=mp4]/best[width=1080][vcodec^=avc][ext=mp4]/best[height<=1080][vcodec^=avc][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=0Uu_VJeVVfo'
+[2025-08-08 12:07:35-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-08-08 12:07:35-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 124 cookies from firefox
+[2025-08-08 12:07:35-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=0Uu_VJeVVfo
+[2025-08-08 12:07:35-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 0Uu_VJeVVfo: Downloading webpage
+[2025-08-08 12:07:37-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 0Uu_VJeVVfo: Downloading tv client config
+[2025-08-08 12:07:37-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 0Uu_VJeVVfo: Downloading tv player API JSON
+[2025-08-08 12:07:39-INFO ][CLIDownloadWorker][yt-dlp output] [info] 0Uu_VJeVVfo: Downloading 1 format(s): 18
+[2025-08-08 12:07:39-INFO ][CLIDownloadWorker][yt-dlp output] [info] There are no subtitles for the requested languages
+[2025-08-08 12:07:41-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Introducing GPT-5.mp4
+[2025-08-08 12:07:41-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Introducing GPT-5.mp4
+[2025-08-08 12:07:41-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Introducing GPT-5.mp4
+[2025-08-08 12:07:41-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-08-08 12:09:10-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] There aren't any subtitles to embed
+[2025-08-08 12:09:11-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-08-08 12:09:11-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-08-08 12:09:11-DEBUG][CLIDownloadWorker]Final Standard error output:
+WARNING: [youtube] 0Uu_VJeVVfo: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+WARNING: [youtube] 0Uu_VJeVVfo: There are missing subtitles languages because a PO token was not provided. Subtitles for these languages are missing: en-JkeT_87f4cc, en-uYU-mmqFLq8. Automatic captions for 1 languages are missing.
+
+[2025-08-08 12:09:11-INFO ][CLIDownloadWorker]Assuming last tracked media destination is final file: Introducing GPT-5.mp4
+[2025-08-08 12:09:11-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=0Uu_VJeVVfo. Emitting finished signal.
+[2025-08-08 12:09:11-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=0Uu_VJeVVfo
+[2025-08-08 12:09:11-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=0Uu_VJeVVfo from active. Count: 0
+[2025-08-08 12:09:11-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=0Uu_VJeVVfo
+[2025-08-08 12:10:01-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=mfIMmkLiP-Q (Type: video)
+[2025-08-08 12:10:01-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=mfIMmkLiP-Q, Type=video
+[2025-08-08 12:10:01-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
+[2025-08-08 12:10:01-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=mfIMmkLiP-Q, Dir=Z:\AAAAA01
+[2025-08-08 12:10:01-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-08-08 12:10:01-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=mfIMmkLiP-Q
+[2025-08-08 12:10:02-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
+[2025-08-08 12:10:02-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
+[2025-08-08 12:10:02-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-08-08 12:10:02-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-08-08 12:10:02-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
+[2025-08-08 12:10:02-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-08-08 12:10:02-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-08-08 12:10:02-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-08-08 12:10:02-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=mfIMmkLiP-Q'
+[2025-08-08 12:10:03-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-08-08 12:10:03-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 124 cookies from firefox
+[2025-08-08 12:10:03-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=mfIMmkLiP-Q
+[2025-08-08 12:10:03-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] mfIMmkLiP-Q: Downloading webpage
+[2025-08-08 12:10:05-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] mfIMmkLiP-Q: Downloading tv client config
+[2025-08-08 12:10:06-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] mfIMmkLiP-Q: Downloading tv player API JSON
+[2025-08-08 12:10:07-INFO ][CLIDownloadWorker][yt-dlp output] [info] mfIMmkLiP-Q: Downloading 1 format(s): 18
+[2025-08-08 12:10:07-INFO ][CLIDownloadWorker][yt-dlp output] [info] There are no subtitles for the requested languages
+[2025-08-08 12:10:09-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\ChatGPT 5 Is Finally Here – I Tested Everything.mp4
+[2025-08-08 12:10:09-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\ChatGPT 5 Is Finally Here – I Tested Everything.mp4
+[2025-08-08 12:10:09-DEBUG][CLIDownloadWorker]Added temporary filename candidate: ChatGPT 5 Is Finally Here – I Tested Everything.mp4
+[2025-08-08 12:10:09-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-08-08 12:10:14-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=K_mlC_aeDSU (Type: video)
+[2025-08-08 12:10:14-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=K_mlC_aeDSU, Type=video
+[2025-08-08 12:10:14-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
+[2025-08-08 12:10:14-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=K_mlC_aeDSU, Dir=Z:\AAAAA01
+[2025-08-08 12:10:14-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-08-08 12:10:14-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=K_mlC_aeDSU
+[2025-08-08 12:10:14-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
+[2025-08-08 12:10:14-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
+[2025-08-08 12:10:14-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-08-08 12:10:14-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-08-08 12:10:14-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
+[2025-08-08 12:10:14-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-08-08 12:10:14-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-08-08 12:10:14-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-08-08 12:10:14-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=K_mlC_aeDSU'
+[2025-08-08 12:10:15-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-08-08 12:10:15-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 124 cookies from firefox
+[2025-08-08 12:10:15-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=K_mlC_aeDSU
+[2025-08-08 12:10:15-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] K_mlC_aeDSU: Downloading webpage
+[2025-08-08 12:10:17-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] K_mlC_aeDSU: Downloading tv client config
+[2025-08-08 12:10:18-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] K_mlC_aeDSU: Downloading tv player API JSON
+[2025-08-08 12:10:19-INFO ][CLIDownloadWorker][yt-dlp output] [info] K_mlC_aeDSU: Downloading 1 format(s): 18
+[2025-08-08 12:10:19-INFO ][CLIDownloadWorker][yt-dlp output] [info] There are no subtitles for the requested languages
+[2025-08-08 12:10:19-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] There aren't any subtitles to embed
+[2025-08-08 12:10:20-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-08-08 12:10:20-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-08-08 12:10:20-DEBUG][CLIDownloadWorker]Final Standard error output:
+WARNING: [youtube] mfIMmkLiP-Q: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+WARNING: [youtube] mfIMmkLiP-Q: There are missing subtitles languages because a PO token was not provided. Automatic captions for 1 languages are missing.
+
+[2025-08-08 12:10:20-INFO ][CLIDownloadWorker]Assuming last tracked media destination is final file: ChatGPT 5 Is Finally Here – I Tested Everything.mp4
+[2025-08-08 12:10:20-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=mfIMmkLiP-Q. Emitting finished signal.
+[2025-08-08 12:10:20-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=mfIMmkLiP-Q
+[2025-08-08 12:10:20-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=mfIMmkLiP-Q from active. Count: 1
+[2025-08-08 12:10:20-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=mfIMmkLiP-Q
+[2025-08-08 12:10:21-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Complete ChatGPT-5 Breakdown and First Impressions.mp4
+[2025-08-08 12:10:21-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Complete ChatGPT-5 Breakdown and First Impressions.mp4
+[2025-08-08 12:10:21-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Complete ChatGPT-5 Breakdown and First Impressions.mp4
+[2025-08-08 12:10:21-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-08-08 12:10:30-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=N3P8uMWfuvc (Type: video)
+[2025-08-08 12:10:30-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=N3P8uMWfuvc, Type=video
+[2025-08-08 12:10:30-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
+[2025-08-08 12:10:30-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=N3P8uMWfuvc, Dir=Z:\AAAAA01
+[2025-08-08 12:10:30-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=N3P8uMWfuvc
+[2025-08-08 12:10:30-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-08-08 12:10:30-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
+[2025-08-08 12:10:30-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
+[2025-08-08 12:10:30-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-08-08 12:10:30-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-08-08 12:10:30-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
+[2025-08-08 12:10:30-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-08-08 12:10:30-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-08-08 12:10:30-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-08-08 12:10:30-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=N3P8uMWfuvc'
+[2025-08-08 12:10:32-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-08-08 12:10:32-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 124 cookies from firefox
+[2025-08-08 12:10:32-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=N3P8uMWfuvc
+[2025-08-08 12:10:32-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] N3P8uMWfuvc: Downloading webpage
+[2025-08-08 12:10:34-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] N3P8uMWfuvc: Downloading tv client config
+[2025-08-08 12:10:34-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] N3P8uMWfuvc: Downloading tv player API JSON
+[2025-08-08 12:10:36-INFO ][CLIDownloadWorker][yt-dlp output] [info] N3P8uMWfuvc: Downloading 1 format(s): 18
+[2025-08-08 12:10:36-INFO ][CLIDownloadWorker][yt-dlp output] [info] There are no subtitles for the requested languages
+[2025-08-08 12:10:38-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Marvel’s Worst Nightmare.mp4
+[2025-08-08 12:10:38-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Marvel’s Worst Nightmare.mp4
+[2025-08-08 12:10:38-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Marvel’s Worst Nightmare.mp4
+[2025-08-08 12:10:38-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-08-08 12:10:43-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=NiURKoONLVY (Type: video)
+[2025-08-08 12:10:43-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=NiURKoONLVY, Type=video
+[2025-08-08 12:10:43-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
+[2025-08-08 12:10:43-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=NiURKoONLVY, Dir=Z:\AAAAA01
+[2025-08-08 12:10:43-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-08-08 12:10:49-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] There aren't any subtitles to embed
+[2025-08-08 12:10:50-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-08-08 12:10:50-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-08-08 12:10:50-DEBUG][CLIDownloadWorker]Final Standard error output:
+WARNING: [youtube] K_mlC_aeDSU: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+WARNING: [youtube] K_mlC_aeDSU: There are missing subtitles languages because a PO token was not provided. Automatic captions for 1 languages are missing.
+
+[2025-08-08 12:10:50-INFO ][CLIDownloadWorker]Assuming last tracked media destination is final file: Complete ChatGPT-5 Breakdown and First Impressions.mp4
+[2025-08-08 12:10:50-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=K_mlC_aeDSU. Emitting finished signal.
+[2025-08-08 12:10:50-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=K_mlC_aeDSU
+[2025-08-08 12:10:50-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=K_mlC_aeDSU from active. Count: 1
+[2025-08-08 12:10:50-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=K_mlC_aeDSU
+[2025-08-08 12:10:50-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=NiURKoONLVY
+[2025-08-08 12:10:50-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
+[2025-08-08 12:10:50-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
+[2025-08-08 12:10:50-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-08-08 12:10:50-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-08-08 12:10:50-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
+[2025-08-08 12:10:50-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-08-08 12:10:50-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-08-08 12:10:50-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-08-08 12:10:50-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=NiURKoONLVY'
+[2025-08-08 12:10:51-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-08-08 12:10:51-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 124 cookies from firefox
+[2025-08-08 12:10:51-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=NiURKoONLVY
+[2025-08-08 12:10:51-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] NiURKoONLVY: Downloading webpage
+[2025-08-08 12:10:53-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=SJVCfPGsy30 (Type: video)
+[2025-08-08 12:10:53-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=SJVCfPGsy30, Type=video
+[2025-08-08 12:10:53-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
+[2025-08-08 12:10:53-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=SJVCfPGsy30, Dir=Z:\AAAAA01
+[2025-08-08 12:10:53-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-08-08 12:10:54-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] NiURKoONLVY: Downloading tv client config
+[2025-08-08 12:10:54-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] NiURKoONLVY: Downloading tv player API JSON
+[2025-08-08 12:10:56-INFO ][CLIDownloadWorker][yt-dlp output] [info] NiURKoONLVY: Downloading 1 format(s): 18
+[2025-08-08 12:10:56-INFO ][CLIDownloadWorker][yt-dlp output] [info] There are no subtitles for the requested languages
+[2025-08-08 12:10:57-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] There aren't any subtitles to embed
+[2025-08-08 12:10:58-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-08-08 12:10:58-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-08-08 12:10:58-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\So I've had gpt-5 for a bit now....mp4
+[2025-08-08 12:10:58-DEBUG][CLIDownloadWorker]Final Standard error output:
+WARNING: [youtube] N3P8uMWfuvc: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+WARNING: [youtube] N3P8uMWfuvc: There are missing subtitles languages because a PO token was not provided. Subtitles for these languages are missing: es, en. Automatic captions for 1 languages are missing.
+
+[2025-08-08 12:10:58-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\So I've had gpt-5 for a bit now....mp4
+[2025-08-08 12:10:58-INFO ][CLIDownloadWorker]Assuming last tracked media destination is final file: Marvel’s Worst Nightmare.mp4
+[2025-08-08 12:10:58-DEBUG][CLIDownloadWorker]Added temporary filename candidate: So I've had gpt-5 for a bit now....mp4
+[2025-08-08 12:10:58-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-08-08 12:10:58-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=N3P8uMWfuvc. Emitting finished signal.
+[2025-08-08 12:10:58-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=N3P8uMWfuvc
+[2025-08-08 12:10:58-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=N3P8uMWfuvc from active. Count: 1
+[2025-08-08 12:10:58-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=N3P8uMWfuvc
+[2025-08-08 12:10:58-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=SJVCfPGsy30
+[2025-08-08 12:10:58-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
+[2025-08-08 12:10:58-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
+[2025-08-08 12:10:58-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-08-08 12:10:58-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-08-08 12:10:58-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
+[2025-08-08 12:10:58-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-08-08 12:10:58-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-08-08 12:10:58-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-08-08 12:10:58-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=SJVCfPGsy30'
+[2025-08-08 12:11:00-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-08-08 12:11:00-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 124 cookies from firefox
+[2025-08-08 12:11:00-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=SJVCfPGsy30
+[2025-08-08 12:11:00-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] SJVCfPGsy30: Downloading webpage
+[2025-08-08 12:11:01-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] SJVCfPGsy30: Downloading tv client config
+[2025-08-08 12:11:02-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] SJVCfPGsy30: Downloading tv player API JSON
+[2025-08-08 12:11:03-INFO ][CLIDownloadWorker][yt-dlp output] [info] SJVCfPGsy30: Downloading 1 format(s): 18
+[2025-08-08 12:11:04-INFO ][CLIDownloadWorker][yt-dlp output] [info] There are no subtitles for the requested languages
+[2025-08-08 12:11:05-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Everything you need to know about GPT-5 (+ mini and nano).mp4
+[2025-08-08 12:11:05-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Everything you need to know about GPT-5 (+ mini and nano).mp4
+[2025-08-08 12:11:05-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Everything you need to know about GPT-5 (+ mini and nano).mp4
+[2025-08-08 12:11:05-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-08-08 12:11:13-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] There aren't any subtitles to embed
+[2025-08-08 12:11:14-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-08-08 12:11:14-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-08-08 12:11:14-DEBUG][CLIDownloadWorker]Final Standard error output:
+WARNING: [youtube] NiURKoONLVY: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+WARNING: [youtube] NiURKoONLVY: There are missing subtitles languages because a PO token was not provided. Automatic captions for 1 languages are missing.
+
+[2025-08-08 12:11:14-INFO ][CLIDownloadWorker]Assuming last tracked media destination is final file: So I've had gpt-5 for a bit now....mp4
+[2025-08-08 12:11:14-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=NiURKoONLVY. Emitting finished signal.
+[2025-08-08 12:11:14-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=NiURKoONLVY
+[2025-08-08 12:11:14-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=NiURKoONLVY from active. Count: 1
+[2025-08-08 12:11:14-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=NiURKoONLVY
+[2025-08-08 12:11:24-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] There aren't any subtitles to embed
+[2025-08-08 12:11:24-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-08-08 12:11:24-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-08-08 12:11:24-DEBUG][CLIDownloadWorker]Final Standard error output:
+WARNING: [youtube] SJVCfPGsy30: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+WARNING: [youtube] SJVCfPGsy30: There are missing subtitles languages because a PO token was not provided. Automatic captions for 1 languages are missing.
+
+[2025-08-08 12:11:24-INFO ][CLIDownloadWorker]Assuming last tracked media destination is final file: Everything you need to know about GPT-5 (+ mini and nano).mp4
+[2025-08-08 12:11:25-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=SJVCfPGsy30. Emitting finished signal.
+[2025-08-08 12:11:25-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=SJVCfPGsy30
+[2025-08-08 12:11:25-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=SJVCfPGsy30 from active. Count: 0
+[2025-08-08 12:11:25-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=SJVCfPGsy30

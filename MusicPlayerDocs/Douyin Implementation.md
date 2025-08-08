@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document outlines the specifications and implementation milestones for adding a "抖" RoundButton to the BrowserPage. This button will process selected Douyin video files by trimming the last 3.02 seconds (removing the ending), replacing the original files, and then merging all processed videos into a single output file named `output{XX}.mp4`, where `XX` is the next available two-digit number.
+This document outlines the specifications and implementation milestones for adding a "抖" RoundButton to the BrowserPage. This button will process selected Douyin video files by trimming the last 3.03 seconds (removing the ending), replacing the original files, and then merging all processed videos into a single output file named `output{XX}.mp4`, where `XX` is the next available two-digit number.
 
 The process will be asynchronous to avoid blocking the UI, with a progress overlay similar to the video compression feature.
 
@@ -24,11 +24,11 @@ The process will be asynchronous to avoid blocking the UI, with a progress overl
 3. **Trimming Process**:
 
    - For each video file:
-     - Use FFmpeg to create a new video that excludes the last 3.02 seconds.
-     - Command example: `ffmpeg -i input.mp4 -to $(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 input.mp4 | awk '{print $1-3.02}') -c copy output.mp4`
+     - Use FFmpeg to create a new video that excludes the last 3.03 seconds.
+     - Command example: `ffmpeg -i input.mp4 -to $(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 input.mp4 | awk '{print $1-3.03}') -c copy output.mp4`
      - Delete the original file.
      - Rename the trimmed file to the original filename.
-   - Handle errors gracefully (e.g., skip if duration < 3.02 seconds).
+   - Handle errors gracefully (e.g., skip if duration < 3.03 seconds).
 
 4. **Merging Process**:
 

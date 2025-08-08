@@ -43,7 +43,15 @@ class DouyinMergeWorker(QThread):
                 '-y',  # Overwrite output
                 output_path
             ]
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
             
             # Monitor progress - stream copy is much faster than re-encoding
             total_duration = 0
@@ -116,11 +124,11 @@ class DouyinTrimWorker(QThread):
         """Perform the actual trimming operation."""
         try:
             duration = get_video_duration(self.input_path)
-            if duration is None or duration <= 3.02:
+            if duration is None or duration <= 3.03:
                 self.failed.emit(self.task_id, "Video too short or invalid")
                 return
             
-            trim_duration = duration - 3.02
+            trim_duration = duration - 3.03
             input_dir = Path(self.input_path).parent
             temp_output = str(input_dir / f'temp_{self.task_id}.mp4')
             
@@ -141,7 +149,15 @@ class DouyinTrimWorker(QThread):
                 temp_output
             ]
             
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
             
             while process.poll() is None:
                 line = process.stderr.readline()
