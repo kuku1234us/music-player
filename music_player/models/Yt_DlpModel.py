@@ -265,17 +265,38 @@ class YtDlpModel:
             
         else:
             print(f"DEBUG: Generating audio-only format")
-            # Audio only format
-            format_str = f"bestaudio{protocol_constraint}{audio_format_constraint}"
-            if not use_m4a:
-                format_str += "/best"
-            
+            # Audio only format with robust fallbacks. Remove protocol constraint.
+            # Prefer Opus/WebM first, then M4A/MP4, then any audio-only.
+            if use_m4a:
+                format_str = (
+                    "bestaudio[acodec*=opus]/"
+                    "bestaudio[ext=webm]/"
+                    "bestaudio[ext=m4a]/"
+                    "bestaudio[ext=mp4]/"
+                    "bestaudio/best[vcodec=none]"
+                )
+            else:
+                format_str = (
+                    "bestaudio[acodec*=opus]/"
+                    "bestaudio[ext=webm]/"
+                    "bestaudio/best[vcodec=none]"
+                )
+
             format_options["format"] = format_str
             
-            # Set output format for audio
-            if use_m4a:
-                format_options["merge_output_format"] = "m4a"
-                
+            # Note: For audio-only selections, we do NOT force merge_output_format here.
+            # The worker already skips merge-output-format for pure audio selections.
+            
+            # Hint yt-dlp to use a non-web client to avoid SABR and expose HLS audio
+            try:
+                if 'youtube' in format_options.get('extractor_args', {}):
+                    format_options['extractor_args']['youtube']['player_client'] = 'android'
+                else:
+                    format_options.setdefault('extractor_args', {}).setdefault('youtube', {})['player_client'] = 'android'
+                print("DEBUG: Using youtube:player_client=android for audio-only to avoid SABR")
+            except Exception:
+                pass
+            
             print(f"DEBUG: Audio-only format string: {format_str}")
         
         print(f"DEBUG: Final format options: {format_options}")
@@ -296,7 +317,7 @@ class YtDlpModel:
         if preset_name == "audio_default":
             return YtDlpModel.generate_format_string(
                 resolution=None,  # Audio only
-                use_https=True,
+                use_https=False,
                 use_m4a=True,
                 subtitle_lang=None,
                 use_cookies=True

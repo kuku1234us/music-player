@@ -463,6 +463,11 @@ class CLIDownloadWorker(QObject):
                             os.utime(final_filepath, (current_time, current_time))
                         except Exception as e:
                             self.logger.error(caller="CLIDownloadWorker", msg=f"Failed to update final file timestamp: {str(e)}")
+                        # Post-success cleanup: remove sidecar subtitles and leftover temp files
+                        try:
+                            self._cleanup_temporary_files()
+                        except Exception as e:
+                            self.logger.warning(caller="CLIDownloadWorker", msg=f"Cleanup after success encountered an error: {str(e)}")
                 else:
                      self.error_signal.emit(self.url, "Download finished but could not determine output filename.")
             
@@ -636,6 +641,9 @@ class CLIDownloadWorker(QObject):
             "--file-access-retries", "5"
         ])
         
+        # Continue on non-fatal errors (e.g., subtitle HTTP errors) to avoid aborting whole download
+        cmd.append("--ignore-errors")
+        
         # Add options to skip unavailable fragments but not abort on them
         cmd.append("--skip-unavailable-fragments")
         
@@ -707,25 +715,27 @@ class CLIDownloadWorker(QObject):
 
                 # Try to remove the .part file with exponential backoff
                 removed_part = False
-                for delay in (0.2, 0.5, 1, 2, 4): # Exponential backoff delays
-                    try:
-                        if os.path.exists(part_file_path):
+                if not os.path.exists(part_file_path):
+                    removed_part = True # Nothing to do; treat as already cleaned
+                else:
+                    for delay in (0.2, 0.5, 1, 2, 4): # Exponential backoff delays
+                        try:
                             self.logger.debug(caller="CLIDownloadWorker", msg=f"Attempting remove (delay={delay}): {part_file_path}")
                             os.remove(part_file_path)
                             self.logger.info(caller="CLIDownloadWorker", msg=f"Removed temporary file: {os.path.basename(part_file_path)}")
                             cleaned_count += 1
                             removed_part = True
                             break # Exit retry loop if successful
-                    except PermissionError:
-                        self.logger.warning(caller="CLIDownloadWorker", msg=f"File in use (delay={delay}), waiting: {os.path.basename(part_file_path)}")
-                        time.sleep(delay)
-                    except FileNotFoundError:
-                        removed_part = True # File gone is success for cleanup
-                        break 
-                    except Exception as e:
-                        self.logger.error(caller="CLIDownloadWorker", msg=f"Error removing {part_file_path}: {str(e)}")
-                        removed_part = True # Assume we can't remove it, stop retrying
-                        break 
+                        except PermissionError:
+                            self.logger.warning(caller="CLIDownloadWorker", msg=f"File in use (delay={delay}), waiting: {os.path.basename(part_file_path)}")
+                            time.sleep(delay)
+                        except FileNotFoundError:
+                            removed_part = True # File gone is success for cleanup
+                            break 
+                        except Exception as e:
+                            self.logger.error(caller="CLIDownloadWorker", msg=f"Error removing {part_file_path}: {str(e)}")
+                            removed_part = True # Assume we can't remove it, stop retrying
+                            break 
                 if not removed_part:
                      self.logger.warning(caller="CLIDownloadWorker", msg=f"Failed to remove {os.path.basename(part_file_path)} after retries.")
 
@@ -736,25 +746,27 @@ class CLIDownloadWorker(QObject):
                     self.logger.debug(caller="CLIDownloadWorker", msg=f"Skipping removal of final file: {filename}")
                     continue # Skip to next filename in self.temporary_filenames
                 
-                for delay in (0.2, 0.5, 1, 2, 4):
-                    try:
-                        if os.path.exists(file_path):
+                if not os.path.exists(file_path):
+                    removed_base = True # Already removed (e.g., by yt-dlp after merge)
+                else:
+                    for delay in (0.2, 0.5, 1, 2, 4):
+                        try:
                             self.logger.debug(caller="CLIDownloadWorker", msg=f"Attempting remove (delay={delay}): {file_path}")
                             os.remove(file_path)
                             self.logger.info(caller="CLIDownloadWorker", msg=f"Removed temporary file: {filename}")
                             cleaned_count += 1
                             removed_base = True
                             break # Exit retry loop if successful
-                    except PermissionError:
-                        self.logger.warning(caller="CLIDownloadWorker", msg=f"File in use (delay={delay}), waiting: {filename}")
-                        time.sleep(delay)
-                    except FileNotFoundError:
-                        removed_base = True
-                        break
-                    except Exception as e:
-                        self.logger.error(caller="CLIDownloadWorker", msg=f"Error removing {file_path}: {str(e)}")
-                        removed_base = True
-                        break
+                        except PermissionError:
+                            self.logger.warning(caller="CLIDownloadWorker", msg=f"File in use (delay={delay}), waiting: {filename}")
+                            time.sleep(delay)
+                        except FileNotFoundError:
+                            removed_base = True
+                            break
+                        except Exception as e:
+                            self.logger.error(caller="CLIDownloadWorker", msg=f"Error removing {file_path}: {str(e)}")
+                            removed_base = True
+                            break
                 if not removed_base:
                     self.logger.warning(caller="CLIDownloadWorker", msg=f"Failed to remove {filename} after retries.")
                     

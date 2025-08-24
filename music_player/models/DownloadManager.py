@@ -437,9 +437,24 @@ class DownloadManager(QObject):
         for url in urls_to_update:
             self.download_progress.emit(url, 0, "Initializing...")
         
-        # Check for yt-dlp updates before starting downloads (Phase 3)
+        # Check for yt-dlp updates before starting downloads (synchronously, timestamp-gated)
         if urls_to_process and YTDLP_UPDATER_AVAILABLE:
-            self._check_ytdlp_update_async()
+            try:
+                from .yt_dlp_updater.updater import YtDlpUpdater
+                updater = YtDlpUpdater.instance()
+                if updater.should_check_for_update():
+                    self.logger.info("DownloadManager", "Checking for yt-dlp updates before starting downloads...")
+                    result = updater.check_and_update_async(force_check=False)
+                    if not result.success and result.error_message:
+                        self.logger.warning("DownloadManager", f"yt-dlp update check failed: {result.error_message}")
+                    elif result.updated:
+                        self.logger.info("DownloadManager", f"yt-dlp updated to {result.latest_version or result.current_version}")
+                    else:
+                        self.logger.debug("DownloadManager", "yt-dlp already up to date before starting downloads")
+                else:
+                    self.logger.debug("DownloadManager", "Skipping yt-dlp update check (interval not reached)")
+            except Exception as e:
+                self.logger.warning("DownloadManager", f"yt-dlp synchronous update encountered an error: {e}")
         
         # Process outside lock
         for url, format_options, output_dir in urls_to_process:

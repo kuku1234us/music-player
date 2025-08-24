@@ -1,5 +1,6 @@
 # music_player/models/ClippingManager.py
 from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtWidgets import QMessageBox
 from typing import Optional, Tuple, List
 import subprocess
 import os
@@ -10,6 +11,9 @@ from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from qt_base_app.models.logger import Logger
+
+# Tolerance in seconds for snapping cut points to nearest keyframe for fast path
+KEYFRAME_SNAP_TOLERANCE_SEC = 2.0
 
 class ClippingManager(QObject):
     """
@@ -275,6 +279,275 @@ class ClippingManager(QObject):
         except json.JSONDecodeError as e:
             self._logger.error("ClippingManager", f"JSON parsing failed for keyframe data: {e}")
             return None
+
+    def _compute_snap_plan_for_segments(self, media_path: str, merged_segments: list[tuple[int, int]], tolerance_sec: float):
+        """
+        Compute snapped start/end times for each segment based on nearest keyframes.
+
+        Returns a tuple of (snapped_segments_seconds, out_of_tolerance_count).
+        - snapped_segments_seconds: List of (snapped_start_sec, snapped_end_sec)
+        - out_of_tolerance_count: Number of boundaries (start/end) that exceed tolerance
+        """
+        snapped_segments_seconds: list[tuple[float, float]] = []
+        out_of_tolerance_boundaries = 0
+
+        for start_ms, end_ms in merged_segments:
+            original_start_sec = start_ms / 1000.0
+            original_end_sec = end_ms / 1000.0
+
+            # Find keyframes near start and end
+            start_kf_info = self._find_nearest_keyframe(media_path, original_start_sec)
+            end_kf_info = self._find_nearest_keyframe(media_path, original_end_sec)
+
+            # Default snapped to original if no info available
+            snapped_start_sec = original_start_sec
+            snapped_end_sec = original_end_sec
+
+            # Helper to get prev/next keyframe
+            def get_prev_next(all_kf: list[float], t: float):
+                prev = None
+                nextv = None
+                if all_kf:
+                    prev_candidates = [kf for kf in all_kf if kf <= t]
+                    next_candidates = [kf for kf in all_kf if kf >= t]
+                    if prev_candidates:
+                        prev = max(prev_candidates)
+                    if next_candidates:
+                        nextv = min(next_candidates)
+                return prev, nextv
+
+            # Decide snapped_start to previous keyframe if available
+            if start_kf_info and 'all_keyframes' in start_kf_info and start_kf_info['all_keyframes']:
+                prev_kf, _ = get_prev_next(start_kf_info['all_keyframes'], original_start_sec)
+                if prev_kf is not None:
+                    snapped_start_sec = prev_kf
+                    if abs(original_start_sec - prev_kf) > tolerance_sec:
+                        out_of_tolerance_boundaries += 1
+                else:
+                    # Fallback to nearest
+                    nearest = start_kf_info.get('nearest_keyframe', original_start_sec)
+                    snapped_start_sec = nearest
+                    if abs(original_start_sec - nearest) > tolerance_sec:
+                        out_of_tolerance_boundaries += 1
+            else:
+                # No keyframe info found -> treat as out-of-tolerance to force precise path
+                out_of_tolerance_boundaries += 1
+
+            # Decide snapped_end to next keyframe if available
+            if end_kf_info and 'all_keyframes' in end_kf_info and end_kf_info['all_keyframes']:
+                _, next_kf = get_prev_next(end_kf_info['all_keyframes'], original_end_sec)
+                if next_kf is not None:
+                    snapped_end_sec = next_kf
+                    if abs(original_end_sec - next_kf) > tolerance_sec:
+                        out_of_tolerance_boundaries += 1
+                else:
+                    nearest = end_kf_info.get('nearest_keyframe', original_end_sec)
+                    snapped_end_sec = nearest
+                    if abs(original_end_sec - nearest) > tolerance_sec:
+                        out_of_tolerance_boundaries += 1
+            else:
+                out_of_tolerance_boundaries += 1
+
+            # Ensure snapped_end after snapped_start minimally
+            if snapped_end_sec <= snapped_start_sec:
+                snapped_end_sec = snapped_start_sec + 0.04  # add small epsilon (40ms)
+
+            snapped_segments_seconds.append((snapped_start_sec, snapped_end_sec))
+
+        return snapped_segments_seconds, out_of_tolerance_boundaries
+
+    def _prompt_strategy_choice(self, out_of_tolerance_count: int, tolerance_sec: float) -> str:
+        """
+        Prompt the user to choose fast (snap) or precise (exact) strategy.
+        Returns 'fast' or 'precise'. Defaults to 'precise' on error.
+        """
+        try:
+            message = (
+                f"{out_of_tolerance_count} cut point(s) are more than {tolerance_sec:.1f}s away from a keyframe.\n\n"
+                "Choose processing strategy:\n\n"
+                "Fast (snap): Snap to nearest keyframes and stream-copy (very fast).\n"
+                "Precise (exact): Re-encode for exact cut points (slower)."
+            )
+            box = QMessageBox()
+            box.setIcon(QMessageBox.Icon.Warning)
+            box.setWindowTitle("Clipping Strategy")
+            box.setText(message)
+            fast_btn = box.addButton("Fast (snap)", QMessageBox.ButtonRole.AcceptRole)
+            precise_btn = box.addButton("Precise (exact)", QMessageBox.ButtonRole.DestructiveRole)
+            box.setDefaultButton(precise_btn)
+            box.exec()
+            clicked = box.clickedButton()
+            return 'fast' if clicked == fast_btn else 'precise'
+        except Exception as e:
+            self._logger.error("ClippingManager", f"Error prompting strategy choice: {e}")
+            return 'precise'
+
+    def _perform_video_clip_fast_path(self, media_path: str, snapped_segments_seconds: list[tuple[float, float]], codec_info: dict, output_path: str) -> Optional[str]:
+        """
+        Fast path: Snap to keyframes and stream-copy segments, then concatenate by copy.
+        Uses safer settings per codec.
+        """
+        import shutil
+
+        original_path_obj = Path(media_path)
+        temp_dir = original_path_obj.parent / "temp_clip_segments"
+        os.makedirs(temp_dir, exist_ok=True)
+        list_file_path = temp_dir / "mylist.txt"
+
+        temp_files: list[str] = []
+
+        detected_codec = (codec_info.get('codec_name') if codec_info else '') or 'unknown'
+        detected_codec = detected_codec.lower()
+
+        is_h26x = detected_codec in ['h264', 'hevc', 'h265']
+        is_vpx = detected_codec in ['vp8', 'vp9']
+
+        try:
+            # Extract each segment
+            for i, (snap_start_sec, snap_end_sec) in enumerate(snapped_segments_seconds):
+                duration_sec = max(0.01, snap_end_sec - snap_start_sec)
+                if is_h26x:
+                    temp_out = str(temp_dir / f"temp_segment_{i}.ts")
+                    bsf = 'h264_mp4toannexb' if detected_codec == 'h264' else 'hevc_mp4toannexb'
+                    cmd = [
+                        'ffmpeg', '-y', '-hide_banner',
+                        '-ss', str(snap_start_sec),
+                        '-i', media_path,
+                        '-t', str(duration_sec),
+                        '-map', '0:v:0', '-map', '0:a:0', '-sn',
+                        '-c', 'copy',
+                        '-copyts',
+                        '-reset_timestamps', '1',
+                        '-bsf:v', bsf,
+                        '-f', 'mpegts',
+                        temp_out
+                    ]
+                elif is_vpx:
+                    temp_out = str(temp_dir / f"temp_segment_{i}.webm")
+                    cmd = [
+                        'ffmpeg', '-y', '-hide_banner',
+                        '-ss', str(snap_start_sec),
+                        '-i', media_path,
+                        '-t', str(duration_sec),
+                        '-map', '0:v:0', '-map', '0:a:0', '-sn',
+                        '-c', 'copy',
+                        '-copyts',
+                        '-reset_timestamps', '1',
+                        temp_out
+                    ]
+                else:
+                    temp_out = str(temp_dir / f"temp_segment_{i}.mkv")
+                    cmd = [
+                        'ffmpeg', '-y', '-hide_banner',
+                        '-ss', str(snap_start_sec),
+                        '-i', media_path,
+                        '-t', str(duration_sec),
+                        '-map', '0:v:0', '-map', '0:a:0', '-sn',
+                        '-c', 'copy',
+                        '-copyts',
+                        '-reset_timestamps', '1',
+                        temp_out
+                    ]
+
+                self._logger.info("ClippingManager", f"Fast path segment {i+1}: {' '.join(cmd)}")
+                creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                process = subprocess.run(cmd, capture_output=True, text=True, creationflags=creationflags)
+                if process.returncode != 0:
+                    self._logger.error("ClippingManager", f"Fast path segment {i+1} failed: {process.stderr}")
+                    return None
+                temp_files.append(temp_out)
+
+            # Write file list for concat demuxer
+            with open(list_file_path, 'w', encoding='utf-8') as f:
+                for temp_file in temp_files:
+                    f.write(f"file '{os.path.abspath(temp_file)}'\n")
+
+            # Final concat by copy
+            cmd_concat = [
+                'ffmpeg', '-y', '-hide_banner',
+                '-f', 'concat', '-safe', '0',
+                '-i', str(list_file_path),
+                '-c', 'copy',
+                '-fflags', '+genpts',
+                '-movflags', '+faststart'
+            ]
+            if is_h26x:
+                cmd_concat += ['-bsf:a', 'aac_adtstoasc']
+            cmd_concat += [output_path]
+
+            self._logger.info("ClippingManager", f"Fast path concat: {' '.join(cmd_concat)}")
+            creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            process = subprocess.run(cmd_concat, capture_output=True, text=True, creationflags=creationflags)
+            if process.returncode != 0:
+                self._logger.error("ClippingManager", f"Fast path concat failed: {process.stderr}")
+                return None
+
+            self._logger.info("ClippingManager", f"Video clipping successful (fast path): {output_path}")
+            self.clip_successful.emit(media_path, output_path)
+            return output_path
+
+        finally:
+            # Clean up temp files and directory
+            try:
+                if list_file_path.exists():
+                    os.remove(list_file_path)
+            except Exception:
+                pass
+            for p in temp_files:
+                try:
+                    if os.path.exists(p):
+                        os.remove(p)
+                except Exception:
+                    pass
+            try:
+                if temp_dir.exists() and not any(temp_dir.iterdir()):
+                    os.rmdir(temp_dir)
+            except Exception:
+                pass
+
+    def _perform_video_clip_precise_path(self, media_path: str, merged_segments: list[tuple[int, int]], output_path: str) -> Optional[str]:
+        """
+        Precise path: Use filter_complex to trim and concat in one job, then re-encode once.
+        """
+        # Build filter graph
+        v_labels = []
+        a_labels = []
+        filter_parts = []
+
+        for i, (start_ms, end_ms) in enumerate(merged_segments):
+            start_sec = max(0.0, start_ms / 1000.0)
+            end_sec = max(start_sec + 0.01, end_ms / 1000.0)
+            v_label = f"v{i}"
+            a_label = f"a{i}"
+            filter_parts.append(f"[0:v]trim=start={start_sec:.6f}:end={end_sec:.6f},setpts=PTS-STARTPTS[{v_label}]")
+            filter_parts.append(f"[0:a]atrim=start={start_sec:.6f}:end={end_sec:.6f},asetpts=PTS-STARTPTS[{a_label}]")
+            v_labels.append(f"[{v_label}]")
+            a_labels.append(f"[{a_label}]")
+
+        concat_part = ''.join(v_labels + a_labels) + f"concat=n={len(merged_segments)}:v=1:a=1[v][a]"
+        filter_complex = ';'.join(filter_parts + [concat_part])
+
+        cmd = [
+            'ffmpeg', '-y', '-hide_banner',
+            '-i', media_path,
+            '-filter_complex', filter_complex,
+            '-map', '[v]', '-map', '[a]',
+            '-c:v', 'libx264', '-crf', '20', '-preset', 'medium', '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart',
+            output_path
+        ]
+
+        self._logger.info("ClippingManager", f"Precise path (single encode): {' '.join(cmd[:-1])} {output_path}")
+        creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        process = subprocess.run(cmd, capture_output=True, text=True, creationflags=creationflags)
+        if process.returncode != 0:
+            self._logger.error("ClippingManager", f"Precise path failed: {process.stderr}")
+            self.clip_failed.emit(media_path, process.stderr.strip())
+            return None
+
+        self._logger.info("ClippingManager", f"Video clipping successful (precise path): {output_path}")
+        self.clip_successful.emit(media_path, output_path)
+        return output_path
 
     def _check_codec_encoding_support(self, codec_info: dict) -> dict:
         """
@@ -744,9 +1017,36 @@ class ClippingManager(QObject):
                     return None
                     
             elif media_type == 'video':
-                # Video processing path - keyframe-aware adaptive processing
-                self._logger.info("ClippingManager", "Using video processing pipeline with keyframe-aware algorithm")
-                return self._perform_video_clip(media_path, merged_segments)
+                # Video processing path - dual strategy selection
+                self._logger.info("ClippingManager", "Analyzing keyframes for fast/precise strategy selection")
+
+                # Determine codec info once
+                codec_info = self._get_video_codec_info(media_path)
+
+                # Compute snap plan and count out-of-tolerance boundaries
+                snapped_segments_seconds, out_of_tol = self._compute_snap_plan_for_segments(
+                    media_path, merged_segments, KEYFRAME_SNAP_TOLERANCE_SEC
+                )
+
+                output_path = self._generate_clipped_filename()
+                if not output_path:
+                    self._logger.error("ClippingManager", "Could not generate an output filename.")
+                    self.clip_failed.emit(media_path, "Could not generate an output filename for the clip.")
+                    return None
+
+                if out_of_tol == 0:
+                    # Auto-fast path without prompt
+                    self._logger.info("ClippingManager", "All cut points within tolerance -> using fast stream-copy path")
+                    return self._perform_video_clip_fast_path(media_path, snapped_segments_seconds, codec_info, output_path)
+                else:
+                    # Prompt user to choose strategy
+                    strategy = self._prompt_strategy_choice(out_of_tol, KEYFRAME_SNAP_TOLERANCE_SEC)
+                    if strategy == 'fast':
+                        self._logger.info("ClippingManager", "User selected Fast (snap) -> using fast stream-copy path")
+                        return self._perform_video_clip_fast_path(media_path, snapped_segments_seconds, codec_info, output_path)
+                    else:
+                        self._logger.info("ClippingManager", "User selected Precise (exact) -> re-encoding via concat filter")
+                        return self._perform_video_clip_precise_path(media_path, merged_segments, output_path)
                 
             else:
                 # Unknown media type - try basic processing
