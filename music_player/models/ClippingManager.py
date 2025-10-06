@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from qt_base_app.models.logger import Logger
+from music_player.ui.components.clipping_options_dialog import ClippingOptionsDialog
 
 # Tolerance in seconds for snapping cut points to nearest keyframe for fast path
 KEYFRAME_SNAP_TOLERANCE_SEC = 2.0
@@ -161,6 +162,14 @@ class ClippingManager(QObject):
             if not potential_path.exists():
                 return str(potential_path)
             counter += 1
+
+    def _format_concat_path(self, file_path: str) -> str:
+        """Format paths for ffmpeg concat lists (use forward slashes on Windows/UNC)."""
+        try:
+            # Prefer plain forward slashes with unescaped drive colon: D:/path
+            return Path(file_path).as_posix()
+        except Exception:
+            return file_path.replace('\\', '/')
 
     def _get_video_codec_info(self, video_path: str) -> Optional[dict]:
         """
@@ -388,10 +397,12 @@ class ClippingManager(QObject):
         Uses safer settings per codec.
         """
         import shutil
+        import time
 
         original_path_obj = Path(media_path)
         temp_dir = original_path_obj.parent / "temp_clip_segments"
         os.makedirs(temp_dir, exist_ok=True)
+        self._logger.info("ClippingManager", f"Using temp directory: {temp_dir}")
         list_file_path = temp_dir / "mylist.txt"
 
         temp_files: list[str] = []
@@ -405,7 +416,7 @@ class ClippingManager(QObject):
         try:
             # Extract each segment
             for i, (snap_start_sec, snap_end_sec) in enumerate(snapped_segments_seconds):
-                duration_sec = max(0.01, snap_end_sec - snap_start_sec)
+                duration_sec = max(0.25, snap_end_sec - snap_start_sec)
                 if is_h26x:
                     temp_out = str(temp_dir / f"temp_segment_{i}.ts")
                     bsf = 'h264_mp4toannexb' if detected_codec == 'h264' else 'hevc_mp4toannexb'
@@ -414,11 +425,10 @@ class ClippingManager(QObject):
                         '-ss', str(snap_start_sec),
                         '-i', media_path,
                         '-t', str(duration_sec),
-                        '-map', '0:v:0', '-map', '0:a:0', '-sn',
+                        '-map', '0:v:0', '-map', '0:a?', '-sn',
                         '-c', 'copy',
-                        '-copyts',
-                        '-reset_timestamps', '1',
                         '-bsf:v', bsf,
+                        '-muxpreload', '0', '-muxdelay', '0',
                         '-f', 'mpegts',
                         temp_out
                     ]
@@ -429,10 +439,8 @@ class ClippingManager(QObject):
                         '-ss', str(snap_start_sec),
                         '-i', media_path,
                         '-t', str(duration_sec),
-                        '-map', '0:v:0', '-map', '0:a:0', '-sn',
+                        '-map', '0:v:0', '-map', '0:a?', '-sn',
                         '-c', 'copy',
-                        '-copyts',
-                        '-reset_timestamps', '1',
                         temp_out
                     ]
                 else:
@@ -442,10 +450,8 @@ class ClippingManager(QObject):
                         '-ss', str(snap_start_sec),
                         '-i', media_path,
                         '-t', str(duration_sec),
-                        '-map', '0:v:0', '-map', '0:a:0', '-sn',
+                        '-map', '0:v:0', '-map', '0:a?', '-sn',
                         '-c', 'copy',
-                        '-copyts',
-                        '-reset_timestamps', '1',
                         temp_out
                     ]
 
@@ -455,12 +461,48 @@ class ClippingManager(QObject):
                 if process.returncode != 0:
                     self._logger.error("ClippingManager", f"Fast path segment {i+1} failed: {process.stderr}")
                     return None
+                # Ensure segment file exists and is non-empty (Windows I/O can lag)
+                if not os.path.exists(temp_out):
+                    self._logger.error("ClippingManager", f"Fast path segment {i+1} missing: {temp_out}")
+                    return None
+                for _ in range(3):
+                    try:
+                        if os.path.getsize(temp_out) > 0:
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(0.05)
+                try:
+                    sz = os.path.getsize(temp_out)
+                except Exception:
+                    sz = 0
+                if sz == 0:
+                    # Fallback: minimal re-encode for this segment into TS
+                    self._logger.error("ClippingManager", f"Fast path segment {i+1} is zero bytes, retrying with minimal re-encode")
+                    re_cmd = [
+                        'ffmpeg', '-y', '-hide_banner',
+                        '-ss', str(snap_start_sec),
+                        '-i', media_path,
+                        '-t', str(duration_sec),
+                        '-map', '0:v:0', '-map', '0:a?', '-sn',
+                        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p',
+                        '-c:a', 'aac', '-b:a', '128k',
+                        '-g', '60', '-sc_threshold', '0',
+                        '-muxpreload', '0', '-muxdelay', '0',
+                        '-f', 'mpegts',
+                        temp_out
+                    ]
+                    re_proc = subprocess.run(re_cmd, capture_output=True, text=True, creationflags=creationflags)
+                    if re_proc.returncode != 0 or not os.path.exists(temp_out) or os.path.getsize(temp_out) == 0:
+                        self._logger.error("ClippingManager", f"Fallback re-encode failed for segment {i+1}: {re_proc.stderr}")
+                        return None
                 temp_files.append(temp_out)
 
-            # Write file list for concat demuxer
+            # Write file list for concat demuxer using absolute, ffmpeg-safe paths
             with open(list_file_path, 'w', encoding='utf-8') as f:
                 for temp_file in temp_files:
-                    f.write(f"file '{os.path.abspath(temp_file)}'\n")
+                    safe_path = self._format_concat_path(temp_file)
+                    f.write(f"file '{safe_path}'\n")
 
             # Final concat by copy
             cmd_concat = [
@@ -505,7 +547,7 @@ class ClippingManager(QObject):
             except Exception:
                 pass
 
-    def _perform_video_clip_precise_path(self, media_path: str, merged_segments: list[tuple[int, int]], output_path: str) -> Optional[str]:
+    def _perform_video_clip_precise_path(self, media_path: str, merged_segments: list[tuple[int, int]], output_path: str, resize_720p: bool = False) -> Optional[str]:
         """
         Precise path: Use filter_complex to trim and concat in one job, then re-encode once.
         """
@@ -527,11 +569,22 @@ class ClippingManager(QObject):
         concat_part = ''.join(v_labels + a_labels) + f"concat=n={len(merged_segments)}:v=1:a=1[v][a]"
         filter_complex = ';'.join(filter_parts + [concat_part])
 
+        v_filters = []
+        if resize_720p:
+            # Detect orientation by comparing width and height via ffprobe could be added; 
+            # for simplicity, scale with adaptive aspect preservation using min dimension 720
+            # Use scale filter that keeps aspect ratio by bounding max dimension to 720
+            # For landscape: scale=-2:720; for portrait: scale=720:-2
+            # We cannot know here without probing each segment, so set to scale='min(720,ih)'
+            # Simpler: apply a generic scale to fit within 720p on the longer edge using force_original_aspect_ratio
+            v_filters.append("scale='if(gt(a,1),-2,720)':'if(gt(a,1),720,-2)':force_original_aspect_ratio=decrease")
+        v_filter_chain = ",".join(v_filters) if v_filters else None
+
         cmd = [
             'ffmpeg', '-y', '-hide_banner',
             '-i', media_path,
-            '-filter_complex', filter_complex,
-            '-map', '[v]', '-map', '[a]',
+            '-filter_complex', filter_complex if not v_filter_chain else filter_complex + f";[v]" + v_filter_chain + "[v2]",
+            '-map', '[v2]' if v_filter_chain else '[v]', '-map', '[a]',
             '-c:v', 'libx264', '-crf', '20', '-preset', 'medium', '-pix_fmt', 'yuv420p',
             '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart',
             output_path
@@ -909,7 +962,8 @@ class ClippingManager(QObject):
             
             with open(list_file_path, 'w') as f:
                 for temp_file in temp_files:
-                    f.write(f"file '{os.path.abspath(temp_file)}'\n")
+                    safe_path = self._format_concat_path(os.path.abspath(temp_file))
+                    f.write(f"file '{safe_path}'\n")
             
             ffmpeg_concat_cmd = [
                 "ffmpeg", "-y", "-hide_banner",
@@ -986,7 +1040,20 @@ class ClippingManager(QObject):
             self.clip_failed.emit(media_path, "Segment processing resulted in no segments.")
             return None
 
-        # 3. Detect media type to choose processing approach
+        # 3. Prompt user for options (Snap Keyframe, Resize 720p)
+        snap_keyframe = False
+        resize_720p = False
+        try:
+            # Parent will be the main window; QDialog will center itself reasonably
+            dlg = ClippingOptionsDialog()
+            if dlg.exec():
+                opts = dlg.get_options()
+                snap_keyframe = bool(opts.get('snap_keyframe', False))
+                resize_720p = bool(opts.get('resize_720p', False))
+        except Exception as e:
+            self._logger.error("ClippingManager", f"Failed to show clipping options dialog: {e}")
+
+        # 4. Detect media type to choose processing approach
         media_type = self._detect_media_type(media_path)
         self._logger.info("ClippingManager", f"Detected media type: {media_type}")
 
@@ -1034,12 +1101,21 @@ class ClippingManager(QObject):
                     self.clip_failed.emit(media_path, "Could not generate an output filename for the clip.")
                     return None
 
+                # New option: Force Snap Keyframe (stream copy only) if requested
+                if snap_keyframe and not resize_720p:
+                    self._logger.info("ClippingManager", "Force Snap Keyframe enabled -> using stream copy regardless of tolerance")
+                    return self._perform_video_clip_fast_path(media_path, snapped_segments_seconds, codec_info, output_path)
+
+                # If resizing to 720p is requested, we must re-encode with scaling filter
+                if resize_720p:
+                    self._logger.info("ClippingManager", "Resize to 720p enabled -> using precise path with scaling")
+                    return self._perform_video_clip_precise_path(media_path, merged_segments, output_path, resize_720p=True)
+
+                # Default decision tree (no explicit options selected)
                 if out_of_tol == 0:
-                    # Auto-fast path without prompt
                     self._logger.info("ClippingManager", "All cut points within tolerance -> using fast stream-copy path")
                     return self._perform_video_clip_fast_path(media_path, snapped_segments_seconds, codec_info, output_path)
                 else:
-                    # Prompt user to choose strategy
                     strategy = self._prompt_strategy_choice(out_of_tol, KEYFRAME_SNAP_TOLERANCE_SEC)
                     if strategy == 'fast':
                         self._logger.info("ClippingManager", "User selected Fast (snap) -> using fast stream-copy path")
@@ -1252,8 +1328,10 @@ class ClippingManager(QObject):
                                     # Phase 3: Concatenate the two parts
                                     concat_list = str(temp_dir / f"concat_{i}.txt")
                                     with open(concat_list, 'w') as f:
-                                        f.write(f"file '{os.path.abspath(temp_reencoded)}'\n")
-                                        f.write(f"file '{os.path.abspath(temp_streamcopy)}'\n")
+                                        reencoded_name = os.path.basename(temp_reencoded)
+                                        streamcopy_name = os.path.basename(temp_streamcopy)
+                                        f.write(f"file '{reencoded_name}'\n")
+                                        f.write(f"file '{streamcopy_name}'\n")
                                     
                                     # Use consistent output format for final segment
                                     temp_final_segment = str(temp_dir / f"temp_segment_{i}{temp_extension}")
@@ -1268,7 +1346,7 @@ class ClippingManager(QObject):
                                     
                                     self._logger.info("ClippingManager", f"Phase 3 (concat): {' '.join(ffmpeg_concat_cmd)}")
                                     
-                                    process = subprocess.run(ffmpeg_concat_cmd, capture_output=True, text=True, creationflags=creationflags)
+                                    process = subprocess.run(ffmpeg_concat_cmd, capture_output=True, text=True, creationflags=creationflags, cwd=str(temp_dir))
                                     
                                     if process.returncode != 0:
                                         self._logger.error("ClippingManager", f"Phase 3 failed: {process.stderr}")
@@ -1363,7 +1441,8 @@ class ClippingManager(QObject):
             
             with open(list_file_path, 'w') as f:
                 for temp_file in temp_files:
-                    f.write(f"file '{os.path.abspath(temp_file)}'\n")
+                    rel_name = os.path.basename(temp_file)
+                    f.write(f"file '{rel_name}'\n")
 
             ffmpeg_final_concat_cmd = [
                 "ffmpeg", "-y", "-hide_banner",
@@ -1378,7 +1457,7 @@ class ClippingManager(QObject):
             self._logger.info("ClippingManager", f"Final concatenation: {' '.join(ffmpeg_final_concat_cmd)}")
             
             creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-            process = subprocess.run(ffmpeg_final_concat_cmd, capture_output=True, text=True, creationflags=creationflags)
+            process = subprocess.run(ffmpeg_final_concat_cmd, capture_output=True, text=True, creationflags=creationflags, cwd=str(temp_dir))
 
             if process.returncode == 0:
                 self._logger.info("ClippingManager", f"Video clipping successful: {output_path}")
@@ -1466,7 +1545,8 @@ class ClippingManager(QObject):
             # Concatenate segments
             with open(list_file_path, 'w') as f:
                 for temp_file in temp_files:
-                    f.write(f"file '{os.path.abspath(temp_file)}'\n")
+                    rel_name = os.path.basename(temp_file)
+                    f.write(f"file '{rel_name}'\n")
 
             ffmpeg_concat_cmd = [
                 "ffmpeg", "-y", "-hide_banner",

@@ -124,6 +124,54 @@ class VideoCompressionProgress(QWidget):
         self.adjustSize()
         print(f"[VideoCompressionProgress DEBUG] show_compression_started: Shown. New size: {self.size()}, isVisible after show: {self.isVisible()}")
 
+    # --- Reuse for Rotation Batch ---
+    def show_rotation_started(self, total_files: int):
+        self._current_task_id = None
+        self._reset_progress_bar_style()
+        self.status_label.setText(f"Rotating {total_files} video(s)...")
+        self.details_label.setText("Please wait...")
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Waiting...")
+        self.show()
+        self.adjustSize()
+
+    def show_rotation_file_progress(self, filename: str, index: int, total: int, percent: float):
+        self._reset_progress_bar_style()
+        self.status_label.setText(f"Rotating video {index} of {total}:")
+        self.details_label.setText(filename)
+        self.progress_bar.setValue(int(percent * 100))
+        self.progress_bar.setFormat(f"{int(percent * 100)}%")
+        if not self.isVisible():
+            self.show()
+        self.adjustSize()
+
+    def show_rotation_file_completed(self, filename: str):
+        self._reset_progress_bar_style()
+        self.details_label.setText(f"Completed: {filename}")
+        self.progress_bar.setValue(100)
+        self.progress_bar.setFormat("100%")
+        self.adjustSize()
+
+    def show_rotation_file_failed(self, filename: str, error: str):
+        self.details_label.setText(f"Failed: {filename}\nError: {error}")
+        error_chunk_style = f"background-color: {self.theme.get_color('status', 'error')}; border-radius: 6px;"
+        self.progress_bar.setStyleSheet(f"""
+            #videoCompressionProgressBar::chunk {{
+                {error_chunk_style}
+            }}
+            #videoCompressionProgressBar {{ 
+                font-size: 8pt; 
+                min-height: 12px; 
+                max-height: 12px; 
+                color: {self.theme.get_color('text', 'on_error')}; 
+                background-color: {self.theme.get_color('background', 'tertiary')};
+                border: 1px solid {self.theme.get_color('border', 'primary')};
+                border-radius: 6px;
+            }}
+        """)
+        self.progress_bar.setFormat("Failed")
+        self.adjustSize()
+
     def show_file_progress(self, task_id: str, filename: str, current_file_index: int, total_files: int, percentage: float):
         """Called when a new file starts or its progress updates for the first time."""
         print(f"[VideoCompressionProgress DEBUG] show_file_progress: task_id={task_id}, filename={filename}, current_task_id={self._current_task_id}")

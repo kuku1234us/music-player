@@ -34,6 +34,7 @@ from music_player.ui.components.browser_components.conversion_progress import Co
 # --- NEW IMPORTS FOR VIDEO COMPRESSION --- #
 from music_player.models.video_compression_manager import VideoCompressionManager
 from music_player.ui.components.browser_components.video_compression_progress import VideoCompressionProgress
+from music_player.ui.components.browser_components.video_process_options_dialog import VideoProcessOptionsDialog
 from music_player.models.douyin_processor import DouyinProcessor
 from music_player.ui.components.browser_components.douyin_progress import DouyinProgress
 from music_player.ui.components.browser_components.douyin_options_dialog import DouyinOptionsDialog
@@ -481,7 +482,7 @@ class BrowserPage(QWidget):
         # --- END NEW --- #
 
         # --- NEW: Connect Video Compression Signals --- #
-        self.video_compress_button.clicked.connect(self._on_video_compress_selected_clicked)
+        self.video_compress_button.clicked.connect(self._on_video_process_clicked)
         self.video_compression_manager.compression_batch_started.connect(self._on_video_compression_batch_started)
         self.video_compression_manager.compression_file_started.connect(self._on_video_compression_file_started)
         self.video_compression_manager.compression_file_progress.connect(self._on_video_compression_file_progress)
@@ -497,6 +498,12 @@ class BrowserPage(QWidget):
         self.douyin_processor.trim_file_completed.connect(self._on_douyin_file_completed)
         self.douyin_processor.trim_file_failed.connect(self._on_douyin_file_failed)
         self.douyin_processor.trim_batch_finished.connect(self._on_douyin_batch_finished)
+        # Normalization signals (merge-only mode)
+        self.douyin_processor.normalize_started.connect(lambda total: (self.douyin_progress_overlay.show_normalization_started(total), self._update_douyin_progress_position()))
+        self.douyin_processor.normalize_file_started.connect(lambda task_id, filename, idx, total: (self.douyin_progress_overlay.show_file_progress(task_id, os.path.basename(filename), idx, total, 0.0), self._update_douyin_progress_position()))
+        self.douyin_processor.normalize_file_progress.connect(lambda task_id, percent: self.douyin_progress_overlay.update_current_file_progress(task_id, percent))
+        self.douyin_processor.normalize_file_completed.connect(lambda task_id, filename: (self.douyin_progress_overlay.show_file_completed(os.path.basename(filename), os.path.basename(filename)), self._update_douyin_progress_position()))
+        self.douyin_processor.normalize_file_failed.connect(lambda task_id, filename, err: (self.douyin_progress_overlay.show_file_failed(os.path.basename(filename), err), self._update_douyin_progress_position()))
         self.douyin_processor.merge_started.connect(self._on_douyin_merge_started)
         self.douyin_processor.merge_progress.connect(self._on_douyin_merge_progress)
         self.douyin_processor.merge_completed.connect(self._on_douyin_merge_completed)
@@ -1218,12 +1225,12 @@ class BrowserPage(QWidget):
     # --- END NEW --- #
 
     # --- NEW: Video Compression Handlers --- #
-    def _on_video_compress_selected_clicked(self):
+    def _on_video_process_clicked(self):
         selected_objects = self.file_table.get_selected_items_data()
         items_to_process = []
 
         if not selected_objects:
-            QMessageBox.warning(self, "No Selection", "Please select one or more files or directories to compress.")
+            QMessageBox.warning(self, "No Selection", "Please select one or more files or directories to process.")
             return
 
         # Include both video files and directories (for recursive processing)
@@ -1232,30 +1239,80 @@ class BrowserPage(QWidget):
             is_dir = obj.get('is_dir', False)
             if path_str and os.path.exists(path_str):
                 if is_dir:
-                    # Include directories for recursive processing
                     items_to_process.append(obj)
-                    print(f"[BrowserPage] Added directory for recursive compression: {path_str}")
                 else:
-                    # Check for video extensions
                     if any(path_str.lower().endswith(ext) for ext in ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v', '.flv', '.wmv', '.mpg', '.mpeg']):
                         items_to_process.append(obj)
-                        print(f"[BrowserPage] Added video file for compression: {path_str}")
-                    else:
-                        print(f"[BrowserPage] Skipping non-video file for compression: {path_str}")
-            else:
-                print(f"[BrowserPage] Skipping invalid path: {path_str}")
-
+            
         if not items_to_process:
-            QMessageBox.information(self, "No Video Files or Directories", "The current selection contains no video files or directories suitable for compression.")
+            QMessageBox.information(self, "No Video Files or Directories", "The current selection contains no video files or directories suitable for processing.")
             return
 
         if not self._current_directory or not self._current_directory.is_dir():
             QMessageBox.critical(self, "Error", "Cannot determine output directory. Please select a valid folder first.")
             return
-        
+
+        # Options dialog
+        dialog = VideoProcessOptionsDialog(self)
+        if not dialog.exec():
+            return
+        opts = dialog.get_options()
+        do_compress = opts.get('compress', True)
+        rotate = opts.get('rotate')  # 'cw' | 'ccw' | None
+
+        # If rotation only without compression, perform rotation with progress in a worker
+        if rotate and not do_compress:
+            self._rotate_videos_async(items_to_process, rotate)
+            return
+
+        # Compression (optionally with rotation applied during encode)
         output_directory = str(self._current_directory)
-        print(f"[BrowserPage] Starting video compression for {len(items_to_process)} items to directory: {output_directory}")
-        self.video_compression_manager.start_compressions(items_to_process, output_directory)
+        print(f"[BrowserPage] Starting video processing for {len(items_to_process)} items. Compress={do_compress}, Rotate={rotate}")
+        if do_compress:
+            self.video_compression_manager.start_compressions(items_to_process, output_directory, rotate_direction=rotate)
+        else:
+            # Neither compress nor rotate selected (shouldn't happen due to defaults), guard anyway
+            QMessageBox.information(self, "No Action", "No processing option selected.")
+
+    def _rotate_videos_async(self, selected_objects, direction: str):
+        from music_player.models.video_file_utils import discover_video_files
+        from music_player.models.video_rotation_manager import VideoRotationManager
+
+        # Discover files
+        paths = []
+        for obj in selected_objects:
+            path_str = obj.get('path')
+            if path_str:
+                paths.append(path_str)
+        video_files = discover_video_files(paths)
+        if not video_files:
+            QMessageBox.information(self, "No Videos", "No video files found in selection.")
+            return
+
+        # Create a lightweight rotation manager and hook to existing overlay
+        self._rotation_manager = VideoRotationManager(self)
+        self.video_compression_progress_overlay.show_rotation_started(len(video_files))
+        self._update_video_compression_progress_position()
+
+        # Wire signals to reuse the overlay
+        self._rotation_manager.rotation_file_started.connect(
+            lambda filename, idx, total: self.video_compression_progress_overlay.show_rotation_file_progress(filename, idx, total, 0.0)
+        )
+        self._rotation_manager.rotation_file_progress.connect(
+            lambda filename, prog: self.video_compression_progress_overlay.show_rotation_file_progress(filename, 0, 0, prog)
+        )
+        self._rotation_manager.rotation_file_completed.connect(
+            lambda filename: self.video_compression_progress_overlay.show_rotation_file_completed(filename)
+        )
+        self._rotation_manager.rotation_file_failed.connect(
+            lambda filename, err: self.video_compression_progress_overlay.show_rotation_file_failed(filename, err)
+        )
+        self._rotation_manager.rotation_batch_finished.connect(
+            lambda: (self.video_compression_progress_overlay.show_batch_finished(), QTimer.singleShot(500, self._refresh_view))
+        )
+
+        # Start async rotation
+        self._rotation_manager.start_rotations(video_files, direction)
 
     def _on_video_compression_batch_started(self, total_files: int):
         print(f"[BrowserPage] Video compression batch started for {total_files} files.")

@@ -69,6 +69,8 @@ class VideoCompressionManager(QObject):
         # State
         self.is_batch_active = False
         self.batch_cancelled = False
+        # Optional rotation direction to apply during compression ('cw' | 'ccw')
+        self.rotate_direction: Optional[str] = None
         
         # Validate FFmpeg availability on initialization
         self._validate_ffmpeg_availability()
@@ -99,7 +101,7 @@ class VideoCompressionManager(QObject):
         except Exception as e:
             print(f"[VideoCompressionManager] Warning: FFmpeg validation error: {e}")
     
-    def start_compressions(self, selected_objects: List[Dict], output_directory: str):
+    def start_compressions(self, selected_objects: List[Dict], output_directory: str, rotate_direction: Optional[str] = None):
         """
         Start compression process for selected items.
         
@@ -114,6 +116,8 @@ class VideoCompressionManager(QObject):
         try:
             # Reset state
             self._reset_batch_state()
+            # Store optional rotation
+            self.rotate_direction = rotate_direction
             
             # Validate output directory
             if not os.path.exists(output_directory):
@@ -415,7 +419,7 @@ class VideoCompressionManager(QObject):
             task: Task to process
         """
         try:
-            worker = VideoCompressionWorker(task, self.ffmpeg_path)
+            worker = VideoCompressionWorker(task, self.ffmpeg_path, rotate=self.rotate_direction)
             
             # Connect worker signals
             worker.signals.worker_started.connect(self._on_worker_started)

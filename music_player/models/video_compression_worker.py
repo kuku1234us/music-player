@@ -53,7 +53,7 @@ class VideoCompressionWorker(QRunnable):
     and file operations for a single video compression task.
     """
     
-    def __init__(self, task: VideoCompressionTask, ffmpeg_path: str = "ffmpeg"):
+    def __init__(self, task: VideoCompressionTask, ffmpeg_path: str = "ffmpeg", rotate: Optional[str] = None):
         """
         Initialize the worker with a compression task.
         
@@ -67,6 +67,7 @@ class VideoCompressionWorker(QRunnable):
         self.cancelled = False
         self.process: Optional[subprocess.Popen] = None
         self.signals = VideoCompressionWorkerSignals()
+        self.rotate_direction: Optional[str] = rotate
         
         # Progress tracking
         self.total_duration_seconds: Optional[float] = None
@@ -241,7 +242,7 @@ class VideoCompressionWorker(QRunnable):
         Returns:
             List[str]: FFmpeg command arguments
         """
-        return build_compression_command(self.task.input_path, self.task.output_path, self.ffmpeg_path)
+        return build_compression_command(self.task.input_path, self.task.output_path, self.ffmpeg_path, rotate=self.rotate_direction)
     
     def _compress_video(self):
         """Execute the FFmpeg compression command with enhanced error handling."""

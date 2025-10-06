@@ -21,35 +21,34 @@ The process will be asynchronous to avoid blocking the UI, with a progress overl
    - Process only video files (extensions: .mp4, .mkv, etc.).
    - If directories are selected, recursively find and process all video files within them.
 
-3. **Trimming Process**:
+3. **Trimming Process (Re-encode with normalization)**:
 
    - For each video file:
-     - Use FFmpeg to create a new video that excludes the last 3.03 seconds.
-     - Command example: `ffmpeg -i input.mp4 -to $(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 input.mp4 | awk '{print $1-3.03}') -c copy output.mp4`
-     - Delete the original file.
-     - Rename the trimmed file to the original filename.
-   - Handle errors gracefully (e.g., skip if duration < 3.03 seconds).
+     - Compute trim duration as total duration minus 3.03 seconds.
+     - Re-encode during trimming to normalize properties and ensure a keyframe at the first frame:
+       - Video: H.264 (`libx264`), `-crf 20`, `-preset medium`, `-pix_fmt yuv420p`
+       - Frame rate: `-r 30`
+       - First-frame keyframe: `-force_key_frames 0`
+       - Audio: `-c:a aac -b:a 128k`
+       - Scaling: `-vf scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2`
+       - Timestamps: `-avoid_negative_ts make_zero`
+       - Threads: `-threads 2` per FFmpeg process
+     - Write to a temporary file, delete the original, then rename the temp to the original filename.
+   - Handle errors gracefully (e.g., skip if duration ≤ 3.03 seconds).
 
-4. **Merging Process**:
+4. **Merging Process (Stream copy)**:
 
    - After trimming all files, collect the list of trimmed video paths.
    - Generate output filename: `output{XX}.mp4` in the current browser directory, where XX starts from 00 and increments until a non-existing file is found.
-   - Use FFmpeg to merge videos with re-encoding for compatibility:
-     - **Video Codec**: `libx264` with CRF 23 and medium preset for quality/speed balance
-     - **Audio Codec**: `aac` with 128k bitrate for consistent audio
-     - **Pixel Format**: `yuv420p` for maximum compatibility
-     - **Web Optimization**: `faststart` flag for better streaming
-     - **Audio Sync Fix**: `-avoid_negative_ts make_zero` to prevent audio desync issues
-     - **Command**: `ffmpeg -f concat -safe 0 -i filelist.txt -c:v libx264 -crf 23 -preset medium -c:a aac -b:a 128k -pix_fmt yuv420p -movflags +faststart -avoid_negative_ts make_zero output.mp4`
-   - Re-encoding ensures all videos have consistent properties regardless of original format/resolution
-   - Maintains aspect ratios and prevents distortion from videos with different properties
-   - The `-avoid_negative_ts make_zero` flag fixes audio sync issues that can occur when concatenating videos with different timestamps or when the output is processed further (e.g., face swapping)
+   - Merge using the concat demuxer with stream copy (no re-encoding), leveraging the normalized properties from the trimming step:
+     - Command: `ffmpeg -f concat -safe 0 -i filelist.txt -c copy -movflags +faststart -y outputXX.mp4`
    - Clean up the temporary filelist.txt after successful merge.
 
-5. **Asynchronous Execution**:
+5. **Asynchronous Execution & Concurrency**:
 
-   - Use worker threads (similar to `VideoCompressionManager`) for trimming and merging.
-   - Display progress overlay with status (e.g., "Trimming X/Y files", then "Merging videos").
+   - Use worker threads for trimming and merging.
+   - Limit concurrent re-encoding during trimming with a `QSemaphore` (default 3 concurrent encoders; adjustable).
+   - Display progress overlay with status (e.g., "Re-encoding & trimming X/Y files", then "Merging videos").
    - Emit signals for progress updates and completion.
 
 6. **Error Handling**:
@@ -61,7 +60,7 @@ The process will be asynchronous to avoid blocking the UI, with a progress overl
 
 - **FFmpeg Integration**: Extend or reuse utilities from `ffmpeg_utils.py` for trimming and merging commands.
 - **File Management**: Ensure safe file operations (temp files, deletions) to avoid data loss.
-- **Performance**: Process files sequentially in a single worker to avoid FFmpeg concurrency issues.
+- **Performance**: Limit concurrent FFmpeg encoders using a `QSemaphore` (default 3) to balance throughput and system load.
 - **UI Responsiveness**: All heavy operations in background thread.
 
 ## Implementation Milestones
@@ -83,7 +82,7 @@ The process will be asynchronous to avoid blocking the UI, with a progress overl
 
 - Add merging step after trimming completes.
 - Implement output filename generation.
-- Create FFmpeg concat command.
+- Create FFmpeg concat command (stream copy).
 - Update progress for merging phase.
 
 ### Phase 4: Integration and Testing
@@ -96,14 +95,14 @@ The process will be asynchronous to avoid blocking the UI, with a progress overl
 ## Potential Challenges
 
 - Accurate duration calculation for trimming.
-- Handling videos with variable frame rates during concat.
+- Managing concurrent encoders to avoid system overload.
 - Ensuring output directory has write permissions.
 - Unicode filename support in FFmpeg commands.
 
 ## Success Criteria
 
 - Button appears and functions correctly.
-- Videos are trimmed and replaced without data loss.
-- Merged video plays correctly with all segments.
-- UI remains responsive during processing.
+- Videos are re-encoded during trimming to 720p/30fps (yuv420p, CRF 20, AAC 128k) and originals are safely replaced.
+- Merged video is created via stream copy and plays correctly.
+- UI remains responsive; concurrency limits are respected.
 - Errors are handled and reported properly.

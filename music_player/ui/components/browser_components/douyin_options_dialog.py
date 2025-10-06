@@ -11,7 +11,7 @@ class DouyinOptionsDialog(QDialog):
         self.label = QLabel("Select the operations to perform:")
         self.layout.addWidget(self.label)
         
-        self.trim_checkbox = QCheckBox("Trim last 3.1 seconds from each video")
+        self.trim_checkbox = QCheckBox("Trim last 3.03 seconds from each video")
         self.trim_checkbox.setChecked(True)
         self.layout.addWidget(self.trim_checkbox)
         

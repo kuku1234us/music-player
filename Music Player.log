@@ -1,62 +1,78 @@
-[2025-08-24 14:30:10-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-08-24 14:30:10-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-08-24 14:30:10-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
-[2025-08-24 14:30:10-INFO ][PlaybackPositionManager]Position database initialized successfully
-[2025-08-24 14:30:10-DEBUG][BaseWindow]Restored window geometry.
-[2025-08-24 14:30:10-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-08-24 14:30:11-INFO ][YtDlpUpdateManager]Initializing yt-dlp update table in database: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
-[2025-08-24 14:30:12-INFO ][YtDlpUpdateManager]yt-dlp update table initialized successfully
-[2025-08-24 14:30:14-DEBUG][YtDlpUpdater]Update check not needed: 1:15:13.847858 < 1 day, 0:00:00
-[2025-08-24 14:30:15-INFO ][YoutubePage]UI setup complete.
-[2025-08-24 14:30:15-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-08-24 14:30:15-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-08-24 14:30:15-INFO ][YoutubePage]Initialized.
-[2025-08-24 14:30:15-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
-[2025-08-24 14:30:15-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
-[2025-08-24 14:30:15-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-08-24 14:30:15-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-08-24 14:30:15-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
-[2025-08-24 14:30:15-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-08-24 14:30:16-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-08-24 14:30:22-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=SZ9knIqCPAs (Type: audio)
-[2025-08-24 14:30:22-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=SZ9knIqCPAs, Type=audio
-[2025-08-24 14:30:22-INFO ][YoutubePage]Using audio_default preset for protocol download.
-[2025-08-24 14:30:22-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=SZ9knIqCPAs, Dir=Z:\AAAAA01
-[2025-08-24 14:30:22-DEBUG][YtDlpUpdater]Update check not needed: 1:15:22.149577 < 1 day, 0:00:00
-[2025-08-24 14:30:22-DEBUG][DownloadManager]Skipping yt-dlp update check (interval not reached)
-[2025-08-24 14:30:22-INFO ][YoutubePage]Shown.
-[2025-08-24 14:30:22-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=SZ9knIqCPAs
-[2025-08-24 14:30:22-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
-[2025-08-24 14:30:22-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
-[2025-08-24 14:30:22-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
-[2025-08-24 14:30:22-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
-[2025-08-24 14:30:22-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestaudio[acodec*=opus]/bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio/best[vcodec=none]' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --ignore-errors --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=SZ9knIqCPAs'
-[2025-08-24 14:30:24-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
-[2025-08-24 14:30:24-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 126 cookies from firefox
-[2025-08-24 14:30:24-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=SZ9knIqCPAs
-[2025-08-24 14:30:24-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] SZ9knIqCPAs: Downloading webpage
-[2025-08-24 14:30:27-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] SZ9knIqCPAs: Downloading tv client config
-[2025-08-24 14:30:28-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] SZ9knIqCPAs: Downloading tv player API JSON
-[2025-08-24 14:30:28-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] SZ9knIqCPAs: Downloading web safari player API JSON
-[2025-08-24 14:30:31-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] SZ9knIqCPAs: Downloading m3u8 information
-[2025-08-24 14:30:32-INFO ][CLIDownloadWorker][yt-dlp output] [info] SZ9knIqCPAs: Downloading 1 format(s): 251
-[2025-08-24 14:30:32-INFO ][CLIDownloadWorker][yt-dlp output] [download] Sleeping 2.00 seconds as required by the site...
-[2025-08-24 14:30:35-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-08-24 14:30:37-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\男生這樣撩，女生主動靠近！丨兩性丨情感丨戀愛.webm
-[2025-08-24 14:30:37-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\男生這樣撩，女生主動靠近！丨兩性丨情感丨戀愛.webm
-[2025-08-24 14:30:37-DEBUG][CLIDownloadWorker]Added temporary filename candidate: 男生這樣撩，女生主動靠近！丨兩性丨情感丨戀愛.webm
-[2025-08-24 14:30:37-INFO ][CLIDownloadWorker][yt-dlp output] 
-[2025-08-24 14:30:41-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
-[2025-08-24 14:30:41-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
-[2025-08-24 14:30:41-INFO ][CLIDownloadWorker]Assuming last tracked media destination is final file: 男生這樣撩，女生主動靠近！丨兩性丨情感丨戀愛.webm
-[2025-08-24 14:30:41-INFO ][CLIDownloadWorker]Attempting cleanup for 1 tracked temporary files in Z:\AAAAA01
-[2025-08-24 14:30:41-DEBUG][CLIDownloadWorker]Cleanup path: Z:\AAAAA01
-[2025-08-24 14:30:41-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\男生這樣撩，女生主動靠近！丨兩性丨情感丨戀愛.webm
-[2025-08-24 14:30:41-DEBUG][CLIDownloadWorker]Skipping removal of final file: 男生這樣撩，女生主動靠近！丨兩性丨情感丨戀愛.webm
-[2025-08-24 14:30:41-DEBUG][CLIDownloadWorker]Using filename prefixes for targeted glob cleanup: 男生這樣撩女生
-[2025-08-24 14:30:41-INFO ][CLIDownloadWorker]Cleanup finished, no matching temporary files found or removed.
-[2025-08-24 14:30:41-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=SZ9knIqCPAs. Emitting finished signal.
-[2025-08-24 14:30:41-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=SZ9knIqCPAs
-[2025-08-24 14:30:41-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=SZ9knIqCPAs from active. Count: 0
-[2025-08-24 14:30:41-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=SZ9knIqCPAs
-[2025-08-24 14:30:44-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-10-07 01:54:27-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-10-07 01:54:27-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-10-07 01:54:27-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-10-07 01:54:27-INFO ][PlaybackPositionManager]Position database initialized successfully
+[2025-10-07 01:54:27-DEBUG][BaseWindow]Restored window geometry.
+[2025-10-07 01:54:27-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-10-07 01:54:28-INFO ][YtDlpUpdateManager]Initializing yt-dlp update table in database: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-10-07 01:54:29-INFO ][YtDlpUpdateManager]yt-dlp update table initialized successfully
+[2025-10-07 01:54:31-INFO ][YtDlpUpdater]Update check needed: 3 days, 1:01:27.162216 >= 1 day, 0:00:00
+[2025-10-07 01:54:32-INFO ][YoutubePage]UI setup complete.
+[2025-10-07 01:54:32-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-10-07 01:54:32-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-10-07 01:54:32-INFO ][YoutubePage]Initialized.
+[2025-10-07 01:54:32-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
+[2025-10-07 01:54:32-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
+[2025-10-07 01:54:32-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-10-07 01:54:32-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-10-07 01:54:32-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
+[2025-10-07 01:54:32-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-10-07 01:54:32-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-10-07 01:54:48-INFO ][ClippingManager]Detected media type: video
+[2025-10-07 01:54:48-INFO ][ClippingManager]Analyzing keyframes for fast/precise strategy selection
+[2025-10-07 01:54:48-INFO ][ClippingManager]Analyzing codec: D:\vr\NJVR-010A.mp4
+[2025-10-07 01:54:48-INFO ][ClippingManager]Detected: h264 High Level 52
+[2025-10-07 01:54:48-INFO ][ClippingManager]Finding keyframe around 508.858s
+[2025-10-07 01:54:57-INFO ][ClippingManager]Nearest keyframe: 508.541s (distance: -0.317s)
+[2025-10-07 01:54:57-INFO ][ClippingManager]Within 0.4s threshold -> Option A (Keyframe Snapping)
+[2025-10-07 01:54:57-INFO ][ClippingManager]Finding keyframe around 541.145s
+[2025-10-07 01:55:07-INFO ][ClippingManager]Nearest keyframe: 540.573s (distance: -0.572s)
+[2025-10-07 01:55:07-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
+[2025-10-07 01:55:07-INFO ][ClippingManager]Force Snap Keyframe enabled -> using stream copy regardless of tolerance
+[2025-10-07 01:55:07-INFO ][ClippingManager]Using temp directory: D:\vr\temp_clip_segments
+[2025-10-07 01:55:07-INFO ][ClippingManager]Fast path segment 1: ffmpeg -y -hide_banner -ss 508.541 -i D:\vr\NJVR-010A.mp4 -t 34.03400000000005 -map 0:v:0 -map 0:a? -sn -c copy -bsf:v h264_mp4toannexb -muxpreload 0 -muxdelay 0 -f mpegts D:\vr\temp_clip_segments\temp_segment_0.ts
+[2025-10-07 01:55:07-INFO ][ClippingManager]Fast path concat: ffmpeg -y -hide_banner -f concat -safe 0 -i D:\vr\temp_clip_segments\mylist.txt -c copy -fflags +genpts -movflags +faststart -bsf:a aac_adtstoasc D:\vr\NJVR-010A_clipped.mp4
+[2025-10-07 01:55:07-INFO ][ClippingManager]Video clipping successful (fast path): D:\vr\NJVR-010A_clipped.mp4
+[2025-10-07 02:03:57-INFO ][ClippingManager]Detected media type: video
+[2025-10-07 02:03:57-INFO ][ClippingManager]Analyzing keyframes for fast/precise strategy selection
+[2025-10-07 02:03:57-INFO ][ClippingManager]Analyzing codec: \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A.mp4
+[2025-10-07 02:03:58-INFO ][ClippingManager]Detected: h264 High Level 52
+[2025-10-07 02:03:58-INFO ][ClippingManager]Finding keyframe around 567.482s
+[2025-10-07 02:04:08-INFO ][ClippingManager]Nearest keyframe: 566.599s (distance: -0.883s)
+[2025-10-07 02:04:08-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
+[2025-10-07 02:04:08-INFO ][ClippingManager]Finding keyframe around 771.418s
+[2025-10-07 02:04:19-INFO ][ClippingManager]Nearest keyframe: 770.803s (distance: -0.615s)
+[2025-10-07 02:04:19-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
+[2025-10-07 02:04:19-INFO ][ClippingManager]Finding keyframe around 810.205s
+[2025-10-07 02:04:32-INFO ][ClippingManager]Nearest keyframe: 810.843s (distance: 0.638s)
+[2025-10-07 02:04:32-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
+[2025-10-07 02:04:32-INFO ][ClippingManager]Finding keyframe around 1418.302s
+[2025-10-07 02:04:43-INFO ][ClippingManager]Nearest keyframe: 1417.449s (distance: -0.853s)
+[2025-10-07 02:04:43-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
+[2025-10-07 02:04:43-INFO ][ClippingManager]Finding keyframe around 1484.384s
+[2025-10-07 02:04:53-INFO ][ClippingManager]Nearest keyframe: 1483.515s (distance: -0.869s)
+[2025-10-07 02:04:53-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
+[2025-10-07 02:04:53-INFO ][ClippingManager]Finding keyframe around 1615.507s
+[2025-10-07 02:05:04-INFO ][ClippingManager]Nearest keyframe: 1615.647s (distance: 0.140s)
+[2025-10-07 02:05:04-INFO ][ClippingManager]Within 0.4s threshold -> Option A (Keyframe Snapping)
+[2025-10-07 02:05:04-INFO ][ClippingManager]Finding keyframe around 1670.070s
+[2025-10-07 02:05:15-INFO ][ClippingManager]Nearest keyframe: 1669.701s (distance: -0.369s)
+[2025-10-07 02:05:15-INFO ][ClippingManager]Within 0.4s threshold -> Option A (Keyframe Snapping)
+[2025-10-07 02:05:15-INFO ][ClippingManager]Finding keyframe around 1837.978s
+[2025-10-07 02:05:21-INFO ][ClippingManager]Nearest keyframe: 1837.869s (distance: -0.109s)
+[2025-10-07 02:05:21-INFO ][ClippingManager]Within 0.4s threshold -> Option A (Keyframe Snapping)
+[2025-10-07 02:05:21-INFO ][ClippingManager]Force Snap Keyframe enabled -> using stream copy regardless of tolerance
+[2025-10-07 02:05:21-INFO ][ClippingManager]Using temp directory: \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments
+[2025-10-07 02:05:21-INFO ][ClippingManager]Fast path segment 1: ffmpeg -y -hide_banner -ss 566.599 -i \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A.mp4 -t 206.2059999999999 -map 0:v:0 -map 0:a? -sn -c copy -bsf:v h264_mp4toannexb -muxpreload 0 -muxdelay 0 -f mpegts \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments\temp_segment_0.ts
+[2025-10-07 02:05:50-INFO ][ClippingManager]Fast path segment 2: ffmpeg -y -hide_banner -ss 808.841 -i \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A.mp4 -t 610.61 -map 0:v:0 -map 0:a? -sn -c copy -bsf:v h264_mp4toannexb -muxpreload 0 -muxdelay 0 -f mpegts \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments\temp_segment_1.ts
+[2025-10-07 02:07:13-INFO ][ClippingManager]Fast path segment 3: ffmpeg -y -hide_banner -ss 1483.515 -i \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A.mp4 -t 132.13199999999983 -map 0:v:0 -map 0:a? -sn -c copy -bsf:v h264_mp4toannexb -muxpreload 0 -muxdelay 0 -f mpegts \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments\temp_segment_2.ts
+[2025-10-07 02:07:31-INFO ][ClippingManager]Fast path segment 4: ffmpeg -y -hide_banner -ss 1669.701 -i \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A.mp4 -t 168.1679999999999 -map 0:v:0 -map 0:a? -sn -c copy -bsf:v h264_mp4toannexb -muxpreload 0 -muxdelay 0 -f mpegts \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments\temp_segment_3.ts
+[2025-10-07 02:07:53-INFO ][ClippingManager]Fast path concat: ffmpeg -y -hide_banner -f concat -safe 0 -i \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments\mylist.txt -c copy -fflags +genpts -movflags +faststart -bsf:a aac_adtstoasc \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A_clipped.mp4
+[2025-10-07 02:15:05-INFO ][ClippingManager]Video clipping successful (fast path): \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A_clipped.mp4
+[2025-10-07 02:16:35-INFO ][MusicPlayerDashboard]Main window close event triggered.
+[2025-10-07 02:16:35-INFO ][MusicPlayerDashboard]Saving position 836315ms at 1.0x rate before app exit
+[2025-10-07 02:16:35-INFO ][MusicPlayerDashboard]Position, rate, and subtitle state saved successfully on app exit
+[2025-10-07 02:16:35-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
+[2025-10-07 02:16:35-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
+[2025-10-07 02:16:35-INFO ][DownloadManager]No active downloads to shut down.
+[2025-10-07 02:16:35-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.

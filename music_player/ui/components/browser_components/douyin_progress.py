@@ -17,6 +17,10 @@ class DouyinProgress(QWidget):
         self.status_label.setText(f"Re-encoding & trimming {total_files} files (720p, max 3 concurrent)...")
         self.show()
 
+    def show_normalization_started(self, total_files):
+        self.status_label.setText(f"Analyzing & normalizing {total_files} files to majority format (max 3 concurrent)...")
+        self.show()
+
     def show_file_progress(self, task_id, filename, index, total, percent):
         self.status_label.setText(f"Processing [{index}/{total}]: {filename} ({percent:.0%})")
         self.show()

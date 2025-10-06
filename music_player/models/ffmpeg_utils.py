@@ -247,48 +247,143 @@ def validate_and_normalize_path(file_path: str) -> str:
     except Exception as e:
         raise Exception(f"Invalid file path '{file_path}': {e}")
 
-def build_compression_command(input_path: str, output_path: str, ffmpeg_path: str = "ffmpeg") -> list:
+def build_compression_command(input_path: str, output_path: str, ffmpeg_path: str = "ffmpeg", rotate: Optional[str] = None) -> list:
     """
-    Build the FFmpeg command for video compression.
-    
+    Build the FFmpeg command for video compression with a uniform, merge-friendly spec.
+
+    Targets:
+    - Exact canvas: 1280x720 (landscape) or 720x1280 (portrait) via scale+pad
+    - Video: H.264 (libx264), yuv420p, CRF 20, preset medium, CFR 30fps, GOP=60, no scene cut
+    - Audio: AAC LC, 48 kHz, 2 channels, 192 kbps
+    - Hygiene: +faststart, avoid_negative_ts=make_zero, fixed track timescale
+
     Args:
         input_path: Path to input video file
         output_path: Path to output video file
         ffmpeg_path: Path to FFmpeg executable
-        
+        rotate: Optional rotation ('cw' | 'ccw') applied before scaling
+
     Returns:
         List[str]: FFmpeg command arguments
     """
     # Validate and normalize input path
     validated_input = validate_and_normalize_path(input_path)
-    
-    # Get video resolution to determine scaling
+
+    # Decide target canvas and scaling based on orientation
     resolution = get_video_resolution(validated_input, ffmpeg_path)
-    scale_filter = "scale=-2:720" # Default for landscape
+    target_w, target_h = 1280, 720  # default landscape canvas
     if resolution:
         width, height = resolution
-        if width < height: # Portrait video
-            scale_filter = "scale=720:-2"
+        if width < height:  # portrait
+            target_w, target_h = 720, 1280
+
+    # Compose filter chain: optional transpose first, then scale+pad to exact canvas
+    vf_filters = []
+    if rotate:
+        if rotate == 'cw':
+            vf_filters.append('transpose=1')  # 90 degrees clockwise
+        elif rotate == 'ccw':
+            vf_filters.append('transpose=2')  # 90 degrees counter-clockwise
+    vf_filters.append(
+        f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2"
+    )
+    vf_chain = ','.join(vf_filters)
 
     # Ensure output directory exists
     output_dir = Path(output_path).parent
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
+    # Fixed GOP for 30fps
+    gop = "60"
+
     return [
         ffmpeg_path,
         "-i", validated_input,
-        "-vf", scale_filter,          # Adaptive scaling
-        "-c:v", "libx264",            # Video codec: H.264
-        "-crf", "23",                 # Constant Rate Factor for quality
-        "-preset", "medium",          # Encoding speed/quality balance
-        "-c:a", "copy",               # Copy all audio streams without re-encoding
-        "-c:s", "copy",               # Copy all subtitle streams without re-encoding
-        "-map", "0",                  # Include all streams from input
-        "-movflags", "+faststart",    # Enable fast start for web optimization
-        "-avoid_negative_ts", "make_zero",  # Handle timestamp issues
-        "-y",                         # Overwrite output file if exists
-        str(Path(output_path))        # Normalize output path as well
+        "-vf", vf_chain,
+        # Video encoding - uniform spec
+        "-c:v", "libx264", "-crf", "20", "-preset", "medium", "-pix_fmt", "yuv420p",
+        "-r", "30", "-vsync", "cfr", "-video_track_timescale", "90000", "-g", gop, "-sc_threshold", "0",
+        # Audio encoding - uniform spec
+        "-map", "0:v:0", "-map", "0:a?",
+        "-c:a", "aac", "-profile:a", "aac_low", "-ar", "48000", "-ac", "2", "-b:a", "192k",
+        # Hygiene
+        "-movflags", "+faststart", "-avoid_negative_ts", "make_zero",
+        # Output
+        "-y", str(Path(output_path))
     ]
+
+def build_rotation_copy_command(input_path: str, output_path: str, direction: str, ffmpeg_path: str = "ffmpeg") -> list:
+    """
+    Build FFmpeg command to rotate video by metadata without re-encoding (stream copy).
+
+    Args:
+        input_path: Path to input video file
+        output_path: Path to output video file (ideally same extension as input)
+        direction: 'cw' for 90° clockwise, 'ccw' for 90° counter-clockwise
+        ffmpeg_path: Path to FFmpeg executable
+
+    Returns:
+        List[str]: FFmpeg command arguments
+    """
+    validated_input = validate_and_normalize_path(input_path)
+    # Ensure output directory exists
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    degrees = '90' if direction == 'cw' else '270'
+    ext = Path(output_path).suffix.lower()
+    cmd = [
+        ffmpeg_path,
+        "-i", validated_input,
+        "-map", "0",
+        "-c", "copy",
+        "-metadata:s:v:0", f"rotate={degrees}",
+        "-avoid_negative_ts", "make_zero",
+        "-y",
+    ]
+    # Add faststart only for MP4/MOV family
+    if ext in {".mp4", ".mov", ".m4v"}:
+        cmd.extend(["-movflags", "+faststart"]) 
+    cmd.append(str(Path(output_path)))
+    return cmd
+
+def build_rotation_reencode_command(input_path: str, output_path: str, direction: str, ffmpeg_path: str = "ffmpeg") -> list:
+    """
+    Build FFmpeg command to rotate video by re-encoding (when metadata rotation is not supported).
+
+    Args:
+        input_path: Path to input video file
+        output_path: Path to output video file
+        direction: 'cw' or 'ccw'
+        ffmpeg_path: Path to FFmpeg executable
+
+    Returns:
+        List[str]: FFmpeg command arguments
+    """
+    validated_input = validate_and_normalize_path(input_path)
+    # Ensure output directory exists
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    transpose = '1' if direction == 'cw' else '2'
+    ext = Path(output_path).suffix.lower()
+    cmd = [
+        ffmpeg_path,
+        "-i", validated_input,
+        "-vf", f"transpose={transpose}",
+        "-c:a", "copy",
+        "-c:s", "copy",
+        "-map", "0",
+        "-avoid_negative_ts", "make_zero",
+        "-y",
+    ]
+    # Choose video codec based on container
+    if ext == ".webm":
+        cmd.extend(["-c:v", "libvpx-vp9", "-crf", "30", "-b:v", "0"])  # efficient VP9 reencode
+    else:
+        cmd.extend(["-c:v", "libx264", "-crf", "20", "-preset", "medium"])  # default H.264
+    if ext in {".mp4", ".mov", ".m4v"}:
+        cmd.extend(["-movflags", "+faststart"]) 
+    cmd.append(str(Path(output_path)))
+    return cmd
 
 def parse_ffmpeg_progress(line: str, total_duration: Optional[float]) -> Optional[float]:
     """
