@@ -115,7 +115,7 @@ class CLIDownloadWorker(QObject):
             # Set up process with hidden window on Windows
             popen_kwargs = {
                 'stdout': subprocess.PIPE,
-                'stderr': subprocess.PIPE,
+                'stderr': subprocess.STDOUT,
                 'text': True,
                 'bufsize': 1,  # Line buffered
                 'universal_newlines': True
@@ -221,8 +221,30 @@ class CLIDownloadWorker(QObject):
                             self.progress_signal.emit(self.url, 100.0, "Merging video+audio...")
                         continue # Handled, move to next line
 
+                    # Check for FixupM3u8 (HLS fixup writes directly to final container)
+                    if line.strip().startswith('[FixupM3u8]') and '"' in line:
+                        try:
+                            match = re.search(r'\"(.*?)\"', line)
+                            if match:
+                                final_path = match.group(1)
+                                self.downloaded_filename = os.path.basename(final_path)
+                                self.logger.info(caller="CLIDownloadWorker", msg=f"Detected final file from FixupM3u8: {self.downloaded_filename}")
+                                # Indicate post-processing phase
+                                self.progress_signal.emit(self.url, 100.0, "Fixing container...")
+                        except Exception as e_fix:
+                            self.logger.warning(caller="CLIDownloadWorker", msg=f"Failed to parse FixupM3u8 line: {e_fix}")
+                        continue
+
                     # Check for Subtitle Embedding:
                     if line.strip().startswith('[EmbedSubtitle]') and 'Embedding subtitles in' in line:
+                        try:
+                            match = re.search(r'\"(.*?)\"', line)
+                            if match:
+                                final_path = match.group(1)
+                                self.downloaded_filename = os.path.basename(final_path)
+                                self.logger.info(caller="CLIDownloadWorker", msg=f"Detected final file from EmbedSubtitle: {self.downloaded_filename}")
+                        except Exception:
+                            pass
                         # Emit progress update for subtitle embedding phase
                         self.progress_signal.emit(self.url, 100.0, "Embedding subtitles...")
                         continue # Handled, move to next line
@@ -371,19 +393,41 @@ class CLIDownloadWorker(QObject):
             
                 # ---> PROCESS ERROR (If exited with non-zero code) <--- 
                 if return_code is not None and return_code != 0:
+                    # If final file exists, treat as completed with warnings
+                    final_filepath = None
+                    if self.downloaded_filename:
+                        final_filepath = os.path.join(self.output_dir, self.downloaded_filename)
+                    if final_filepath and os.path.exists(final_filepath) and os.path.getsize(final_filepath) > 0:
+                        warn_msg = f"yt-dlp exited with code {return_code}, but final file exists; treating as success with warnings"
+                        self.logger.warning(caller="CLIDownloadWorker", msg=warn_msg)
+                        # Emit a warning-flavored completion
+                        self.progress_signal.emit(self.url, 100.0, "Done (Warning)")
+                        self.complete_signal.emit(self.url, self.output_dir, self.downloaded_filename)
+                        # Update timestamp and perform cleanup (excluding final file)
+                        try:
+                            if os.path.isfile(final_filepath):
+                                current_time = time.time()
+                                os.utime(final_filepath, (current_time, current_time))
+                        except Exception as e_touch:
+                            self.logger.error(caller="CLIDownloadWorker", msg=f"Failed to update final file timestamp: {str(e_touch)}")
+                        try:
+                            self._cleanup_temporary_files()
+                        except Exception as e_clean:
+                            self.logger.warning(caller="CLIDownloadWorker", msg=f"Cleanup after warning-complete encountered an error: {str(e_clean)}")
+                        return
+
+                    # Otherwise, treat as error
                     error_msg = f"yt-dlp process exited with code {return_code}"
                     self.logger.warning(caller="CLIDownloadWorker", msg=f"{error_msg} (Cancelled: {self.cancelled}) URL: {self.url}") 
-                
+                    
                     # Try to get specific error from stderr captured above
                     if stderr_output:
                         error_lines = stderr_output.splitlines()
-                        specific_error_found = False
                         for line in reversed(error_lines):
                             if 'ERROR:' in line:
                                 error_msg = line.strip()
-                                specific_error_found = True
                                 break
-                
+                    
                     # Emit error signal (already confirmed not cancelled)
                     self.error_signal.emit(self.url, error_msg)
                     
@@ -538,6 +582,33 @@ class CLIDownloadWorker(QObject):
         # Set output template
         output_template = os.path.join(self.output_dir, '%(title)s.%(ext)s')
         cmd.extend(["--output", output_template])
+        
+        # Add extractor args if provided (e.g., youtube:player_client=android to avoid SABR)
+        if isinstance(self.format_options, dict) and 'extractor_args' in self.format_options:
+            extractor_args = self.format_options['extractor_args']
+            parts = []
+            if isinstance(extractor_args, dict):
+                for extractor, args in extractor_args.items():
+                    if isinstance(args, dict) and args:
+                        kv_pairs = []
+                        for k, v in args.items():
+                            if v is None:
+                                kv_pairs.append(f"{k}=")
+                            else:
+                                if isinstance(v, bool):
+                                    v_str = "true" if v else "false"
+                                else:
+                                    v_str = str(v)
+                                kv_pairs.append(f"{k}={v_str}")
+                        if kv_pairs:
+                            parts.append(f"{extractor}:{','.join(kv_pairs)}")
+                    elif isinstance(args, str) and args:
+                        parts.append(f"{extractor}:{args}")
+            elif isinstance(extractor_args, str) and extractor_args:
+                parts.append(extractor_args)
+            
+            if parts:
+                cmd.extend(["--extractor-args", ';'.join(parts)])
         
         # Add format sorting if specified
         if isinstance(self.format_options, dict) and 'format_sort' in self.format_options:

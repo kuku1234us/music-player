@@ -19,7 +19,7 @@ if project_root not in sys.path:
 
 from qt_base_app.app import create_application, run_application
 from qt_base_app.models import SettingsManager # Import SettingsManager
-from music_player.ui.dashboard import MusicPlayerDashboard
+from music_player.ui.dashboard import MusicPlayerDashboard 
 # Import app defaults (adjust path if needed, assuming models dir exists)
 from music_player.models.settings_defs import MUSIC_PLAYER_DEFAULTS
 

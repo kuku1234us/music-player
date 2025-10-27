@@ -1,78 +1,239 @@
-[2025-10-07 01:54:27-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
-[2025-10-07 01:54:27-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
-[2025-10-07 01:54:27-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
-[2025-10-07 01:54:27-INFO ][PlaybackPositionManager]Position database initialized successfully
-[2025-10-07 01:54:27-DEBUG][BaseWindow]Restored window geometry.
-[2025-10-07 01:54:27-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
-[2025-10-07 01:54:28-INFO ][YtDlpUpdateManager]Initializing yt-dlp update table in database: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
-[2025-10-07 01:54:29-INFO ][YtDlpUpdateManager]yt-dlp update table initialized successfully
-[2025-10-07 01:54:31-INFO ][YtDlpUpdater]Update check needed: 3 days, 1:01:27.162216 >= 1 day, 0:00:00
-[2025-10-07 01:54:32-INFO ][YoutubePage]UI setup complete.
-[2025-10-07 01:54:32-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
-[2025-10-07 01:54:32-INFO ][YoutubePage]Connected download_queue.play_file signal
-[2025-10-07 01:54:32-INFO ][YoutubePage]Initialized.
-[2025-10-07 01:54:32-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
-[2025-10-07 01:54:32-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
-[2025-10-07 01:54:32-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
-[2025-10-07 01:54:32-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
-[2025-10-07 01:54:32-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
-[2025-10-07 01:54:32-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
-[2025-10-07 01:54:32-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
-[2025-10-07 01:54:48-INFO ][ClippingManager]Detected media type: video
-[2025-10-07 01:54:48-INFO ][ClippingManager]Analyzing keyframes for fast/precise strategy selection
-[2025-10-07 01:54:48-INFO ][ClippingManager]Analyzing codec: D:\vr\NJVR-010A.mp4
-[2025-10-07 01:54:48-INFO ][ClippingManager]Detected: h264 High Level 52
-[2025-10-07 01:54:48-INFO ][ClippingManager]Finding keyframe around 508.858s
-[2025-10-07 01:54:57-INFO ][ClippingManager]Nearest keyframe: 508.541s (distance: -0.317s)
-[2025-10-07 01:54:57-INFO ][ClippingManager]Within 0.4s threshold -> Option A (Keyframe Snapping)
-[2025-10-07 01:54:57-INFO ][ClippingManager]Finding keyframe around 541.145s
-[2025-10-07 01:55:07-INFO ][ClippingManager]Nearest keyframe: 540.573s (distance: -0.572s)
-[2025-10-07 01:55:07-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
-[2025-10-07 01:55:07-INFO ][ClippingManager]Force Snap Keyframe enabled -> using stream copy regardless of tolerance
-[2025-10-07 01:55:07-INFO ][ClippingManager]Using temp directory: D:\vr\temp_clip_segments
-[2025-10-07 01:55:07-INFO ][ClippingManager]Fast path segment 1: ffmpeg -y -hide_banner -ss 508.541 -i D:\vr\NJVR-010A.mp4 -t 34.03400000000005 -map 0:v:0 -map 0:a? -sn -c copy -bsf:v h264_mp4toannexb -muxpreload 0 -muxdelay 0 -f mpegts D:\vr\temp_clip_segments\temp_segment_0.ts
-[2025-10-07 01:55:07-INFO ][ClippingManager]Fast path concat: ffmpeg -y -hide_banner -f concat -safe 0 -i D:\vr\temp_clip_segments\mylist.txt -c copy -fflags +genpts -movflags +faststart -bsf:a aac_adtstoasc D:\vr\NJVR-010A_clipped.mp4
-[2025-10-07 01:55:07-INFO ][ClippingManager]Video clipping successful (fast path): D:\vr\NJVR-010A_clipped.mp4
-[2025-10-07 02:03:57-INFO ][ClippingManager]Detected media type: video
-[2025-10-07 02:03:57-INFO ][ClippingManager]Analyzing keyframes for fast/precise strategy selection
-[2025-10-07 02:03:57-INFO ][ClippingManager]Analyzing codec: \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A.mp4
-[2025-10-07 02:03:58-INFO ][ClippingManager]Detected: h264 High Level 52
-[2025-10-07 02:03:58-INFO ][ClippingManager]Finding keyframe around 567.482s
-[2025-10-07 02:04:08-INFO ][ClippingManager]Nearest keyframe: 566.599s (distance: -0.883s)
-[2025-10-07 02:04:08-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
-[2025-10-07 02:04:08-INFO ][ClippingManager]Finding keyframe around 771.418s
-[2025-10-07 02:04:19-INFO ][ClippingManager]Nearest keyframe: 770.803s (distance: -0.615s)
-[2025-10-07 02:04:19-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
-[2025-10-07 02:04:19-INFO ][ClippingManager]Finding keyframe around 810.205s
-[2025-10-07 02:04:32-INFO ][ClippingManager]Nearest keyframe: 810.843s (distance: 0.638s)
-[2025-10-07 02:04:32-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
-[2025-10-07 02:04:32-INFO ][ClippingManager]Finding keyframe around 1418.302s
-[2025-10-07 02:04:43-INFO ][ClippingManager]Nearest keyframe: 1417.449s (distance: -0.853s)
-[2025-10-07 02:04:43-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
-[2025-10-07 02:04:43-INFO ][ClippingManager]Finding keyframe around 1484.384s
-[2025-10-07 02:04:53-INFO ][ClippingManager]Nearest keyframe: 1483.515s (distance: -0.869s)
-[2025-10-07 02:04:53-INFO ][ClippingManager]Beyond 0.4s threshold -> Option B (Minimal Re-encoding)
-[2025-10-07 02:04:53-INFO ][ClippingManager]Finding keyframe around 1615.507s
-[2025-10-07 02:05:04-INFO ][ClippingManager]Nearest keyframe: 1615.647s (distance: 0.140s)
-[2025-10-07 02:05:04-INFO ][ClippingManager]Within 0.4s threshold -> Option A (Keyframe Snapping)
-[2025-10-07 02:05:04-INFO ][ClippingManager]Finding keyframe around 1670.070s
-[2025-10-07 02:05:15-INFO ][ClippingManager]Nearest keyframe: 1669.701s (distance: -0.369s)
-[2025-10-07 02:05:15-INFO ][ClippingManager]Within 0.4s threshold -> Option A (Keyframe Snapping)
-[2025-10-07 02:05:15-INFO ][ClippingManager]Finding keyframe around 1837.978s
-[2025-10-07 02:05:21-INFO ][ClippingManager]Nearest keyframe: 1837.869s (distance: -0.109s)
-[2025-10-07 02:05:21-INFO ][ClippingManager]Within 0.4s threshold -> Option A (Keyframe Snapping)
-[2025-10-07 02:05:21-INFO ][ClippingManager]Force Snap Keyframe enabled -> using stream copy regardless of tolerance
-[2025-10-07 02:05:21-INFO ][ClippingManager]Using temp directory: \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments
-[2025-10-07 02:05:21-INFO ][ClippingManager]Fast path segment 1: ffmpeg -y -hide_banner -ss 566.599 -i \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A.mp4 -t 206.2059999999999 -map 0:v:0 -map 0:a? -sn -c copy -bsf:v h264_mp4toannexb -muxpreload 0 -muxdelay 0 -f mpegts \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments\temp_segment_0.ts
-[2025-10-07 02:05:50-INFO ][ClippingManager]Fast path segment 2: ffmpeg -y -hide_banner -ss 808.841 -i \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A.mp4 -t 610.61 -map 0:v:0 -map 0:a? -sn -c copy -bsf:v h264_mp4toannexb -muxpreload 0 -muxdelay 0 -f mpegts \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments\temp_segment_1.ts
-[2025-10-07 02:07:13-INFO ][ClippingManager]Fast path segment 3: ffmpeg -y -hide_banner -ss 1483.515 -i \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A.mp4 -t 132.13199999999983 -map 0:v:0 -map 0:a? -sn -c copy -bsf:v h264_mp4toannexb -muxpreload 0 -muxdelay 0 -f mpegts \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments\temp_segment_2.ts
-[2025-10-07 02:07:31-INFO ][ClippingManager]Fast path segment 4: ffmpeg -y -hide_banner -ss 1669.701 -i \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A.mp4 -t 168.1679999999999 -map 0:v:0 -map 0:a? -sn -c copy -bsf:v h264_mp4toannexb -muxpreload 0 -muxdelay 0 -f mpegts \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments\temp_segment_3.ts
-[2025-10-07 02:07:53-INFO ][ClippingManager]Fast path concat: ffmpeg -y -hide_banner -f concat -safe 0 -i \\jimmymovie\new14tb\Pipeline\vr\temp_clip_segments\mylist.txt -c copy -fflags +genpts -movflags +faststart -bsf:a aac_adtstoasc \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A_clipped.mp4
-[2025-10-07 02:15:05-INFO ][ClippingManager]Video clipping successful (fast path): \\jimmymovie\new14tb\Pipeline\vr\NJVR-010A_clipped.mp4
-[2025-10-07 02:16:35-INFO ][MusicPlayerDashboard]Main window close event triggered.
-[2025-10-07 02:16:35-INFO ][MusicPlayerDashboard]Saving position 836315ms at 1.0x rate before app exit
-[2025-10-07 02:16:35-INFO ][MusicPlayerDashboard]Position, rate, and subtitle state saved successfully on app exit
-[2025-10-07 02:16:35-INFO ][MusicPlayerDashboard]Shutting down Download Manager...
-[2025-10-07 02:16:35-INFO ][DownloadManager]Shutdown requested. Stopping active downloads...
-[2025-10-07 02:16:35-INFO ][DownloadManager]No active downloads to shut down.
-[2025-10-07 02:16:35-INFO ][MusicPlayerDashboard]Download Manager shutdown complete.
+[2025-10-27 13:43:45-INFO ][logger]--- Logger Initialized (Level: DEBUG) ---
+[2025-10-27 13:43:45-INFO ][app]Loading fonts from: D:\projects\musicplayer\fonts
+[2025-10-27 13:43:45-INFO ][PlaybackPositionManager]Initializing position database at: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-10-27 13:43:45-INFO ][PlaybackPositionManager]Position database initialized successfully
+[2025-10-27 13:43:46-DEBUG][BaseWindow]Restored window geometry.
+[2025-10-27 13:43:46-INFO ][MusicPlayerDashboard]MusicPlayerDashboard initializing...
+[2025-10-27 13:43:47-INFO ][YtDlpUpdateManager]Initializing yt-dlp update table in database: Z:\AAAAA01\MusicPlayerDirectory\playback_positions.db
+[2025-10-27 13:43:47-INFO ][YtDlpUpdateManager]yt-dlp update table initialized successfully
+[2025-10-27 13:43:50-DEBUG][YtDlpUpdater]Update check not needed: 1:13:55.603623 < 1 day, 0:00:00
+[2025-10-27 13:43:51-INFO ][YoutubePage]UI setup complete.
+[2025-10-27 13:43:51-INFO ][YoutubePage]Connected download_queue.navigate_to_file signal
+[2025-10-27 13:43:51-INFO ][YoutubePage]Connected download_queue.play_file signal
+[2025-10-27 13:43:51-INFO ][YoutubePage]Initialized.
+[2025-10-27 13:43:51-INFO ][MusicPlayerDashboard]Connected SelectionPool to unified media loading
+[2025-10-27 13:43:51-INFO ][MusicPlayerDashboard]Connected DashboardPage to unified media loading
+[2025-10-27 13:43:51-INFO ][MusicPlayerDashboard]Connected YoutubePage's navigate_to_file signal
+[2025-10-27 13:43:51-INFO ][MusicPlayerDashboard]Connected YoutubePage's play_file signal
+[2025-10-27 13:43:51-INFO ][MusicPlayerDashboard]Connected BrowserPage to unified media loading
+[2025-10-27 13:43:51-INFO ][app]Using icon: D:\projects\musicplayer\music_player\resources\play.ico
+[2025-10-27 13:43:52-DEBUG][BaseWindow]Debounce timer timed out, saving geometry...
+[2025-10-27 13:44:03-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=ncfpyfoJr38 (Type: video)
+[2025-10-27 13:44:03-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=ncfpyfoJr38, Type=video
+[2025-10-27 13:44:03-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
+[2025-10-27 13:44:03-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=ncfpyfoJr38, Dir=Z:\AAAAA01
+[2025-10-27 13:44:03-DEBUG][YtDlpUpdater]Update check not needed: 1:14:08.674446 < 1 day, 0:00:00
+[2025-10-27 13:44:03-DEBUG][DownloadManager]Skipping yt-dlp update check (interval not reached)
+[2025-10-27 13:44:03-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=ncfpyfoJr38
+[2025-10-27 13:44:03-INFO ][YoutubePage]Shown.
+[2025-10-27 13:44:03-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-10-27 13:44:03-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
+[2025-10-27 13:44:03-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
+[2025-10-27 13:44:03-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-10-27 13:44:03-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-10-27 13:44:03-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
+[2025-10-27 13:44:03-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-10-27 13:44:03-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-10-27 13:44:03-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-10-27 13:44:03-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --ignore-errors --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=ncfpyfoJr38'
+[2025-10-27 13:44:06-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-10-27 13:44:06-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 170 cookies from firefox
+[2025-10-27 13:44:06-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=ncfpyfoJr38
+[2025-10-27 13:44:06-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] ncfpyfoJr38: Downloading webpage
+[2025-10-27 13:44:09-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] ncfpyfoJr38: Downloading tv client config
+[2025-10-27 13:44:09-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] ncfpyfoJr38: Downloading tv player API JSON
+[2025-10-27 13:44:10-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] ncfpyfoJr38: Downloading web safari player API JSON
+[2025-10-27 13:44:11-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] ncfpyfoJr38: Downloading player 6e4dbefe-main
+[2025-10-27 13:44:13-INFO ][CLIDownloadWorker][yt-dlp output] WARNING: [youtube] ncfpyfoJr38: Signature extraction failed: Some formats may be missing
+[2025-10-27 13:44:13-INFO ][CLIDownloadWorker][yt-dlp output] player = https://www.youtube.com/s/player/6e4dbefe/player_ias.vflset/en_US/base.js
+[2025-10-27 13:44:13-INFO ][CLIDownloadWorker][yt-dlp output] Please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+[2025-10-27 13:44:14-INFO ][CLIDownloadWorker][yt-dlp output] WARNING: [youtube] ncfpyfoJr38: Some web_safari client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+[2025-10-27 13:44:14-INFO ][CLIDownloadWorker][yt-dlp output] WARNING: [youtube] ncfpyfoJr38: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+[2025-10-27 13:44:14-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] ncfpyfoJr38: Downloading m3u8 information
+[2025-10-27 13:44:15-INFO ][CLIDownloadWorker][yt-dlp output] [info] ncfpyfoJr38: Downloading subtitles: en, zh-Hans
+[2025-10-27 13:44:15-INFO ][CLIDownloadWorker][yt-dlp output] [info] ncfpyfoJr38: Downloading 1 format(s): 96
+[2025-10-27 13:44:15-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.en.srt
+[2025-10-27 13:44:17-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.en.srt
+[2025-10-27 13:44:17-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.en.srt
+[2025-10-27 13:44:17-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Crazy STAR WARS fight in a Shopping Mall..🤯.en.srt
+[2025-10-27 13:44:17-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 13:44:17-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.zh-Hans.srt
+[2025-10-27 13:44:18-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.zh-Hans.srt
+[2025-10-27 13:44:18-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.zh-Hans.srt
+[2025-10-27 13:44:18-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Crazy STAR WARS fight in a Shopping Mall..🤯.zh-Hans.srt
+[2025-10-27 13:44:18-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 13:44:18-INFO ][CLIDownloadWorker][yt-dlp output] [hlsnative] Downloading m3u8 manifest
+[2025-10-27 13:44:18-INFO ][CLIDownloadWorker][yt-dlp output] [hlsnative] Total fragments: 32
+[2025-10-27 13:44:18-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.mp4
+[2025-10-27 13:44:18-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.mp4
+[2025-10-27 13:44:18-DEBUG][CLIDownloadWorker]Added temporary filename candidate: Crazy STAR WARS fight in a Shopping Mall..🤯.mp4
+[2025-10-27 13:44:19-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 13:45:30-INFO ][CLIDownloadWorker][yt-dlp output] [FixupM3u8] Fixing MPEG-TS in MP4 container of "Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.mp4"
+[2025-10-27 13:45:30-INFO ][CLIDownloadWorker]Detected final file from FixupM3u8: Crazy STAR WARS fight in a Shopping Mall..🤯.mp4
+[2025-10-27 13:46:03-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] Embedding subtitles in "Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.mp4"
+[2025-10-27 13:46:03-INFO ][CLIDownloadWorker]Detected final file from EmbedSubtitle: Crazy STAR WARS fight in a Shopping Mall..🤯.mp4
+[2025-10-27 13:46:36-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.zh-Hans.srt (pass -k to keep)
+[2025-10-27 13:46:36-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.en.srt (pass -k to keep)
+[2025-10-27 13:46:37-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-10-27 13:46:37-INFO ][CLIDownloadWorker]Process finished naturally with code: 0
+[2025-10-27 13:46:37-INFO ][CLIDownloadWorker]Attempting cleanup for 3 tracked temporary files in Z:\AAAAA01
+[2025-10-27 13:46:37-DEBUG][CLIDownloadWorker]Cleanup path: Z:\AAAAA01
+[2025-10-27 13:46:37-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.en.srt
+[2025-10-27 13:46:37-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.zh-Hans.srt
+[2025-10-27 13:46:37-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\Crazy STAR WARS fight in a Shopping Mall..🤯.mp4
+[2025-10-27 13:46:37-DEBUG][CLIDownloadWorker]Skipping removal of final file: Crazy STAR WARS fight in a Shopping Mall..🤯.mp4
+[2025-10-27 13:46:37-DEBUG][CLIDownloadWorker]Using filename prefixes for targeted glob cleanup: Crazy ST, Crazy ST, Crazy ST
+[2025-10-27 13:46:38-INFO ][CLIDownloadWorker]Cleanup finished, no matching temporary files found or removed.
+[2025-10-27 13:46:38-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=ncfpyfoJr38. Emitting finished signal.
+[2025-10-27 13:46:38-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=ncfpyfoJr38
+[2025-10-27 13:46:38-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=ncfpyfoJr38 from active. Count: 0
+[2025-10-27 13:46:38-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=ncfpyfoJr38
+[2025-10-27 13:47:47-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=5F5Tp9hBSek (Type: video)
+[2025-10-27 13:47:47-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=5F5Tp9hBSek, Type=video
+[2025-10-27 13:47:47-INFO ][YoutubePage]Using video_720p_default preset for protocol download.
+[2025-10-27 13:47:47-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=5F5Tp9hBSek, Dir=Z:\AAAAA01
+[2025-10-27 13:47:47-DEBUG][YtDlpUpdater]Update check not needed: 1:17:53.076841 < 1 day, 0:00:00
+[2025-10-27 13:47:47-DEBUG][DownloadManager]Skipping yt-dlp update check (interval not reached)
+[2025-10-27 13:47:47-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=5F5Tp9hBSek
+[2025-10-27 13:47:47-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-10-27 13:47:47-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
+[2025-10-27 13:47:47-DEBUG][CLIDownloadWorker]Using merge-output-format: mp4
+[2025-10-27 13:47:47-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-10-27 13:47:47-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-10-27 13:47:47-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
+[2025-10-27 13:47:47-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-10-27 13:47:47-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-10-27 13:47:47-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-10-27 13:47:47-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestvideo[height=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[width=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/bestvideo[height<=720][vcodec^=avc][protocol=https][ext=mp4]+bestaudio[protocol=https][ext=m4a]/best[height=720][vcodec^=avc][protocol=https][ext=mp4]/best[width=720][vcodec^=avc][protocol=https][ext=mp4]/best[height<=720][vcodec^=avc][protocol=https][ext=mp4]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --merge-output-format mp4 --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --ignore-errors --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=5F5Tp9hBSek'
+[2025-10-27 13:47:50-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-10-27 13:47:50-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 170 cookies from firefox
+[2025-10-27 13:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=5F5Tp9hBSek
+[2025-10-27 13:47:50-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading webpage
+[2025-10-27 13:47:52-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading tv client config
+[2025-10-27 13:47:53-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading tv player API JSON
+[2025-10-27 13:47:54-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading web safari player API JSON
+[2025-10-27 13:47:54-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading player 6e4dbefe-main
+[2025-10-27 13:47:56-INFO ][CLIDownloadWorker][yt-dlp output] WARNING: [youtube] 5F5Tp9hBSek: Signature extraction failed: Some formats may be missing
+[2025-10-27 13:47:56-INFO ][CLIDownloadWorker][yt-dlp output] player = https://www.youtube.com/s/player/6e4dbefe/player_ias.vflset/en_US/base.js
+[2025-10-27 13:47:56-INFO ][CLIDownloadWorker][yt-dlp output] Please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+[2025-10-27 13:47:57-INFO ][CLIDownloadWorker][yt-dlp output] WARNING: [youtube] 5F5Tp9hBSek: Some web_safari client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+[2025-10-27 13:47:57-INFO ][CLIDownloadWorker][yt-dlp output] WARNING: [youtube] 5F5Tp9hBSek: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+[2025-10-27 13:47:57-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading m3u8 information
+[2025-10-27 13:47:59-INFO ][CLIDownloadWorker][yt-dlp output] [info] 5F5Tp9hBSek: Downloading subtitles: en, zh-Hans
+[2025-10-27 13:47:59-INFO ][CLIDownloadWorker][yt-dlp output] [info] 5F5Tp9hBSek: Downloading 1 format(s): 94
+[2025-10-27 13:47:59-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt
+[2025-10-27 13:48:00-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt
+[2025-10-27 13:48:00-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt
+[2025-10-27 13:48:00-DEBUG][CLIDownloadWorker]Added temporary filename candidate: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt
+[2025-10-27 13:48:00-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 13:48:00-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt
+[2025-10-27 13:48:01-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt
+[2025-10-27 13:48:01-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt
+[2025-10-27 13:48:01-DEBUG][CLIDownloadWorker]Added temporary filename candidate: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt
+[2025-10-27 13:48:01-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 13:48:01-INFO ][CLIDownloadWorker][yt-dlp output] [hlsnative] Downloading m3u8 manifest
+[2025-10-27 13:48:02-INFO ][CLIDownloadWorker][yt-dlp output] [hlsnative] Total fragments: 36
+[2025-10-27 13:48:02-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 13:48:02-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 13:48:02-DEBUG][CLIDownloadWorker]Added temporary filename candidate: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 13:48:05-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 13:49:10-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 13:49:10-INFO ][CLIDownloadWorker][yt-dlp output] ERROR: Did not get any data blocks
+[2025-10-27 13:49:10-ERROR][CLIDownloadWorker]Error detected during download: ERROR: Did not get any data blocks
+[2025-10-27 13:49:10-INFO ][CLIDownloadWorker][yt-dlp output] [download] fragment not found; Skipping fragment 36 ...
+[2025-10-27 13:49:10-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 13:49:10-INFO ][CLIDownloadWorker][yt-dlp output] [FixupM3u8] Fixing MPEG-TS in MP4 container of "Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4"
+[2025-10-27 13:49:10-INFO ][CLIDownloadWorker]Detected final file from FixupM3u8: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 13:49:12-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] Embedding subtitles in "Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4"
+[2025-10-27 13:49:12-INFO ][CLIDownloadWorker]Detected final file from EmbedSubtitle: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 13:49:14-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt (pass -k to keep)
+[2025-10-27 13:49:14-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt (pass -k to keep)
+[2025-10-27 13:49:14-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-10-27 13:49:14-INFO ][CLIDownloadWorker]Process finished naturally with code: 1
+[2025-10-27 13:49:14-WARNING][CLIDownloadWorker]yt-dlp exited with code 1, but final file exists; treating as success with warnings
+[2025-10-27 13:49:14-INFO ][CLIDownloadWorker]Attempting cleanup for 3 tracked temporary files in Z:\AAAAA01
+[2025-10-27 13:49:14-DEBUG][CLIDownloadWorker]Cleanup path: Z:\AAAAA01
+[2025-10-27 13:49:14-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt
+[2025-10-27 13:49:14-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt
+[2025-10-27 13:49:14-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 13:49:14-DEBUG][CLIDownloadWorker]Skipping removal of final file: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 13:49:14-DEBUG][CLIDownloadWorker]Using filename prefixes for targeted glob cleanup: The Rose, The Rose, The Rose
+[2025-10-27 13:49:16-INFO ][CLIDownloadWorker]Cleanup finished, no matching temporary files found or removed.
+[2025-10-27 13:49:16-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=5F5Tp9hBSek. Emitting finished signal.
+[2025-10-27 13:49:16-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=5F5Tp9hBSek
+[2025-10-27 13:49:16-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=5F5Tp9hBSek from active. Count: 0
+[2025-10-27 13:49:16-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=5F5Tp9hBSek
+[2025-10-27 15:03:06-INFO ][MusicPlayerDashboard]Protocol URL received: https://www.youtube.com/watch?v=5F5Tp9hBSek (Type: best)
+[2025-10-27 15:03:06-INFO ][YoutubePage]Auto adding download: URL=https://www.youtube.com/watch?v=5F5Tp9hBSek, Type=best
+[2025-10-27 15:03:06-INFO ][YoutubePage]Using best_video_default preset for protocol download.
+[2025-10-27 15:03:08-INFO ][YoutubePage]Adding download: URL=https://www.youtube.com/watch?v=5F5Tp9hBSek, Dir=Z:\AAAAA01
+[2025-10-27 15:03:08-DEBUG][YtDlpUpdater]Update check not needed: 2:33:13.693258 < 1 day, 0:00:00
+[2025-10-27 15:03:08-DEBUG][DownloadManager]Skipping yt-dlp update check (interval not reached)
+[2025-10-27 15:03:08-INFO ][CLIDownloadWorker]Starting CLI download for: https://www.youtube.com/watch?v=5F5Tp9hBSek
+[2025-10-27 15:03:08-INFO ][MusicPlayerDashboard]Switched to Youtube Downloader page.
+[2025-10-27 15:03:08-DEBUG][CLIDownloadWorker]Using yt-dlp from updater path: C:\yt-dlp\yt-dlp.exe
+[2025-10-27 15:03:08-INFO ][CLIDownloadWorker]Subtitle embedding requested.
+[2025-10-27 15:03:08-DEBUG][CLIDownloadWorker]Using --write-auto-subs and --embed-subs to download and embed automatic captions (separate files auto-deleted).
+[2025-10-27 15:03:08-DEBUG][CLIDownloadWorker]Using subtitle languages: en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB
+[2025-10-27 15:03:08-DEBUG][CLIDownloadWorker]Using subtitle format: srt/vtt/ttml/best
+[2025-10-27 15:03:08-INFO ][CLIDownloadWorker]Using cookies from Firefox browser
+[2025-10-27 15:03:08-INFO ][CLIDownloadWorker]Note: Firefox must be closed. You must be logged into the target site in Firefox.
+[2025-10-27 15:03:08-DEBUG][CLIDownloadWorker]Executing command: 'C:\yt-dlp\yt-dlp.exe' --format 'bestvideo[protocol=https]+bestaudio[protocol=https]/best[protocol=https]/best' --output 'Z:\AAAAA01\%(title)s.%(ext)s' --write-auto-subs --embed-subs --sub-langs en,en-GB,en-US,en-en-GB,zh,zh-CN,zh-Hans,zh-Hans-CN,zh-Hans-en-GB --sub-format srt/vtt/ttml/best --cookies-from-browser firefox --socket-timeout 120 --retries 10 --fragment-retries 10 --extractor-retries 5 --file-access-retries 5 --ignore-errors --skip-unavailable-fragments --no-mtime --progress 'https://www.youtube.com/watch?v=5F5Tp9hBSek'
+[2025-10-27 15:03:11-INFO ][CLIDownloadWorker][yt-dlp output] Extracting cookies from firefox
+[2025-10-27 15:03:12-INFO ][CLIDownloadWorker][yt-dlp output] Extracted 170 cookies from firefox
+[2025-10-27 15:03:12-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] Extracting URL: https://www.youtube.com/watch?v=5F5Tp9hBSek
+[2025-10-27 15:03:12-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading webpage
+[2025-10-27 15:03:14-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading tv client config
+[2025-10-27 15:03:15-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading tv player API JSON
+[2025-10-27 15:03:15-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading web safari player API JSON
+[2025-10-27 15:03:16-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading player 6e4dbefe-main
+[2025-10-27 15:03:20-INFO ][CLIDownloadWorker][yt-dlp output] WARNING: [youtube] 5F5Tp9hBSek: Signature extraction failed: Some formats may be missing
+[2025-10-27 15:03:20-INFO ][CLIDownloadWorker][yt-dlp output] player = https://www.youtube.com/s/player/6e4dbefe/player_ias.vflset/en_US/base.js
+[2025-10-27 15:03:20-INFO ][CLIDownloadWorker][yt-dlp output] Please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+[2025-10-27 15:03:21-INFO ][CLIDownloadWorker][yt-dlp output] WARNING: [youtube] 5F5Tp9hBSek: Some web_safari client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+[2025-10-27 15:03:21-INFO ][CLIDownloadWorker][yt-dlp output] WARNING: [youtube] 5F5Tp9hBSek: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+[2025-10-27 15:03:21-INFO ][CLIDownloadWorker][yt-dlp output] [youtube] 5F5Tp9hBSek: Downloading m3u8 information
+[2025-10-27 15:03:23-INFO ][CLIDownloadWorker][yt-dlp output] [info] 5F5Tp9hBSek: Downloading subtitles: en, zh-Hans
+[2025-10-27 15:03:23-INFO ][CLIDownloadWorker][yt-dlp output] [info] 5F5Tp9hBSek: Downloading 1 format(s): 94
+[2025-10-27 15:03:23-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt
+[2025-10-27 15:03:24-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt
+[2025-10-27 15:03:24-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt
+[2025-10-27 15:03:24-DEBUG][CLIDownloadWorker]Added temporary filename candidate: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt
+[2025-10-27 15:03:24-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 15:03:24-INFO ][CLIDownloadWorker][yt-dlp output] [info] Writing video subtitles to: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt
+[2025-10-27 15:03:25-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt
+[2025-10-27 15:03:25-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt
+[2025-10-27 15:03:25-DEBUG][CLIDownloadWorker]Added temporary filename candidate: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt
+[2025-10-27 15:03:25-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 15:03:26-INFO ][CLIDownloadWorker][yt-dlp output] [hlsnative] Downloading m3u8 manifest
+[2025-10-27 15:03:26-INFO ][CLIDownloadWorker][yt-dlp output] [hlsnative] Total fragments: 36
+[2025-10-27 15:03:26-INFO ][CLIDownloadWorker][yt-dlp output] [download] Destination: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 15:03:26-INFO ][CLIDownloadWorker]Downloading to: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 15:03:26-DEBUG][CLIDownloadWorker]Added temporary filename candidate: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 15:03:28-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 15:03:55-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 15:03:55-INFO ][CLIDownloadWorker][yt-dlp output] ERROR: Did not get any data blocks
+[2025-10-27 15:03:55-ERROR][CLIDownloadWorker]Error detected during download: ERROR: Did not get any data blocks
+[2025-10-27 15:03:55-INFO ][CLIDownloadWorker][yt-dlp output] [download] fragment not found; Skipping fragment 36 ...
+[2025-10-27 15:03:55-INFO ][CLIDownloadWorker][yt-dlp output] 
+[2025-10-27 15:03:56-INFO ][CLIDownloadWorker][yt-dlp output] [FixupM3u8] Fixing MPEG-TS in MP4 container of "Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4"
+[2025-10-27 15:03:56-INFO ][CLIDownloadWorker]Detected final file from FixupM3u8: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 15:03:58-INFO ][CLIDownloadWorker][yt-dlp output] [EmbedSubtitle] Embedding subtitles in "Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4"
+[2025-10-27 15:03:58-INFO ][CLIDownloadWorker]Detected final file from EmbedSubtitle: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 15:04:00-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt (pass -k to keep)
+[2025-10-27 15:04:00-INFO ][CLIDownloadWorker][yt-dlp output] Deleting original file Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt (pass -k to keep)
+[2025-10-27 15:04:01-DEBUG][CLIDownloadWorker]Waiting for process to exit naturally...
+[2025-10-27 15:04:01-INFO ][CLIDownloadWorker]Process finished naturally with code: 1
+[2025-10-27 15:04:01-WARNING][CLIDownloadWorker]yt-dlp exited with code 1, but final file exists; treating as success with warnings
+[2025-10-27 15:04:01-INFO ][CLIDownloadWorker]Attempting cleanup for 3 tracked temporary files in Z:\AAAAA01
+[2025-10-27 15:04:01-DEBUG][CLIDownloadWorker]Cleanup path: Z:\AAAAA01
+[2025-10-27 15:04:01-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.en.srt
+[2025-10-27 15:04:01-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.zh-Hans.srt
+[2025-10-27 15:04:01-DEBUG][CLIDownloadWorker]Checking for: Z:\AAAAA01\The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 15:04:01-DEBUG][CLIDownloadWorker]Skipping removal of final file: The Roses - Happy Together - (Song) - Susanna Hoffs & Rufus Wainwright.mp4
+[2025-10-27 15:04:01-DEBUG][CLIDownloadWorker]Using filename prefixes for targeted glob cleanup: The Rose, The Rose, The Rose
+[2025-10-27 15:04:02-INFO ][CLIDownloadWorker]Cleanup finished, no matching temporary files found or removed.
+[2025-10-27 15:04:02-INFO ][CLIDownloadWorker]Worker finished execution for https://www.youtube.com/watch?v=5F5Tp9hBSek. Emitting finished signal.
+[2025-10-27 15:04:02-DEBUG][DownloadManager]_on_worker_finished triggered for URL: https://www.youtube.com/watch?v=5F5Tp9hBSek
+[2025-10-27 15:04:02-DEBUG][DownloadManager]Removed worker https://www.youtube.com/watch?v=5F5Tp9hBSek from active. Count: 0
+[2025-10-27 15:04:02-DEBUG][DownloadManager]Processing queue after worker finished for https://www.youtube.com/watch?v=5F5Tp9hBSek

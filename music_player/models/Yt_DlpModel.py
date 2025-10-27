@@ -290,10 +290,10 @@ class YtDlpModel:
             # Hint yt-dlp to use a non-web client to avoid SABR and expose HLS audio
             try:
                 if 'youtube' in format_options.get('extractor_args', {}):
-                    format_options['extractor_args']['youtube']['player_client'] = 'android'
+                    format_options['extractor_args']['youtube']['player_client'] = 'android-sdkless'
                 else:
-                    format_options.setdefault('extractor_args', {}).setdefault('youtube', {})['player_client'] = 'android'
-                print("DEBUG: Using youtube:player_client=android for audio-only to avoid SABR")
+                    format_options.setdefault('extractor_args', {}).setdefault('youtube', {})['player_client'] = 'android-sdkless'
+                print("DEBUG: Using youtube:player_client=android-sdkless for audio-only to avoid SABR and PO token")
             except Exception:
                 pass
             
@@ -320,7 +320,7 @@ class YtDlpModel:
                 use_https=False,
                 use_m4a=True,
                 subtitle_lang=None,
-                use_cookies=True
+                use_cookies=False
             )
         elif preset_name == "video_720p_default":
             return YtDlpModel.generate_format_string(
