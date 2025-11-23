@@ -81,11 +81,11 @@ def main():
 
     # If connection succeeds, send arg and exit
     if socket.waitForConnected(500):
-        print("[Run] Another instance is running.")
+        # print("[Run] Another instance is running.")
         
         # If we have a command line argument, pass it to the existing instance
         if raw_arg:
-            print(f"[Run] Sending raw argument to existing instance: {raw_arg}")
+            # print(f"[Run] Sending raw argument to existing instance: {raw_arg}")
             socket.write(raw_arg.encode())
             socket.flush()
             if not socket.waitForBytesWritten(1000):
@@ -95,7 +95,7 @@ def main():
         return 0 # Exit this instance successfully
 
     # --- No Existing Instance Found - Proceed with Full App Initialization ---
-    print("[Run] No other instance detected. Starting main application.")
+    # print("[Run] No other instance detected. Starting main application.")
     
     # Now parse the protocol URL if one was provided
     url_to_download = None
@@ -103,7 +103,7 @@ def main():
     
     if raw_arg and raw_arg.startswith('musicplayerdl://'):
         format_type, url_to_download = parse_protocol_url(raw_arg)
-        print(f"[Run] Parsed protocol URL: {url_to_download} (Type: {format_type})")
+        # print(f"[Run] Parsed protocol URL: {url_to_download} (Type: {format_type})")
 
     # Define Resource Paths (relative to project_root/run.py)
     config_path = os.path.join("music_player", "resources", "music_player_config.yaml")
@@ -133,6 +133,7 @@ def main():
     # Ensure any leftover server socket is removed (important on unclean shutdowns)
     if not QLocalServer.removeServer(APPLICATION_ID):
          print(f"[Run Warning] Could not remove existing server lock for {APPLICATION_ID}. Might be in use?", file=sys.stderr)
+
          
     if not server.listen(APPLICATION_ID):
         print(f"[Run Error] Failed to start local server {APPLICATION_ID}: {server.errorString()}", file=sys.stderr)
@@ -170,14 +171,12 @@ def main():
              print("[Run Server Error] Failed to get next pending connection.", file=sys.stderr)
 
     server.newConnection.connect(handle_new_connection)
-    print(f"[Run] Server listening on {APPLICATION_ID}")
 
     # --- Connect Listener Signal to Main Window Slot ---
     # We assume MusicPlayerDashboard will have a slot `handle_protocol_url(str, str)`
     try:
         if hasattr(window, 'handle_protocol_url') and callable(window.handle_protocol_url):
             listener.url_received.connect(window.handle_protocol_url)
-            print("[Run] Connected listener signal to window.handle_protocol_url")
         else:
             print("[Run Error] Main window object does not have the required 'handle_protocol_url' method.", file=sys.stderr)
             # This is likely a critical error for protocol handling.

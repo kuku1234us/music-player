@@ -1277,7 +1277,7 @@ class MainPlayer(QWidget):
         
         # Store validated mode internally
         self._current_repeat_mode = repeat_mode
-        print(f"[MainPlayer] Applied repeat mode from settings: {self._current_repeat_mode}")
+        # print(f"[MainPlayer] Applied repeat mode from settings: {self._current_repeat_mode}")
         
         # Update the playlist's repeat mode if we're in playlist mode
         if self._playback_mode == 'playlist' and self._current_playlist:
@@ -1550,7 +1550,7 @@ class MainPlayer(QWidget):
         Args:
             widget (VideoWidget): The widget where video should be rendered.
         """
-        print(f"[MainPlayer] Setting video output widget: {widget}")
+        # print(f"[MainPlayer] Setting video output widget: {widget}")
         self._video_widget = widget
         
         # --- Set main player reference for drag and drop ---
@@ -1600,7 +1600,7 @@ class MainPlayer(QWidget):
         if self.backend and hasattr(self.backend, 'set_video_output'):
             try:
                 win_id_int = int(widget.winId())
-                print(f"[MainPlayer] Setting VLC window handle via backend: {win_id_int}")
+                # print(f"[MainPlayer] Setting VLC window handle via backend: {win_id_int}")
                 # Call the backend's setter method
                 self.backend.set_video_output(win_id_int)
             except Exception as e:
@@ -1826,7 +1826,7 @@ class MainPlayer(QWidget):
     def register_player_page(self, player_page: PlayerPage):
         """Allows PlayerPage to register itself with MainPlayer."""
         self._player_page_ref = player_page
-        print("[MainPlayer] PlayerPage registered.")
+        # print("[MainPlayer] PlayerPage registered.")
     # ------------------------------------------------------------------------------------
 
     # --- Add Periodic Position Save Method (Phase 3) ---

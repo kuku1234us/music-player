@@ -77,7 +77,7 @@ class SettingsManager:
         cls._application_name = application_name
         cls._instance = cls() # Call __init__ which will now use the stored names
         cls._initialized = True
-        print(f"[SettingsManager] Initialized for Org: '{organization_name}', App: '{application_name}'")
+        # print(f"[SettingsManager] Initialized for Org: '{organization_name}', App: '{application_name}'")
 
     @classmethod
     def instance(cls) -> 'SettingsManager':
@@ -390,7 +390,7 @@ class SettingsManager:
             config_path = Path(config_path) # Ensure it's a Path object
             with open(config_path, 'r', encoding='utf-8') as f:
                 self._yaml_config = yaml.safe_load(f) or {}
-                print(f"[SettingsManager] Loaded YAML config from: {config_path}") # Simple print
+                # print(f"[SettingsManager] Loaded YAML config from: {config_path}") # Simple print
         except FileNotFoundError:
             print(f"[SettingsManager WARN] YAML config file not found at {config_path}. Using empty config.", file=sys.stderr)
             self._yaml_config = {}

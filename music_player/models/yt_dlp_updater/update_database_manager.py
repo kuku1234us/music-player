@@ -19,7 +19,7 @@ class YtDlpUpdateManager(BaseDatabaseManager):
     def _init_database(self) -> None:
         """Initialize the tables and default entries used for yt-dlp updates."""
         db_path = self._get_database_path()
-        self.logger.info(self.__class__.__name__, f"Initializing yt-dlp update table in database: {db_path}")
+        # self.logger.info(self.__class__.__name__, f"Initializing yt-dlp update table in database: {db_path}")
 
         # Primary update history table
         updates_table = """
@@ -71,7 +71,7 @@ class YtDlpUpdateManager(BaseDatabaseManager):
             raise RuntimeError("yt-dlp settings table creation failed")
 
         self._initialize_default_settings()
-        self.logger.info(self.__class__.__name__, "yt-dlp update table initialized successfully")
+        # self.logger.info(self.__class__.__name__, "yt-dlp update table initialized successfully")
 
     # ------------------------------------------------------------------
     # Update history helpers

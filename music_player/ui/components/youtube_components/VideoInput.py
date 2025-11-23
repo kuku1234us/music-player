@@ -95,7 +95,7 @@ class ToggleButton(QPushButton):
     def _save_state(self, checked):
         """Save the button's state to settings using self.setting_key."""
         if not self._exclusive and self.setting_key:
-            print(f"DEBUG: Saving state for {self.setting_key}: {checked}")
+            # print(f"DEBUG: Saving state for {self.setting_key}: {checked}")
             self._settings.set(self.setting_key, checked, SettingType.BOOL)
     
     def toggle(self):
@@ -240,17 +240,17 @@ class VideoInput(QWidget):
              active_res_text = "720p"
              self._settings.set(YT_ACTIVE_RESOLUTION_KEY, active_res_text, SettingType.STRING)
 
-        print(f"DEBUG: Loading active resolution: {active_res_text}")
+        # print(f"DEBUG: Loading active resolution: {active_res_text}")
         found_button = False
         for button in self.resolution_group.buttons():
             if button.text() == active_res_text:
                 button.setChecked(True)
                 found_button = True
-                print(f"DEBUG: Setting initial resolution to {button.text()}")
+                # print(f"DEBUG: Setting initial resolution to {button.text()}")
             else:
                 button.setChecked(False)
         if not found_button:
-            print(f"DEBUG: Active resolution '{active_res_text}' not found, defaulting to 720p")
+            # print(f"DEBUG: Active resolution '{active_res_text}' not found, defaulting to 720p")
             self.btn_720p.setChecked(True)
             self._settings.set(YT_ACTIVE_RESOLUTION_KEY, "720p", SettingType.STRING)
 
@@ -269,11 +269,11 @@ class VideoInput(QWidget):
                 button.setChecked(False)
         
         if active_button_text:
-            print(f"DEBUG: Saving active resolution: {active_button_text}")
+            # print(f"DEBUG: Saving active resolution: {active_button_text}")
             self._settings.set(YT_ACTIVE_RESOLUTION_KEY, active_button_text, SettingType.STRING)
 
         if sender == self.btn_audio:
-            print("DEBUG: Audio button selected, turning off M4A by default")
+            # print("DEBUG: Audio button selected, turning off M4A by default")
             self.btn_m4a.setChecked(False)
         
         self.update_format()
@@ -337,48 +337,20 @@ class VideoInput(QWidget):
                 if subtitle_lang == 'zh': subtitle_lang = ['zh-CN', 'zh-TW', 'zh-HK']
             else: subtitle_lang = self.subtitle_lang_combo.currentText().strip()
         
-        print(f"DEBUG: Generating format options with resolution={resolution}, prefer_best_video={prefer_best_video}, https={use_https}, m4a={use_m4a}, subtitle_lang={subtitle_lang}, cookies={cookies_enabled}")
+        # print(f"DEBUG: Generating format options with resolution={resolution}, prefer_best_video={prefer_best_video}, https={use_https}, m4a={use_m4a}, subtitle_lang={subtitle_lang}, cookies={cookies_enabled}")
         
-        if hasattr(YtDlpModel, 'generate_format_string') and callable(getattr(YtDlpModel, 'generate_format_string')):
-            # Check if the method accepts prefer_best_video parameter
-            import inspect
-            sig = inspect.signature(YtDlpModel.generate_format_string)
-            if 'prefer_best_video' in sig.parameters and 'prefer_avc' in sig.parameters:
-                # New version with prefer_best_video and prefer_avc support
-                options = YtDlpModel.generate_format_string(
-                    resolution=resolution,
-                    use_https=use_https,
-                    use_m4a=use_m4a,
-                    subtitle_lang=subtitle_lang,
-                    use_cookies=cookies_enabled,
-                    prefer_best_video=prefer_best_video,
-                    prefer_avc=(resolution is not None and not prefer_best_video)  # Use AVC only for specific resolutions
-                )
-            elif 'prefer_best_video' in sig.parameters:
-                # Version with prefer_best_video but without prefer_avc
-                options = YtDlpModel.generate_format_string(
-                    resolution=resolution,
-                    use_https=use_https,
-                    use_m4a=use_m4a,
-                    subtitle_lang=subtitle_lang,
-                    use_cookies=cookies_enabled,
-                    prefer_best_video=prefer_best_video
-                )
-            else:
-                # Original version without prefer_best_video
-                options = YtDlpModel.generate_format_string(
-                    resolution=resolution,
-                    use_https=use_https,
-                    use_m4a=use_m4a,
-                    subtitle_lang=subtitle_lang,
-                    use_cookies=cookies_enabled
-                )
-        else:
-            # If the YtDlpModel.generate_format_string method doesn't exist (unlikely)
-            print("ERROR: YtDlpModel.generate_format_string method not found")
-            options = {}
+        # Direct call to YtDlpModel since we know the signature matches
+        options = YtDlpModel.generate_format_string(
+            resolution=resolution,
+            use_https=use_https,
+            use_m4a=use_m4a,
+            subtitle_lang=subtitle_lang,
+            use_cookies=cookies_enabled,
+            prefer_best_video=prefer_best_video,
+            prefer_avc=(resolution is not None and not prefer_best_video)  # Use AVC only for specific resolutions
+        )
         
-        print(f"DEBUG: Generated format options: {options}")
+        # print(f"DEBUG: Generated format options: {options}")
         return options
 
     def set_format_audio_only(self):
@@ -419,6 +391,6 @@ class VideoInput(QWidget):
         index = self.subtitle_lang_combo.findText(text)
         lang_code = self.subtitle_lang_combo.itemData(index) if index >= 0 else text
         
-        print(f"DEBUG: Subtitle language changed to: {lang_code}")
+        # print(f"DEBUG: Subtitle language changed to: {lang_code}")
         self._settings.set(YT_SUBTITLES_LANG_KEY, lang_code, SettingType.STRING)
         self.update_format()

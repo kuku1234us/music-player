@@ -36,33 +36,13 @@ class YtDlpModel:
             }
         }
         
-        print(f"DEBUG: YtDlpModel.generate_format_string called with: resolution={resolution}, use_https={use_https}, use_m4a={use_m4a}, subtitle_lang={subtitle_lang}, use_cookies={use_cookies}, prefer_best_video={prefer_best_video}, prefer_avc={prefer_avc}")
+        # print(f"DEBUG: YtDlpModel.generate_format_string called with: resolution={resolution}, use_https={use_https}, use_m4a={use_m4a}, subtitle_lang={subtitle_lang}, use_cookies={use_cookies}, prefer_best_video={prefer_best_video}, prefer_avc={prefer_avc}")
         
         # Add browser cookies option if enabled
         if use_cookies:
-            import os
-            
-            # Use the existing cookie file in the Docs directory
-            # Get the base directory of the application
-            if getattr(sys, 'frozen', False):
-                # Running as compiled executable
-                base_dir = os.path.dirname(sys.executable)
-            else:
-                # Running from script
-                import pathlib
-                base_dir = pathlib.Path(__file__).parent.parent.parent.parent.absolute()
-                
-            # Path to the cookie file
-            cookie_file = os.path.join(base_dir, 'Docs', 'yt_cookies.txt')
-            
-            if os.path.exists(cookie_file):
-                format_options['cookies'] = cookie_file
-                print(f"DEBUG: Using existing cookie file: {cookie_file}")
-            else:
-                print(f"DEBUG: Cookie file not found at: {cookie_file}")
-                # Fallback to standard method
-                format_options['cookies_from_browser'] = 'firefox'
-                print("DEBUG: Falling back to standard firefox cookie extraction")
+            # Use standard firefox cookie extraction
+            format_options['cookies_from_browser'] = 'firefox'
+            # print("DEBUG: Using firefox cookie extraction")
         
         # Add more flexible subtitle format handling, only for video downloads
         is_video_download = resolution is not None or prefer_best_video
@@ -98,11 +78,11 @@ class YtDlpModel:
                 seen = set()
                 expanded_langs = [x for x in expanded_langs if not (x in seen or seen.add(x))]
                 format_options['subtitleslangs'] = expanded_langs
-                print(f"DEBUG: Multiple subtitle languages requested: {expanded_langs}")
+                # print(f"DEBUG: Multiple subtitle languages requested: {expanded_langs}")
             else:
                 expanded_langs = expand_subtitle_lang(subtitle_lang)
                 format_options['subtitleslangs'] = expanded_langs
-                print(f"DEBUG: Subtitle language(s) requested: {expanded_langs}")
+                # print(f"DEBUG: Subtitle language(s) requested: {expanded_langs}")
                 
             # Accept multiple subtitle formats in order of preference
             format_options['subtitlesformat'] = 'srt/vtt/ttml/best'
@@ -116,11 +96,11 @@ class YtDlpModel:
         if prefer_avc:
             # Prefer AVC codec (H.264) for better device compatibility
             codec_filter = "[vcodec^=avc]"
-            print(f"DEBUG: Using AVC codec filter for better compatibility")
+            # print(f"DEBUG: Using AVC codec filter for better compatibility")
         elif not prefer_best_video:
             # If not using best video and not explicitly preferring AVC, exclude AV1 for compatibility
             codec_filter = "[vcodec!*=av01]"
-            print(f"DEBUG: Excluding AV1 codec for better compatibility")
+            # print(f"DEBUG: Excluding AV1 codec for better compatibility")
         
         # Prepare protocol and format constraints
         protocol_constraint = "[protocol=https]" if use_https else ""
@@ -136,7 +116,7 @@ class YtDlpModel:
         
         if resolution and not prefer_best_video:
             # Resolution-specific format with improved handling for portrait/landscape videos
-            print(f"DEBUG: Generating video format with target resolution: {resolution}p")
+            # print(f"DEBUG: Generating video format with target resolution: {resolution}p")
             
             # Build video format string parts with codec filter applied to each option separately
             if resolution == 720:
@@ -239,11 +219,11 @@ class YtDlpModel:
                     {"key": "FFmpegEmbedSubtitle"}
                 ]
                 
-            print(f"DEBUG: Resolution-specific format string: {format_str}")
+            # print(f"DEBUG: Resolution-specific format string: {format_str}")
                 
         elif prefer_best_video:
             # Best video format - no resolution limiting
-            print(f"DEBUG: Generating best video format")
+            # print(f"DEBUG: Generating best video format")
             format_str = f"bestvideo{codec_filter}{protocol_constraint}{video_format_constraint}"
             
             # Complete format string with audio and fallbacks
@@ -261,10 +241,10 @@ class YtDlpModel:
                     {"key": "FFmpegEmbedSubtitle"}
                 ]
                 
-            print(f"DEBUG: Best video format string: {format_str}")
+            # print(f"DEBUG: Best video format string: {format_str}")
             
         else:
-            print(f"DEBUG: Generating audio-only format")
+            # print(f"DEBUG: Generating audio-only format")
             # Audio only format with robust fallbacks. Remove protocol constraint.
             # Prefer Opus/WebM first, then M4A/MP4, then any audio-only.
             if use_m4a:
@@ -293,13 +273,13 @@ class YtDlpModel:
                     format_options['extractor_args']['youtube']['player_client'] = 'android-sdkless'
                 else:
                     format_options.setdefault('extractor_args', {}).setdefault('youtube', {})['player_client'] = 'android-sdkless'
-                print("DEBUG: Using youtube:player_client=android-sdkless for audio-only to avoid SABR and PO token")
+                # print("DEBUG: Using youtube:player_client=android-sdkless for audio-only to avoid SABR and PO token")
             except Exception:
                 pass
             
-            print(f"DEBUG: Audio-only format string: {format_str}")
+            # print(f"DEBUG: Audio-only format string: {format_str}")
         
-        print(f"DEBUG: Final format options: {format_options}")
+        # print(f"DEBUG: Final format options: {format_options}")
         return format_options
     
     @staticmethod

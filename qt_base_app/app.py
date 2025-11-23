@@ -99,7 +99,7 @@ def load_custom_fonts(fonts_dir_relative: str, font_mappings: Optional[Dict[str,
 
     # Add custom fonts if available using the absolute path
     if os.path.isdir(fonts_dir_abs):
-        logger.info("app", f"Loading fonts from: {fonts_dir_abs}")
+        # logger.info("app", f"Loading fonts from: {fonts_dir_abs}")
         for font_file, category in font_mappings.items():
             font_path = os.path.join(fonts_dir_abs, font_file)
             if os.path.exists(font_path):
@@ -174,7 +174,7 @@ def set_application_icon(app: QApplication, window: QWidget, icon_paths: List[st
         icon_path_abs = ResourceLocator.get_path(icon_path)
         if os.path.exists(icon_path_abs):
             app_icon = QIcon(icon_path_abs)
-            logger.info("app", f"Using icon: {icon_path_abs}")
+            # logger.info("app", f"Using icon: {icon_path_abs}")
             break
     
     # Apply icon if found (to both app and window)
@@ -228,7 +228,7 @@ def create_application(
         resolved_config_path = ResourceLocator.get_path(config_path)
         if Path(resolved_config_path).exists():
             settings.load_yaml_config(resolved_config_path)
-            print(f"[App] Loaded YAML config: {resolved_config_path}") # Simple confirmation
+            # print(f"[App] Loaded YAML config: {resolved_config_path}") # Simple confirmation
         else:
             print(f"[App WARNING] Specified config path not found: {resolved_config_path}", file=sys.stderr)
     else:

@@ -384,21 +384,21 @@ class PreferencePage(QWidget):
         seek_interval = self.seek_interval_spinbox.value()
         self.settings.set(PREF_SEEK_INTERVAL_KEY, seek_interval, SettingType.FLOAT)
         self.settings.sync() # Sync immediately after changing this setting
-        print("[PreferencePage] Seek interval saved:", seek_interval)
+        # print("[PreferencePage] Seek interval saved:", seek_interval)
         
     def _save_yt_api_key(self):
         """Save the YouTube API key setting."""
         api_key = self.yt_api_key_edit.text()
         self.settings.set(YT_API_QSETTINGS_KEY, api_key, SettingType.STRING)
         self.settings.sync()
-        print("[PreferencePage] YouTube API key saved")
+        # print("[PreferencePage] YouTube API key saved")
         
     def _save_groq_api_key(self):
         """Save the Groq API key setting."""
         api_key = self.groq_api_key_edit.text()
         self.settings.set(GROQ_API_QSETTINGS_KEY, api_key, SettingType.STRING)
         self.settings.sync()
-        print("[PreferencePage] Groq API key saved")
+        # print("[PreferencePage] Groq API key saved")
         
     # --- NEW: Save MP3 Bitrate --- #    
     def _save_mp3_bitrate(self):
@@ -406,7 +406,7 @@ class PreferencePage(QWidget):
         bitrate = self.mp3_bitrate_spinbox.value()
         self.settings.set(CONVERSION_MP3_BITRATE_KEY, bitrate, SettingType.INT)
         self.settings.sync()
-        print(f"[PreferencePage] MP3 Bitrate saved: {bitrate} kbps")
+        # print(f"[PreferencePage] MP3 Bitrate saved: {bitrate} kbps")
     # --- END NEW --- #
         
     def reset_settings(self):

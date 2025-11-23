@@ -86,8 +86,6 @@ class GroqMusicModel:
             self._min_request_interval_seconds: float = 60.0 / requests_per_minute
         else:
             self._min_request_interval_seconds: float = 2.0 # Default if invalid RPM
-            
-        print(f"AI Config: Model={self.model_name}, BatchSize={self.batch_size}, Interval={self._min_request_interval_seconds:.2f}s")
         # ---------------------------------------------------------
         
         # --- Get Groq API Key using SettingsManager (QSettings key) ---
@@ -110,7 +108,7 @@ class GroqMusicModel:
                 
             with open(prompts_path, 'r', encoding='utf-8') as f:
                 self.prompt_configs = json.load(f)
-            print(f"Successfully loaded {len(self.prompt_configs)} AI prompt configurations.")
+            
         except json.JSONDecodeError as e:
             print(f"Error parsing aiprompts.json: {e}")
             self.prompt_configs = []
@@ -126,7 +124,6 @@ class GroqMusicModel:
                 raise ValueError("GROQ API Key not found via SettingsManager (check Preferences).")
             self.groq_client = groq.Client(api_key=self.groq_api_key)
             self.api_ready = True 
-            print("Groq API client initialized successfully.")
         except Exception as e:
             print(f"Failed to initialize Groq client: {e}")
             self.groq_client = None

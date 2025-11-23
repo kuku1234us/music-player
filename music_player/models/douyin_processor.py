@@ -378,7 +378,7 @@ class DouyinProcessor(QObject):
         if max_concurrent > 8:  # Safety limit
             max_concurrent = 8
             
-        print(f"[DouyinProcessor] Updating max concurrent encoding from {MAX_CONCURRENT_REENCODING} to {max_concurrent}")
+        # print(f"[DouyinProcessor] Updating max concurrent encoding from {MAX_CONCURRENT_REENCODING} to {max_concurrent}")
         MAX_CONCURRENT_REENCODING = max_concurrent
         encoding_semaphore = QSemaphore(max_concurrent)
 

@@ -318,14 +318,14 @@ class PlayerPage(QWidget):
             # --- ADD HWND SETUP HERE --- 
             # Set the video widget handle in the player *immediately* when connected
             if hasattr(self.persistent_player, 'set_video_widget') and self.video_widget:
-                print("[PlayerPage] Setting video widget in persistent player during connection.")
+                # print("[PlayerPage] Setting video widget in persistent player during connection.")
                 self.persistent_player.set_video_widget(self.video_widget)
             # ---------------------------
 
             # --- Pass HotkeyHandler to VideoWidget --- 
             if self.persistent_player and hasattr(self.persistent_player, 'hotkey_handler') \
                and self.video_widget and hasattr(self.video_widget, 'set_hotkey_handler'):
-                print("[PlayerPage] Passing HotkeyHandler to VideoWidget.")
+                # print("[PlayerPage] Passing HotkeyHandler to VideoWidget.")
                 handler = self.persistent_player.hotkey_handler
                 self.video_widget.set_hotkey_handler(handler)
             # -----------------------------------------
@@ -333,7 +333,6 @@ class PlayerPage(QWidget):
             # --- Pass HotkeyHandler to AlbumArtDisplay --- 
             if self.persistent_player and hasattr(self.persistent_player, 'hotkey_handler') \
                and self.album_art and hasattr(self.album_art, 'set_hotkey_handler'):
-                print("[PlayerPage] Passing HotkeyHandler to AlbumArtDisplay.")
                 handler = self.persistent_player.hotkey_handler
                 self.album_art.set_hotkey_handler(handler)
             # -------------------------------------------
@@ -354,7 +353,6 @@ class PlayerPage(QWidget):
 
             # --- Call MainPlayer's register_player_page method --- # MOVED HERE
             if hasattr(self.persistent_player, 'register_player_page'):
-                print("[PlayerPage] Registering self with MainPlayer.")
                 self.persistent_player.register_player_page(self)
             # -----------------------------------------------------
                 

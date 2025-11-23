@@ -307,8 +307,6 @@ class BaseWindow(QMainWindow):
                 restored = self.restoreGeometry(geometry_data)
                 if not restored:
                     self.logger.warning("BaseWindow", "Failed to restore window geometry from QByteArray.")
-                else:
-                    self.logger.debug("BaseWindow", "Restored window geometry.")
             except Exception as e:
                 # Catch potential errors during restoreGeometry, e.g., invalid data format
                 self.logger.error("BaseWindow", f"Error restoring window geometry: {e}", exc_info=True)
@@ -317,7 +315,6 @@ class BaseWindow(QMainWindow):
     
     def _debounce_save_geometry(self):
         """Saves the window geometry after the debounce timer times out."""
-        self.logger.debug("BaseWindow", "Debounce timer timed out, saving geometry...")
         geometry_data = self.saveGeometry()
         self.settings.set('window/geometry', geometry_data)
         self.settings.sync() # Sync immediately after saving

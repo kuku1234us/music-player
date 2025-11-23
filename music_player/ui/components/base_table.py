@@ -271,13 +271,10 @@ class BaseTableView(QTableView):
         source_for_defs = None
         if isinstance(model, BaseTableModel):
             source_for_defs = model
-            print(f"[BaseTableView] Set model is BaseTableModel: {type(model)}") # Debug
         elif isinstance(model, QSortFilterProxyModel):
-            print(f"[BaseTableView] Set model is QSortFilterProxyModel: {type(model)}") # Debug
             source_model = model.sourceModel()
             if isinstance(source_model, BaseTableModel):
                 source_for_defs = source_model
-                print(f"[BaseTableView] Proxy source model is BaseTableModel: {type(source_model)}") # Debug
             else:
                 print(f"[BaseTableView] Warning: Proxy source model is NOT BaseTableModel ({type(source_model)}). Persistence/Features limited.")
         else:
@@ -287,7 +284,6 @@ class BaseTableView(QTableView):
         # Store column definitions if found
         if source_for_defs:
             self._column_definitions = source_for_defs.column_definitions
-            print(f"[BaseTableView] Stored {len(self._column_definitions)} column definitions.") # Debug
         else:
              print("[BaseTableView] No column definitions stored.") # Debug
 
@@ -387,7 +383,6 @@ class BaseTableView(QTableView):
         
         # Save the entire table state (widths and sort order) to persistence
         if self.table_name:
-            print(f"[{self.table_name}] Sort changed to: Col={self._sort_column}, Order={self._sort_order.name}. Saving state.")
             self._save_table_state() # Call the method that saves the full state dict
             # Ensure sync is called *after* saving the state
             # While sync() might be called elsewhere, adding it here guarantees

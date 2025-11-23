@@ -36,7 +36,7 @@ class VLCBackend(QObject):
             "--file-caching=300",        # Set file caching (300ms)
             "--quiet"                    # Reduce verbose output
         ]
-        print(f"[VLCBackend] Initializing VLC instance with hardware acceleration: {vlc_args}")
+        # print(f"[VLCBackend] Initializing VLC instance with hardware acceleration: {vlc_args}")
         
         try:
             self.vlc_instance = vlc.Instance(vlc_args)
@@ -715,14 +715,11 @@ class VLCBackend(QObject):
         self._hwnd = hwnd
         if self._hwnd:
             self.media_player.set_hwnd(self._hwnd)
-            print(f"[VLCBackend] HWND set to: {self._hwnd}")
             # --- Disable VLC mouse input handling --- 
             try:
                 self.media_player.video_set_mouse_input(False)
-                print("[VLCBackend] Disabled VLC mouse input handling for HWND.")
                 # --- Also disable VLC key input handling ---
                 self.media_player.video_set_key_input(False)
-                print("[VLCBackend] Disabled VLC key input handling for HWND.")
                 # -----------------------------------------
             except Exception as e:
                 print(f"[VLCBackend] Warning: Failed to set mouse/key input to False - {e}")

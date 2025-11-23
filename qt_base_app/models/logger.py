@@ -136,14 +136,14 @@ class Logger:
                     console_handler.setLevel(log_level) # Set level on the handler
                     console_handler.setFormatter(console_formatter)
                     logger_instance.addHandler(console_handler)
-                    print(f"[Console Logger] Logging to console enabled") 
+                    # print(f"[Console Logger] Logging to console enabled") 
                 except Exception as e:
                     print(f"[Console Logger Error] Error setting up console logger: {e}", file=sys.stderr)
 
             # Store the configured logger
             self._logger = logger_instance
             # Log initialization message using the logger itself (will use configured formatters)
-            self._logger.info(f"--- Logger Initialized (Level: {log_level_str}) ---", extra={'caller': 'logger'})
+            # self._logger.info(f"--- Logger Initialized (Level: {log_level_str}) ---", extra={'caller': 'logger'})
 
         except Exception as e:
             print(f"[FATAL ERROR] Configuring logger: {e}", file=sys.stderr)

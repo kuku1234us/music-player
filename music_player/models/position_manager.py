@@ -21,7 +21,7 @@ class PlaybackPositionManager(BaseDatabaseManager):
     def _init_database(self):
         """Initialize the SQLite database and create tables if they don't exist."""
         db_path = self._get_database_path()
-        self.logger.info(self.__class__.__name__, f"Initializing position database at: {db_path}")
+        # self.logger.info(self.__class__.__name__, f"Initializing position database at: {db_path}")
         
         # Create table with proper schema including playback_rate and subtitle state
         table_creation_query = """
@@ -53,7 +53,7 @@ class PlaybackPositionManager(BaseDatabaseManager):
         # Create index for performance
         self._create_index("idx_last_updated", "playback_positions", "last_updated")
         
-        self.logger.info(self.__class__.__name__, "Position database initialized successfully")
+        # self.logger.info(self.__class__.__name__, "Position database initialized successfully")
     
     def save_position(self, file_path: str, position_ms: int, duration_ms: int, playback_rate: float = 1.0,
                      subtitle_enabled: bool = False, subtitle_track_id: int = -1, subtitle_language: str = '',

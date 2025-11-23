@@ -86,7 +86,6 @@ browser_col_defs = [
 # --- Directory Worker Signals ---
 class DirectoryWorkerSignals(QObject):
     """Signals for the directory loading worker"""
-    started = pyqtSignal()
     progress = pyqtSignal(int, int)  # current count, total count
     finished = pyqtSignal(list)  # list of file data dictionaries
     error = pyqtSignal(str)  # error message
@@ -104,7 +103,6 @@ class DirectoryWorker(QRunnable):
         
     def run(self):
         """Main worker method that runs in a separate thread"""
-        self.signals.started.emit()
         files_data = []
         processed_count = 0
         
@@ -559,7 +557,6 @@ class BrowserPage(QWidget):
             
         # Update current directory and populate the table
         if self._current_directory != directory_path:
-            print(f"[BrowserPage] Changing to directory: {directory_path}")
             self._current_directory = directory_path
             self._populate_table(self._current_directory)
             return True
@@ -591,7 +588,6 @@ class BrowserPage(QWidget):
         
         # Create and start a new worker
         worker = DirectoryWorker(directory_path)
-        worker.signals.started.connect(self._on_directory_loading_started)
         worker.signals.progress.connect(self._on_directory_loading_progress)
         worker.signals.finished.connect(lambda files_data: self._on_directory_loading_finished(files_data, directory_path))
         worker.signals.error.connect(self._on_directory_loading_error)
@@ -599,10 +595,6 @@ class BrowserPage(QWidget):
         self.current_directory_worker = worker
         self.thread_pool.start(worker)
 
-    def _on_directory_loading_started(self):
-        """Handle directory loading started signal"""
-        print(f"[BrowserPage] Directory loading started for: {self._current_directory}")
-        
     def _on_directory_loading_progress(self, current, total):
         """Handle directory loading progress signal"""
         if total > 0:
@@ -622,8 +614,6 @@ class BrowserPage(QWidget):
             print(f"[BrowserPage] Ignoring loading results for outdated directory: {directory_path}")
             return
             
-        print(f"[BrowserPage] Directory loading finished: {len(files_data)} items found")
-
         if not files_data:
             self._update_empty_message(is_empty=True)
             return
@@ -909,7 +899,6 @@ class BrowserPage(QWidget):
             last_dir_path = Path(last_dir_str)
             # Check if it exists, is a directory, AND is different from the current view
             if last_dir_path.is_dir() and last_dir_path != self._current_directory:
-                print(f"[BrowserPage] Automatically loading last directory: {last_dir_path}")
                 # Use the centralized navigation method
                 self._navigate_to_directory(last_dir_path)
             elif not last_dir_path.is_dir() and self._current_directory is None:
@@ -1477,9 +1466,6 @@ class BrowserPage(QWidget):
             
             self.conversion_progress_overlay.move(overlay_x, overlay_y)
             self.conversion_progress_overlay.raise_()
-            print(f"[BrowserPage DEBUG] _update_conversion_progress_position: Moved overlay to ({overlay_x}, {overlay_y}). Size: ({overlay_width}, {overlay_height}). IsVisible: {self.conversion_progress_overlay.isVisible()}")
-        else:
-            print(f"[BrowserPage DEBUG] _update_conversion_progress_position: Overlay is NOT visible, not attempting to position.")
     # --- END NEW --- #
 
     # --- NEW: Video Compression Progress Position --- # 
@@ -1499,9 +1485,6 @@ class BrowserPage(QWidget):
             
             self.video_compression_progress_overlay.move(overlay_x, overlay_y)
             self.video_compression_progress_overlay.raise_()
-            print(f"[BrowserPage DEBUG] _update_video_compression_progress_position: Moved overlay to ({overlay_x}, {overlay_y}). Size: ({overlay_width}, {overlay_height}). IsVisible: {self.video_compression_progress_overlay.isVisible()}")
-        else:
-            print(f"[BrowserPage DEBUG] _update_video_compression_progress_position: Overlay is NOT visible, not attempting to position.")
     # --- END NEW --- #
 
     # --- NEW: Douyin Progress Position --- #
@@ -1523,6 +1506,4 @@ class BrowserPage(QWidget):
 
             self.douyin_progress_overlay.move(overlay_x, overlay_y)
             self.douyin_progress_overlay.raise_()
-        else:
-            print(f"[BrowserPage DEBUG] _update_douyin_progress_position: Overlay is NOT visible, not attempting to position.")
     # --- END NEW --- #

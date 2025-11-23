@@ -7,6 +7,7 @@ from music_player.ui.pages.preference_page import PreferencePage as PreferencesP
 from music_player.ui.pages.playlists_page import PlaylistsPage
 from music_player.ui.pages.browser_page import BrowserPage
 from .youtube_page import YoutubePage
+from music_player.ui.pages.vid_processing_page import VidProcessingPage
 
 __all__ = [
     'DashboardPage', 
@@ -14,5 +15,6 @@ __all__ = [
     'PreferencesPage', 
     'PlaylistsPage',
     'BrowserPage',
-    'YoutubePage'
+    'YoutubePage',
+    'VidProcessingPage'
 ] 

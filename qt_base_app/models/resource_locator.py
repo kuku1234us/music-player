@@ -34,9 +34,6 @@ class ResourceLocator:
             if not os.path.isdir(base_path):
                  base_path = os.path.abspath(".") # Use current working directory as last resort
 
-            print(f"[ResourceLocator DEBUG] Running from source, base_path: {base_path}")
-
-
         # Ensure base_path exists
         if not os.path.isdir(base_path):
              print(f"[ResourceLocator WARNING] Determined base_path does not exist: {base_path}", file=sys.stderr)
@@ -47,6 +44,5 @@ class ResourceLocator:
 
         # Important: Use os.path.normpath to handle potential mixed slashes
         resource_abs_path = os.path.normpath(os.path.join(base_path, relative_path))
-        print(f"[ResourceLocator DEBUG] Resolved '{relative_path}' to: {resource_abs_path}")
 
         return resource_abs_path

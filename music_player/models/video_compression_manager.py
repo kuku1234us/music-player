@@ -88,10 +88,10 @@ class VideoCompressionManager(QObject):
                 timeout=5
             )
             if result.returncode == 0:
-                print("[VideoCompressionManager] FFmpeg is available and ready")
+                # print("[VideoCompressionManager] FFmpeg is available and ready")
                 # Extract version for logging
                 version_match = result.stdout.split('\n')[0]
-                print(f"[VideoCompressionManager] {version_match}")
+                # print(f"[VideoCompressionManager] {version_match}")
             else:
                 print(f"[VideoCompressionManager] Warning: FFmpeg returned non-zero exit code: {result.returncode}")
         except FileNotFoundError:

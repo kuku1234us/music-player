@@ -21,6 +21,7 @@ from music_player.ui.pages import (
     PreferencesPage,
     BrowserPage,
     YoutubePage,
+    VidProcessingPage,
 )
 
 # Import player components
@@ -53,7 +54,7 @@ class MusicPlayerDashboard(BaseWindow):
         
         # --- Initialize Logger AFTER base init (which loads YAML config) ---
         self.logger = Logger.instance()
-        self.logger.info(self.__class__.__name__, "MusicPlayerDashboard initializing...")
+        # self.logger.info(self.__class__.__name__, "MusicPlayerDashboard initializing...")
         # -----------------------------------------------------------------
         
         # Set up the application structure after base initialization
@@ -140,6 +141,7 @@ class MusicPlayerDashboard(BaseWindow):
         preferences_page = PreferencesPage()
         browser_page = BrowserPage()
         youtube_page = YoutubePage()
+        vid_processing_page = VidProcessingPage()
         
         # Store pages to prevent garbage collection
         self.pages['dashboard'] = dashboard_page
@@ -148,6 +150,7 @@ class MusicPlayerDashboard(BaseWindow):
         self.pages['preferences'] = preferences_page
         self.pages['browser'] = browser_page
         self.pages['youtube_downloader'] = youtube_page
+        self.pages['vid_processing'] = vid_processing_page
         
         # Add pages to the window
         self.add_page('dashboard', dashboard_page)
@@ -156,6 +159,7 @@ class MusicPlayerDashboard(BaseWindow):
         self.add_page('preferences', preferences_page)
         self.add_page('browser', browser_page)
         self.add_page('youtube_downloader', youtube_page)
+        self.add_page('vid_processing', vid_processing_page)
         
         # Connect signals from sidebar to our handler
         self.sidebar.item_clicked.connect(self.on_sidebar_item_clicked)
@@ -187,7 +191,7 @@ class MusicPlayerDashboard(BaseWindow):
             playlists_page.play_mode_widget.selection_pool_widget.play_single_file_requested.connect(
                 lambda filepath: self.player.load_media_unified(filepath, "selection_pool")
             )
-            self.logger.info(self.__class__.__name__, "Connected SelectionPool to unified media loading")
+            # self.logger.info(self.__class__.__name__, "Connected SelectionPool to unified media loading")
         
         # Connect signals from DashboardPage for recently played items
         if hasattr(dashboard_page, 'play_single_file_requested'):
@@ -195,7 +199,7 @@ class MusicPlayerDashboard(BaseWindow):
             dashboard_page.play_single_file_requested.connect(
                 lambda filepath: self.player.load_media_unified(filepath, "dashboard_recent_files")
             )
-            self.logger.info(self.__class__.__name__, "Connected DashboardPage to unified media loading")
+            # self.logger.info(self.__class__.__name__, "Connected DashboardPage to unified media loading")
             
         if hasattr(dashboard_page, 'play_playlist_requested'):
             dashboard_page.play_playlist_requested.connect(self._handle_play_playlist_from_dashboard)
@@ -203,19 +207,19 @@ class MusicPlayerDashboard(BaseWindow):
         # Connect YoutubePage's navigate_to_file signal to our handler method
         if hasattr(youtube_page, 'navigate_to_file'):
             youtube_page.navigate_to_file.connect(self._handle_navigate_to_downloaded_file)
-            self.logger.info(self.__class__.__name__, "Connected YoutubePage's navigate_to_file signal")
+            # self.logger.info(self.__class__.__name__, "Connected YoutubePage's navigate_to_file signal")
             
         # Connect YoutubePage's play_file signal to handle playback of files
         if hasattr(youtube_page, 'play_file'):
             youtube_page.play_file.connect(self._handle_single_file_request)
-            self.logger.info(self.__class__.__name__, "Connected YoutubePage's play_file signal")
+            # self.logger.info(self.__class__.__name__, "Connected YoutubePage's play_file signal")
         
         # Connect BrowserPage to the new unified loading method
         if hasattr(browser_page, 'play_single_file_requested'):
             browser_page.play_single_file_requested.connect(
                 lambda filepath: self.player.load_media_unified(filepath, "browser_files")
             )
-            self.logger.info(self.__class__.__name__, "Connected BrowserPage to unified media loading")
+            # self.logger.info(self.__class__.__name__, "Connected BrowserPage to unified media loading")
         
         # Show the dashboard page initially
         self.show_page('dashboard')

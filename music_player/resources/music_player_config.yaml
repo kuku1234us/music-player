@@ -40,6 +40,10 @@ sidebar:
           title: "Youtube"
           icon: "fa5s.download"
           page: "YoutubePage"
+        - id: "vid_processing"
+          title: "Vid Processing"
+          icon: "fa5s.film"
+          page: "VidProcessingPage"
     - title: "Settings"
       items:
         - id: "preferences"

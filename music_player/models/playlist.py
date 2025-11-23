@@ -6,61 +6,66 @@ import random # Import random for shuffle
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Union
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
+from qt_base_app.models.logger import Logger
 # Assuming enums are accessible or defined here/imported globally
 # If not, define them or adjust path
 from music_player.ui.vlc_player.enums import REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM
 from datetime import datetime
 from music_player.models.settings_defs import PREF_WORKING_DIR_KEY, DEFAULT_WORKING_DIR
 
+# Module-level cache for working directory
+_cached_working_dir: Optional[Path] = None
+
 # --- Define a default location for the working directory ---
 def get_default_working_dir() -> Path:
+    global _cached_working_dir
+    if _cached_working_dir is not None:
+        return _cached_working_dir
+
     settings = SettingsManager.instance()
+    logger = Logger.instance()
     
     # Get working directory from settings
     working_dir = settings.get(PREF_WORKING_DIR_KEY, None, SettingType.PATH)
-    print(f"[DEBUG] get_default_working_dir: Settings returned working_dir = {working_dir}")
     
     # Check if the working directory is valid and accessible
     if working_dir is not None:
-        print(f"[DEBUG] get_default_working_dir: Working dir exists in settings, checking if valid...")
         try:
             # Verify if the directory exists or can be created
             if not working_dir.exists():
-                print(f"[DEBUG] get_default_working_dir: Directory doesn't exist, creating: {working_dir}")
+                logger.debug("PlaylistModel", f"get_default_working_dir: Directory doesn't exist, creating: {working_dir}")
                 working_dir.mkdir(parents=True, exist_ok=True)
                 
             # Test if we can write to it
-            print(f"[DEBUG] get_default_working_dir: Testing write permissions for: {working_dir}")
             test_file = working_dir / ".write_test"
             test_file.touch()
             test_file.unlink()  # Remove the test file
                 
             # If we got this far, the directory is valid
-            print(f"[DEBUG] get_default_working_dir: Directory is valid, returning: {working_dir}")
+            _cached_working_dir = working_dir
             return working_dir
         except Exception as e:
-            print(f"[DEBUG] get_default_working_dir: Exception when validating working dir: {e}")
-            print(f"Warning: Invalid working directory from settings '{working_dir}': {e}")
+            logger.debug("PlaylistModel", f"get_default_working_dir: Exception when validating working dir: {e}")
+            logger.warning("PlaylistModel", f"Invalid working directory from settings '{working_dir}': {e}")
             # Fall through to default
     else:
-        print(f"[DEBUG] get_default_working_dir: No working_dir in settings or value is None")
+        logger.debug("PlaylistModel", f"get_default_working_dir: No working_dir in settings or value is None")
     
     # Use a reliable default location in the user's home directory
     home_music_dir = Path.home() / ".musicplayer"
-    print(f"[DEBUG] get_default_working_dir: Using default location: {home_music_dir}")
     try:
         home_music_dir.mkdir(parents=True, exist_ok=True)
         # Save this as the new default
-        print(f"[DEBUG] get_default_working_dir: Saving new default to settings")
         settings.set(PREF_WORKING_DIR_KEY, home_music_dir, SettingType.PATH)
-        print(f"Created default working directory: {home_music_dir}")
+        _cached_working_dir = home_music_dir
         return home_music_dir
     except Exception as e:
-        print(f"[DEBUG] get_default_working_dir: Error creating home dir: {e}")
-        print(f"Error creating directory in home folder: {e}")
+        logger.debug("PlaylistModel", f"get_default_working_dir: Error creating home dir: {e}")
+        logger.error("PlaylistModel", f"Error creating directory in home folder: {e}")
         # Last resort fallback - use current working directory
         cwd = Path.cwd()
-        print(f"[DEBUG] get_default_working_dir: Last resort fallback to cwd: {cwd}")
+        logger.debug("PlaylistModel", f"get_default_working_dir: Last resort fallback to cwd: {cwd}")
+        _cached_working_dir = cwd
         return cwd
 
 def is_valid_working_dir(path: Path) -> bool:
@@ -155,7 +160,7 @@ class Playlist:
                         datetime.fromisoformat(item['added_time'])
                         track_data = {'path': norm_path, 'added_time': item['added_time']}
                     except (TypeError, ValueError):
-                        print(f"Warning: Invalid timestamp format for {norm_path} in playlist {self.name}. Using current time.")
+                        Logger.instance().warning("Playlist", f"Invalid timestamp format for {norm_path} in playlist {self.name}. Using current time.")
                         track_data = {'path': norm_path, 'added_time': current_time_iso}
             
             if track_data:
@@ -230,7 +235,7 @@ class Playlist:
     def _load(self) -> None:
         """Loads the playlist tracks from its filepath (JSON format)."""
         if not self.filepath or not self.filepath.exists():
-            print(f"Warning: Playlist file not found for loading: {self.filepath}")
+            Logger.instance().warning("Playlist", f"Playlist file not found for loading: {self.filepath}")
             return
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
@@ -238,19 +243,19 @@ class Playlist:
                 loaded_name = data.get("name")
                 loaded_tracks_raw = data.get("tracks", []) # Raw data
                 if loaded_name != self.name:
-                    print(f"Warning: Playlist name mismatch in file '{self.filepath}'. Expected '{self.name}', found '{loaded_name}'. Using loaded name.")
+                    Logger.instance().warning("Playlist", f"Playlist name mismatch in file '{self.filepath}'. Expected '{self.name}', found '{loaded_name}'. Using loaded name.")
                     self.name = loaded_name
                 
                 # Process loaded tracks, handling old/new format
                 self._initialize_tracks(loaded_tracks_raw)
 
         except (json.JSONDecodeError, IOError, TypeError) as e:
-            print(f"Error loading playlist from {self.filepath}: {e}")
+            Logger.instance().error("Playlist", f"Error loading playlist from {self.filepath}: {e}")
             # Reset to empty state if loading fails
             self.tracks = []
             self._track_set = set()
         except Exception as e: # Catch other potential errors
-             print(f"Unexpected error loading playlist {self.filepath}: {e}")
+             Logger.instance().error("Playlist", f"Unexpected error loading playlist {self.filepath}: {e}")
              self.tracks = []
              self._track_set = set()
 
@@ -278,7 +283,7 @@ class Playlist:
         # Use os.path.samefile for robust comparison, ensuring paths exist first
         elif self.filepath.parent.exists() and not os.path.samefile(str(self.filepath.parent), str(playlist_subdir)):
             # If the filepath is outside the designated playlist subdir, force it inside
-            print(f"Warning: Playlist filepath '{self.filepath}' is outside the expected directory '{playlist_subdir}'. Correcting path.")
+            Logger.instance().warning("Playlist", f"Playlist filepath '{self.filepath}' is outside the expected directory '{playlist_subdir}'. Correcting path.")
             self.filepath = PlaylistManager.get_playlist_path(self.name, playlist_subdir)
 
         data: Dict[str, Any] = {
@@ -292,10 +297,10 @@ class Playlist:
                 json.dump(data, f, indent=4) # Use indent for readability
             return True
         except (IOError, TypeError) as e:
-            print(f"Error saving playlist to {self.filepath}: {e}")
+            Logger.instance().error("Playlist", f"Error saving playlist to {self.filepath}: {e}")
             return False
         except Exception as e: # Catch other potential errors
-             print(f"Unexpected error saving playlist {self.filepath}: {e}")
+             Logger.instance().error("Playlist", f"Unexpected error saving playlist {self.filepath}: {e}")
              return False
 
     @staticmethod
@@ -310,7 +315,7 @@ class Playlist:
             Optional[Playlist]: The loaded Playlist object, or None if loading failed.
         """
         if not filepath.exists():
-            print(f"Error: Playlist file not found: {filepath}")
+            Logger.instance().error("Playlist", f"Error: Playlist file not found: {filepath}")
             return None
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
@@ -318,7 +323,7 @@ class Playlist:
                 name = data.get("name")
                 tracks_raw = data.get("tracks", [])
                 if not name or not isinstance(tracks_raw, list):
-                    print(f"Error: Invalid playlist format in {filepath}")
+                    Logger.instance().error("Playlist", f"Error: Invalid playlist format in {filepath}")
                     return None
                 # Pass tracks_raw directly to the constructor
                 playlist = Playlist(name=name, filepath=filepath, tracks=tracks_raw)
@@ -326,7 +331,7 @@ class Playlist:
                 # This allows get_first_file() to work correctly for REPEAT_RANDOM mode
                 return playlist
         except json.JSONDecodeError as je:
-            print(f"Error loading playlist from {filepath}: {type(je).__name__} - {je}")
+            Logger.instance().error("Playlist", f"Error loading playlist from {filepath}: {type(je).__name__} - {je}")
             
             # Try with different encoding as fallback
             try:
@@ -335,20 +340,20 @@ class Playlist:
                     name = data.get("name")
                     tracks_raw = data.get("tracks", [])
                     if not name or not isinstance(tracks_raw, list):
-                        print(f"Error: Invalid playlist format in {filepath} (latin-1 encoding)")
+                        Logger.instance().error("Playlist", f"Error: Invalid playlist format in {filepath} (latin-1 encoding)")
                         return None
                     # Pass tracks_raw directly to the constructor for fallback encoding
                     playlist = Playlist(name=name, filepath=filepath, tracks=tracks_raw)
-                    print(f"Successfully loaded playlist with latin-1 encoding: {name}")
+                    Logger.instance().info("Playlist", f"Successfully loaded playlist with latin-1 encoding: {name}")
                     return playlist
             except Exception as alt_e:
-                print(f"Failed alternative encoding attempt: {type(alt_e).__name__} - {alt_e}")
+                Logger.instance().error("Playlist", f"Failed alternative encoding attempt: {type(alt_e).__name__} - {alt_e}")
             return None
         except (IOError, TypeError) as e:
-            print(f"Error loading playlist from {filepath}: {type(e).__name__} - {e}")
+            Logger.instance().error("Playlist", f"Error loading playlist from {filepath}: {type(e).__name__} - {e}")
             return None
         except Exception as e: # Catch other potential errors
-            print(f"Unexpected error loading playlist from file {filepath}: {type(e).__name__} - {e}")
+            Logger.instance().error("Playlist", f"Unexpected error loading playlist from file {filepath}: {type(e).__name__} - {e}")
             return None
             
     # --- Track Access and Navigation Logic ---
@@ -361,7 +366,7 @@ class Playlist:
             mode (str): One of REPEAT_ONE, REPEAT_ALL, or REPEAT_RANDOM
         """
         if mode not in [REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM]:
-            print(f"Warning: Invalid repeat mode '{mode}'. Using REPEAT_ALL.")
+            Logger.instance().warning("Playlist", f"Invalid repeat mode '{mode}'. Using REPEAT_ALL.")
             mode = REPEAT_ALL
         
         # If changing to REPEAT_RANDOM, regenerate shuffle indices
@@ -388,11 +393,11 @@ class Playlist:
                                         in the order they are displayed in the UI.
         """
         if not isinstance(sorted_indices, list):
-            print("[Playlist] Warning: update_sort_order received non-list.")
+            Logger.instance().warning("Playlist", "update_sort_order received non-list.")
             return
 
         self._sorted_indices = sorted_indices
-        print(f"[Playlist] Updated sorted indices: {self._sorted_indices}")
+        Logger.instance().debug("Playlist", f"Updated sorted indices: {self._sorted_indices}")
 
         # Reset sorted playback index, will be updated when track selected/played
         # Or try to find current track in new order?
@@ -401,10 +406,10 @@ class Playlist:
                 # Find the position of the currently playing track's original index
                 # within the new sorted list.
                 self._sorted_playback_index = self._sorted_indices.index(self._current_index)
-                print(f"[Playlist] Updated sorted playback index to: {self._sorted_playback_index}")
+                Logger.instance().debug("Playlist", f"Updated sorted playback index to: {self._sorted_playback_index}")
             except ValueError:
                 # Current track index not found in new sort order (shouldn't happen if list is complete)
-                print(f"[Playlist] Warning: Current index {self._current_index} not found in new sorted indices {self._sorted_indices}. Resetting playback index.")
+                Logger.instance().warning("Playlist", f"Current index {self._current_index} not found in new sorted indices {self._sorted_indices}. Resetting playback index.")
                 self._sorted_playback_index = 0 # Start from beginning of new sort
         else:
             self._sorted_playback_index = 0 # Default to start if no track was playing
@@ -451,13 +456,13 @@ class Playlist:
                     swap_pos = random.randint(1, num_tracks - 1)
                     # Swap the first element with the randomly chosen position
                     indices[0], indices[swap_pos] = indices[swap_pos], indices[0]
-                    print(f"[Playlist] Prevented repeat by swapping first track in new shuffle")
+                    Logger.instance().debug("Playlist", f"Prevented repeat by swapping first track in new shuffle")
             
             self._shuffled_indices = indices
             
         # Reset shuffle index to beginning
         self._shuffle_index = 0
-        print(f"[Playlist] Generated new shuffle order: {self._shuffled_indices}")
+        Logger.instance().debug("Playlist", f"Generated new shuffle order: {self._shuffled_indices}")
 
     def get_track_at(self, index: int) -> Optional[str]:
         """Returns the track path at the given index, or None if index is invalid."""
@@ -481,11 +486,11 @@ class Playlist:
                 if 0 <= first_sorted_original_index < len(self.tracks):
                     self._current_index = first_sorted_original_index
                     self._sorted_playback_index = 0 # Start at beginning of sorted list
-                    print(f"[Playlist] First sorted track index: {self._current_index}")
+                    Logger.instance().debug("Playlist", f"First sorted track index: {self._current_index}")
                     track_data = self.tracks[self._current_index]
                     return track_data.get('path') if isinstance(track_data, dict) else None
                 else:
-                     print(f"[Playlist] Warning: First sorted index {first_sorted_original_index} is invalid. Falling back.")
+                     Logger.instance().warning("Playlist", f"First sorted index {first_sorted_original_index} is invalid. Falling back.")
             # If _sorted_indices is somehow empty, fall through to default logic
         # -----------------------------------------------------
 
@@ -506,7 +511,7 @@ class Playlist:
             self._shuffle_index = 0
             # Get the first random track from the shuffled indices
             self._current_index = self._shuffled_indices[0]
-            print(f"[Playlist] First random track index: {self._current_index}")
+            Logger.instance().debug("Playlist", f"First random track index: {self._current_index}")
         else:
             self._current_index = 0
             
@@ -514,15 +519,15 @@ class Playlist:
         if 0 <= self._current_index < len(self.tracks):
             track_data = self.tracks[self._current_index]
             # --- DEBUG --- 
-            print(f"[Playlist] get_first_file: Index {self._current_index}, Data: {track_data}, Is Dict: {isinstance(track_data, dict)}")
+            # Logger.instance().debug("Playlist", f"get_first_file: Index {self._current_index}, Data: {track_data}, Is Dict: {isinstance(track_data, dict)}")
             # ------------- 
             path_to_return = track_data.get('path') if isinstance(track_data, dict) else None
             # --- MORE DEBUG ---
-            print(f"[Playlist] get_first_file: Value to be returned: {repr(path_to_return)}")
+            # Logger.instance().debug("Playlist", f"get_first_file: Value to be returned: {repr(path_to_return)}")
             # ------------------
             return path_to_return
         # --- DEBUG --- 
-        print(f"[Playlist] get_first_file: Index {self._current_index} out of bounds (len={len(self.tracks)}). Returning None.")
+        Logger.instance().debug("Playlist", f"get_first_file: Index {self._current_index} out of bounds (len={len(self.tracks)}). Returning None.")
         # ------------- 
         return None # Return None if index is invalid
 
@@ -594,7 +599,7 @@ class Playlist:
                  track_data = self.tracks[original_index]
                  return track_data.get('path') if isinstance(track_data, dict) else None
             else: # Index somehow invalid
-                 print(f"[Playlist] Warning: Invalid original index {original_index} from sorted list.")
+                 Logger.instance().warning("Playlist", f"Invalid original index {original_index} from sorted list.")
                  self._current_index = -1 # Reset main index
                  self._sorted_playback_index = -1 # Reset sorted index
                  return None
@@ -671,7 +676,7 @@ class Playlist:
                  track_data = self.tracks[original_index]
                  return track_data.get('path') if isinstance(track_data, dict) else None
             else: # Index somehow invalid
-                 print(f"[Playlist] Warning: Invalid original index {original_index} from sorted list (prev).")
+                 Logger.instance().warning("Playlist", f"Invalid original index {original_index} from sorted list (prev).")
                  self._current_index = -1 # Reset main index
                  self._sorted_playback_index = -1 # Reset sorted index
                  return None
@@ -718,43 +723,43 @@ class Playlist:
                  raise ValueError # Path not found
                  
             self._current_index = track_index
-            print(f"[Playlist] Selected track index {self._current_index} for path: {norm_path}")
+            Logger.instance().debug("Playlist", f"Selected track index {self._current_index} for path: {norm_path}")
 
             # If in random mode, update the shuffle index
             if self._current_repeat_mode == REPEAT_RANDOM:
                 if not self._shuffled_indices:
                     # Regenerate if shuffle isn't active, ensure current track is first
-                    print("[Playlist] Regenerating shuffle indices for track selection.")
+                    Logger.instance().debug("Playlist", "Regenerating shuffle indices for track selection.")
                     self._regenerate_shuffle_indices() # This now handles putting _current_index first
                     self._shuffle_index = 0 # We are at the start of the (new) shuffle sequence
                 else:
                     # Find the position of the selected track_index in the shuffle list
                     try:
                         self._shuffle_index = self._shuffled_indices.index(track_index)
-                        print(f"[Playlist] Set shuffle index to {self._shuffle_index}")
+                        Logger.instance().debug("Playlist", f"Set shuffle index to {self._shuffle_index}")
                     except ValueError:
                         # Should not happen if _regenerate_shuffle_indices is called correctly
                         # when tracks are added/removed, but handle defensively.
-                        print(f"[Playlist] Warning: Track index {track_index} not found in shuffle indices {self._shuffled_indices}. Regenerating.")
+                        Logger.instance().warning("Playlist", f"Track index {track_index} not found in shuffle indices {self._shuffled_indices}. Regenerating.")
                         self._regenerate_shuffle_indices()
                         try:
                            self._shuffle_index = self._shuffled_indices.index(track_index)
                         except ValueError:
-                             print(f"[Playlist] Error: Could not find track index {track_index} even after regenerating shuffle.")
+                             Logger.instance().error("Playlist", f"Could not find track index {track_index} even after regenerating shuffle.")
                              self._shuffle_index = 0 # Fallback
             # If in sorted REPEAT_ALL mode, update the sorted playback index
             elif self._current_repeat_mode == REPEAT_ALL and self._sorted_indices:
                 try:
                     self._sorted_playback_index = self._sorted_indices.index(track_index)
-                    print(f"[Playlist] Set sorted playback index to {self._sorted_playback_index}")
+                    Logger.instance().debug("Playlist", f"Set sorted playback index to {self._sorted_playback_index}")
                 except ValueError:
                     # Should not happen if update_sort_order called correctly
-                    print(f"[Playlist] Warning: Track index {track_index} not found in sorted indices {self._sorted_indices}. Resetting.")
+                    Logger.instance().warning("Playlist", f"Track index {track_index} not found in sorted indices {self._sorted_indices}. Resetting.")
                     self._sorted_playback_index = 0 # Fallback
 
             return True
         except ValueError:
-            print(f"[Playlist] Error: Track path not found in playlist: {norm_path}")
+            Logger.instance().error("Playlist", f"Track path not found in playlist: {norm_path}")
             self._current_index = -1 # Indicate no valid track selected
             return False
 
@@ -808,7 +813,6 @@ class PlaylistManager:
         if self._working_dir is None:
             # Resolve the default directory only when first accessed
             self._working_dir = get_default_working_dir()
-            print(f"[PlaylistManager] Resolved working directory: {self._working_dir}")
         return self._working_dir
 
     @property
@@ -819,7 +823,7 @@ class PlaylistManager:
         try:
              p_dir.mkdir(parents=True, exist_ok=True)
         except Exception as e:
-             print(f"Error ensuring playlist directory exists: {p_dir} - {e}")
+             Logger.instance().error("PlaylistManager", f"Error ensuring playlist directory exists: {p_dir} - {e}")
              # Fallback or re-raise depending on desired strictness
              # For now, return the path anyway, operations might fail later
         return p_dir
@@ -910,20 +914,19 @@ class PlaylistManager:
             bool: True if deletion was successful or file didn't exist, False otherwise.
         """
         if not playlist.filepath:
-            print(f"Cannot delete playlist '{playlist.name}' - no associated file path.")
+            Logger.instance().error("PlaylistManager", f"Cannot delete playlist '{playlist.name}' - no associated file path.")
             return False # Cannot delete if we don't know the file
 
         try:
             if playlist.filepath.exists():
                 os.remove(playlist.filepath)
-                print(f"Deleted playlist file: {playlist.filepath}")
+                Logger.instance().info("PlaylistManager", f"Deleted playlist file: {playlist.filepath}")
             else:
-                 print(f"Playlist file not found for deletion: {playlist.filepath}")
+                 Logger.instance().warning("PlaylistManager", f"Playlist file not found for deletion: {playlist.filepath}")
             return True
         except OSError as e:
-            print(f"Error deleting playlist file {playlist.filepath}: {e}")
+            Logger.instance().error("PlaylistManager", f"Error deleting playlist file {playlist.filepath}: {e}")
             return False
         except Exception as e: # Catch other potential errors
-             print(f"Unexpected error deleting playlist file {playlist.filepath}: {e}")
+             Logger.instance().error("PlaylistManager", f"Unexpected error deleting playlist file {playlist.filepath}: {e}")
              return False
-
