@@ -1,6 +1,7 @@
 """
 Video widget for displaying video output using VLC.
 """
+from qt_base_app.models.logger import Logger
 # --- Use PyQt6 --- 
 from PyQt6.QtWidgets import QWidget, QSizePolicy
 from PyQt6.QtGui import QPalette, QColor
@@ -134,7 +135,7 @@ class VideoWidget(QWidget):
     def dropEvent(self, event: QDropEvent):
         """Handle drop events to load and play media files."""
         if not self.main_player:
-            print("[VideoWidget] Warning: No main player reference set for drag and drop")
+            Logger.instance().warning(caller="VideoWidget", msg="[VideoWidget] Warning: No main player reference set for drag and drop")
             event.ignore()
             return
             
@@ -144,16 +145,16 @@ class VideoWidget(QWidget):
                 if url.isLocalFile():
                     file_path = url.toLocalFile()
                     if self._is_media_file(file_path) and os.path.exists(file_path):
-                        print(f"[VideoWidget] Media file dropped: {file_path}")
+                        Logger.instance().debug(caller="VideoWidget", msg=f"[VideoWidget] Media file dropped: {file_path}")
                         
                         # Use the uniform loading method from MainPlayer
                         success = self.main_player.load_media_unified(file_path, "drag_and_drop")
                         
                         if success:
                             event.acceptProposedAction()
-                            print(f"[VideoWidget] Successfully loaded dropped media: {os.path.basename(file_path)}")
+                            Logger.instance().debug(caller="VideoWidget", msg=f"[VideoWidget] Successfully loaded dropped media: {os.path.basename(file_path)}")
                         else:
-                            print(f"[VideoWidget] Failed to load dropped media: {file_path}")
+                            Logger.instance().error(caller="VideoWidget", msg=f"[VideoWidget] Failed to load dropped media: {file_path}")
                             event.ignore()
                         return
                         

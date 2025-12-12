@@ -54,7 +54,6 @@ class MusicPlayerDashboard(BaseWindow):
         
         # --- Initialize Logger AFTER base init (which loads YAML config) ---
         self.logger = Logger.instance()
-        # self.logger.info(self.__class__.__name__, "MusicPlayerDashboard initializing...")
         # -----------------------------------------------------------------
         
         # Set up the application structure after base initialization
@@ -191,7 +190,6 @@ class MusicPlayerDashboard(BaseWindow):
             playlists_page.play_mode_widget.selection_pool_widget.play_single_file_requested.connect(
                 lambda filepath: self.player.load_media_unified(filepath, "selection_pool")
             )
-            # self.logger.info(self.__class__.__name__, "Connected SelectionPool to unified media loading")
         
         # Connect signals from DashboardPage for recently played items
         if hasattr(dashboard_page, 'play_single_file_requested'):
@@ -199,7 +197,6 @@ class MusicPlayerDashboard(BaseWindow):
             dashboard_page.play_single_file_requested.connect(
                 lambda filepath: self.player.load_media_unified(filepath, "dashboard_recent_files")
             )
-            # self.logger.info(self.__class__.__name__, "Connected DashboardPage to unified media loading")
             
         if hasattr(dashboard_page, 'play_playlist_requested'):
             dashboard_page.play_playlist_requested.connect(self._handle_play_playlist_from_dashboard)
@@ -207,19 +204,16 @@ class MusicPlayerDashboard(BaseWindow):
         # Connect YoutubePage's navigate_to_file signal to our handler method
         if hasattr(youtube_page, 'navigate_to_file'):
             youtube_page.navigate_to_file.connect(self._handle_navigate_to_downloaded_file)
-            # self.logger.info(self.__class__.__name__, "Connected YoutubePage's navigate_to_file signal")
             
         # Connect YoutubePage's play_file signal to handle playback of files
         if hasattr(youtube_page, 'play_file'):
             youtube_page.play_file.connect(self._handle_single_file_request)
-            # self.logger.info(self.__class__.__name__, "Connected YoutubePage's play_file signal")
         
         # Connect BrowserPage to the new unified loading method
         if hasattr(browser_page, 'play_single_file_requested'):
             browser_page.play_single_file_requested.connect(
                 lambda filepath: self.player.load_media_unified(filepath, "browser_files")
             )
-            # self.logger.info(self.__class__.__name__, "Connected BrowserPage to unified media loading")
         
         # Show the dashboard page initially
         self.show_page('dashboard')
@@ -264,7 +258,7 @@ class MusicPlayerDashboard(BaseWindow):
             self.show_page('playlists')
             self.sidebar.set_selected_item('playlists')
         else:
-            print("[Dashboard] Error: Could not find PlaylistsPage or _enter_play_mode method.")
+            Logger.instance().error(caller="Dashboard", msg="[Dashboard] Error: Could not find PlaylistsPage or _enter_play_mode method.")
     
     @pyqtSlot()
     def _navigate_to_player_page(self):

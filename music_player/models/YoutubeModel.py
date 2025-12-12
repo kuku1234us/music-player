@@ -7,6 +7,7 @@ import requests
 from urllib.parse import urlparse, parse_qs
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import QUrl
+from qt_base_app.models.logger import Logger
 
 # Added import for SettingsManager
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
@@ -126,7 +127,7 @@ class YoutubeModel:
                     elif 'default' in thumbnails:
                         thumbnail_url = thumbnails['default']['url']
             except Exception as e:
-                print(f"Error fetching thumbnail via API: {e}")
+                Logger.instance().error(caller="YoutubeModel", msg=f"Error fetching thumbnail via API: {e}")
                 # Fall back to direct thumbnail URL
         
         # Download the thumbnail
@@ -138,7 +139,7 @@ class YoutubeModel:
                 pixmap.loadFromData(response.content)
                 return pixmap
         except Exception as e:
-            print(f"Error downloading thumbnail: {e}")
+            Logger.instance().error(caller="YoutubeModel", msg=f"Error downloading thumbnail: {e}")
         
         return None 
 
@@ -193,7 +194,7 @@ class YoutubeModel:
                             pixmap = QPixmap()
                             pixmap.loadFromData(response.content)
             except Exception as e:
-                print(f"Error fetching data via YouTube API: {str(e)}")
+                Logger.instance().error(caller="YoutubeModel", msg=f"Error fetching data via YouTube API: {str(e)}")
         
         # Fallback for title and thumbnail if needed
         if not title:

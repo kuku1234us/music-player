@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from typing import List, Dict, Optional
 from pathlib import Path
+from qt_base_app.models.logger import Logger
 
 from PyQt6.QtCore import QObject, pyqtSignal, QThreadPool
 
@@ -88,18 +89,16 @@ class VideoCompressionManager(QObject):
                 timeout=5
             )
             if result.returncode == 0:
-                # print("[VideoCompressionManager] FFmpeg is available and ready")
                 # Extract version for logging
                 version_match = result.stdout.split('\n')[0]
-                # print(f"[VideoCompressionManager] {version_match}")
             else:
-                print(f"[VideoCompressionManager] Warning: FFmpeg returned non-zero exit code: {result.returncode}")
+                Logger.instance().warning(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Warning: FFmpeg returned non-zero exit code: {result.returncode}")
         except FileNotFoundError:
-            print("[VideoCompressionManager] Warning: FFmpeg not found in PATH")
+            Logger.instance().warning(caller="VideoCompressionManager", msg="[VideoCompressionManager] Warning: FFmpeg not found in PATH")
         except subprocess.TimeoutExpired:
-            print("[VideoCompressionManager] Warning: FFmpeg validation timed out")
+            Logger.instance().warning(caller="VideoCompressionManager", msg="[VideoCompressionManager] Warning: FFmpeg validation timed out")
         except Exception as e:
-            print(f"[VideoCompressionManager] Warning: FFmpeg validation error: {e}")
+            Logger.instance().error(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Warning: FFmpeg validation error: {e}")
     
     def start_compressions(self, selected_objects: List[Dict], output_directory: str, rotate_direction: Optional[str] = None):
         """
@@ -140,7 +139,7 @@ class VideoCompressionManager(QObject):
                 return
             
             # Discover video files
-            print(f"[VideoCompressionManager] Discovering video files in {len(selected_paths)} selected items")
+            Logger.instance().debug(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Discovering video files in {len(selected_paths)} selected items")
             video_files = discover_video_files(selected_paths)
             
             if not video_files:
@@ -182,10 +181,10 @@ class VideoCompressionManager(QObject):
                             f"Available: {format_file_size(free_bytes)}"
                         )
                     
-                    print(f"[VideoCompressionManager] Disk space check passed. Available: {format_file_size(free_bytes)}")
+                    Logger.instance().debug(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Disk space check passed. Available: {format_file_size(free_bytes)}")
                 
             except Exception as e:
-                print(f"[VideoCompressionManager] Disk space check warning: {e}")
+                Logger.instance().warning(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Disk space check warning: {e}")
             
             # Create tasks
             tasks = self._create_tasks(files_to_compress, output_directory)
@@ -199,7 +198,7 @@ class VideoCompressionManager(QObject):
             
         except Exception as e:
             error_msg = f"Failed to start compression: {str(e)}"
-            print(f"[VideoCompressionManager] {error_msg}")
+            Logger.instance().error(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] {error_msg}")
             self.error_message.emit(error_msg)
     
     def cancel_all_compressions(self):
@@ -207,7 +206,7 @@ class VideoCompressionManager(QObject):
         if not self.is_batch_active:
             return
         
-        print("[VideoCompressionManager] Cancelling all compressions")
+        Logger.instance().debug(caller="VideoCompressionManager", msg="[VideoCompressionManager] Cancelling all compressions")
         self.batch_cancelled = True
         
         # Cancel all active workers
@@ -246,7 +245,7 @@ class VideoCompressionManager(QObject):
             ffmpeg_path: Path to FFmpeg executable
         """
         self.ffmpeg_path = ffmpeg_path
-        print(f"[VideoCompressionManager] FFmpeg path set to: {ffmpeg_path}")
+        Logger.instance().debug(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] FFmpeg path set to: {ffmpeg_path}")
         # Re-validate FFmpeg with new path
         self._validate_ffmpeg_availability()
     
@@ -258,7 +257,7 @@ class VideoCompressionManager(QObject):
             max_workers: Maximum number of concurrent workers
         """
         self.max_concurrent_workers = max(1, max_workers)
-        print(f"[VideoCompressionManager] Max concurrent workers set to: {self.max_concurrent_workers}")
+        Logger.instance().debug(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Max concurrent workers set to: {self.max_concurrent_workers}")
     
     def get_estimated_time_remaining(self) -> Optional[float]:
         """
@@ -300,10 +299,10 @@ class VideoCompressionManager(QObject):
                 if width > 720 or height > 720:
                     files_to_compress.append(video_file)
                 else:
-                    print(f"[VideoCompressionManager] Skipping already small video: {os.path.basename(video_file)} ({width}x{height})")
+                    Logger.instance().debug(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Skipping already small video: {os.path.basename(video_file)} ({width}x{height})")
             else:
                 # If resolution can't be determined, include it for processing by default
-                print(f"[VideoCompressionManager] Could not determine resolution for {os.path.basename(video_file)}, including for compression.")
+                Logger.instance().debug(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Could not determine resolution for {os.path.basename(video_file)}, including for compression.")
                 files_to_compress.append(video_file)
         return files_to_compress
 
@@ -367,10 +366,10 @@ class VideoCompressionManager(QObject):
                 tasks.append(task)
                 self.tasks[task.task_id] = task
                 
-                print(f"[VideoCompressionManager] Created task {index + 1}/{total_files}: {task.original_filename}")
+                Logger.instance().debug(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Created task {index + 1}/{total_files}: {task.original_filename}")
                 
             except Exception as e:
-                print(f"[VideoCompressionManager] Failed to create task for {video_file}: {e}")
+                Logger.instance().error(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Failed to create task for {video_file}: {e}")
         
         return tasks
     
@@ -387,7 +386,7 @@ class VideoCompressionManager(QObject):
         self.current_batch_size = len(tasks)
         self.is_batch_active = True
         
-        print(f"[VideoCompressionManager] Starting batch processing of {self.current_batch_size} files")
+        Logger.instance().info(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Starting batch processing of {self.current_batch_size} files")
         
         # Emit batch started signal
         self.compression_batch_started.emit(self.current_batch_size)
@@ -436,11 +435,11 @@ class VideoCompressionManager(QObject):
             # Start the worker
             self.thread_pool.start(worker)
             
-            print(f"[VideoCompressionManager] Started worker for task: {task.task_id}")
+            Logger.instance().info(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Started worker for task: {task.task_id}")
             
         except Exception as e:
             error_msg = f"Failed to start worker for {task.original_filename}: {str(e)}"
-            print(f"[VideoCompressionManager] {error_msg}")
+            Logger.instance().error(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] {error_msg}")
             task.mark_failed(error_msg)
             self.compression_file_failed.emit(task.task_id, task.original_filename, error_msg)
     
@@ -448,7 +447,7 @@ class VideoCompressionManager(QObject):
         """Handle worker started signal."""
         task = self.tasks.get(task_id)
         if task:
-            print(f"[VideoCompressionManager] Worker started for: {task.original_filename}")
+            Logger.instance().info(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Worker started for: {task.original_filename}")
     
     def _on_worker_finished(self, task_id: str):
         """Handle worker finished signal."""
@@ -469,7 +468,7 @@ class VideoCompressionManager(QObject):
         if task:
             self.failed_tasks += 1
             self.compression_file_failed.emit(task_id, task.original_filename, error_message)
-            print(f"[VideoCompressionManager] Compression failed: {task.original_filename} - {error_message}")
+            Logger.instance().error(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Compression failed: {task.original_filename} - {error_message}")
     
     def _on_worker_cancelled(self, task_id: str):
         """Handle worker cancelled signal."""
@@ -477,7 +476,7 @@ class VideoCompressionManager(QObject):
         if task:
             self.cancelled_tasks += 1
             self.compression_file_cancelled.emit(task_id, task.original_filename)
-            print(f"[VideoCompressionManager] Compression cancelled: {task.original_filename}")
+            Logger.instance().debug(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Compression cancelled: {task.original_filename}")
     
     def _on_progress_updated(self, task_id: str, progress: float):
         """Handle progress update signal."""
@@ -513,9 +512,9 @@ class VideoCompressionManager(QObject):
                 if duration:
                     stats += f", Time: {duration:.1f}s"
                 
-                print(f"[VideoCompressionManager] Compression completed: {original_filename} -> {compressed_filename} ({stats})")
+                Logger.instance().info(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Compression completed: {original_filename} -> {compressed_filename} ({stats})")
             else:
-                print(f"[VideoCompressionManager] Compression completed: {original_filename} -> {compressed_filename}")
+                Logger.instance().info(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Compression completed: {original_filename} -> {compressed_filename}")
     
     def _check_batch_completion(self):
         """Check if the batch is complete and emit appropriate signals."""
@@ -529,10 +528,10 @@ class VideoCompressionManager(QObject):
             self.is_batch_active = False
             
             if self.batch_cancelled:
-                print("[VideoCompressionManager] Batch cancelled")
+                Logger.instance().debug(caller="VideoCompressionManager", msg="[VideoCompressionManager] Batch cancelled")
                 self.compression_batch_cancelled.emit()
             else:
-                print(f"[VideoCompressionManager] Batch completed - {self.completed_tasks} completed, {self.failed_tasks} failed")
+                Logger.instance().error(caller="VideoCompressionManager", msg=f"[VideoCompressionManager] Batch completed - {self.completed_tasks} completed, {self.failed_tasks} failed")
                 self.compression_batch_finished.emit()
     
     def __del__(self):

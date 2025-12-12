@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QPushButton, QSizePolicy
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QCursor, QIcon
+from qt_base_app.models.logger import Logger
 
 # Try importing qtawesome, handle if not found
 try:
@@ -56,13 +57,13 @@ class IconButton(QPushButton):
                 self.setIcon(icon)
                 self.setIconSize(size)
             except Exception as e:
-                print(f"Error setting icon '{icon_name}': {e}")
+                Logger.instance().error(caller="icon_button", msg=f"Error setting icon '{icon_name}': {e}")
                 # Optionally set fallback text if icon fails
                 # self.setText("?")
         else:
             # Fallback if qtawesome is not available
             # You might set simple text or leave it blank
-            print("Warning: qtawesome not found. IconButton will not display icons.")
+            Logger.instance().warning(caller="icon_button", msg="Warning: qtawesome not found. IconButton will not display icons.")
             # self.setText("?") # Example fallback
 
     def _apply_style(self, tooltip: str, fixed_size: QSize, hover_key: tuple, icon_size: QSize):

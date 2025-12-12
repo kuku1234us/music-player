@@ -96,7 +96,6 @@ class BaseTableModel(QAbstractTableModel):
                 if isinstance(obj, dict): return obj.get(key)
                 else: return getattr(obj, key, None)
         except Exception as e:
-            # print(f"[BaseTableModel] Error getting value for key '{key}': {e}") # Use logging
             pass
         return None
 
@@ -276,16 +275,16 @@ class BaseTableView(QTableView):
             if isinstance(source_model, BaseTableModel):
                 source_for_defs = source_model
             else:
-                print(f"[BaseTableView] Warning: Proxy source model is NOT BaseTableModel ({type(source_model)}). Persistence/Features limited.")
+                Logger.instance().warning(caller="BaseTableView", msg=f"[BaseTableView] Warning: Proxy source model is NOT BaseTableModel ({type(source_model)}). Persistence/Features limited.")
         else:
             if model is not None:
-                 print(f"[BaseTableView] Warning: Using non-BaseTableModel/Proxy model ({type(model)}). Persistence/Features may be limited.")
+                 Logger.instance().warning(caller="BaseTableView", msg=f"[BaseTableView] Warning: Using non-BaseTableModel/Proxy model ({type(model)}). Persistence/Features may be limited.")
 
         # Store column definitions if found
         if source_for_defs:
             self._column_definitions = source_for_defs.column_definitions
         else:
-             print("[BaseTableView] No column definitions stored.") # Debug
+             Logger.instance().debug(caller="BaseTableView", msg="[BaseTableView] No column definitions stored.")
 
         # Load persistent state or apply defaults (now uses potentially loaded definitions)
         if self.table_name:
@@ -409,7 +408,7 @@ class BaseTableView(QTableView):
         col_count = self.model().columnCount()
         # Ensure header sections match model columns before saving
         if header.count() != col_count:
-             print(f"[BaseTableView] Warning: Header count ({header.count()}) != Model column count ({col_count}). Skipping state save.")
+             Logger.instance().warning(caller="BaseTableView", msg=f"[BaseTableView] Warning: Header count ({header.count()}) != Model column count ({col_count}). Skipping state save.")
              return
 
         column_widths = { f'col_{i}': header.sectionSize(i) for i in range(col_count) }
@@ -430,7 +429,7 @@ class BaseTableView(QTableView):
         col_count = self.model().columnCount()
         # Check consistency
         if col_count != len(self._column_definitions):
-             print(f"[BaseTableView] Warning: Model column count ({col_count}) != Column definitions ({len(self._column_definitions)}). Using default state.")
+             Logger.instance().warning(caller="BaseTableView", msg=f"[BaseTableView] Warning: Model column count ({col_count}) != Column definitions ({len(self._column_definitions)}). Using default state.")
              self._sort_column = 0
              self._sort_order = Qt.SortOrder.AscendingOrder
              self._apply_default_widths()
@@ -479,26 +478,26 @@ class BaseTableView(QTableView):
         """Handles item deletion request by asking the model."""
         view_model = self.model() # This could be the source or the proxy
         if not view_model:
-            print("[BaseTableView] Cannot delete: No model set.")
+            Logger.instance().debug(caller="BaseTableView", msg="[BaseTableView] Cannot delete: No model set.")
             return
 
         # Determine the actual source model where remove_rows_by_objects lives
         source_model = None
         if isinstance(view_model, QSortFilterProxyModel):
             source_model = view_model.sourceModel()
-            print(f"[BaseTableView] Delete target is source model via proxy: {type(source_model)}")
+            Logger.instance().debug(caller="BaseTableView", msg=f"[BaseTableView] Delete target is source model via proxy: {type(source_model)}")
         else:
             source_model = view_model # View model is the source model
-            print(f"[BaseTableView] Delete target is direct model: {type(source_model)}")
+            Logger.instance().debug(caller="BaseTableView", msg=f"[BaseTableView] Delete target is direct model: {type(source_model)}")
 
         # Check if the *source* model supports the deletion method
         if not (source_model and hasattr(source_model, 'remove_rows_by_objects') and callable(source_model.remove_rows_by_objects)):
-            print(f"[BaseTableView] Source model ({type(source_model)}) does not support 'remove_rows_by_objects'.")
+            Logger.instance().debug(caller="BaseTableView", msg=f"[BaseTableView] Source model ({type(source_model)}) does not support 'remove_rows_by_objects'.")
             return
 
         objects_to_delete = self.get_selected_items_data() # This now handles proxy mapping
         if objects_to_delete:
-            print(f"[BaseTableView] Requesting source model to delete {len(objects_to_delete)} object(s).")
+            Logger.instance().debug(caller="BaseTableView", msg=f"[BaseTableView] Requesting source model to delete {len(objects_to_delete)} object(s).")
             source_model.remove_rows_by_objects(objects_to_delete)
             self.items_removed.emit(objects_to_delete)
 
@@ -514,7 +513,7 @@ class BaseTableView(QTableView):
          source_model = view_model.sourceModel() if is_proxy else view_model
 
          if not source_model:
-             print("[BaseTableView] Cannot get selected data: Source model not found.")
+             Logger.instance().debug(caller="BaseTableView", msg="[BaseTableView] Cannot get selected data: Source model not found.")
              return []
 
          # Use selectedRows() which gives indices relative to the view_model

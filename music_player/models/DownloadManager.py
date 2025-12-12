@@ -22,7 +22,7 @@ try:
     YTDLP_UPDATER_AVAILABLE = True
 except ImportError as e:
     # Log the import error but don't fail
-    print(f"Warning: yt-dlp updater not available: {e}")
+    Logger.instance().warning(caller="DownloadManager", msg=f"Warning: yt-dlp updater not available: {e}")
     YTDLP_UPDATER_AVAILABLE = False
 
 class DownloadManager(QObject):
@@ -84,8 +84,8 @@ class DownloadManager(QObject):
         """
         clean_url = SiteModel.get_clean_url(url)
         
-        print(f"DEBUG: add_download called with URL: {url}, clean_url: {clean_url}")
-        print(f"DEBUG: Format options received: {format_options}")
+        Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: add_download called with URL: {url}, clean_url: {clean_url}")
+        Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: Format options received: {format_options}")
         
         self._mutex.lock()
         is_new = False
@@ -95,12 +95,12 @@ class DownloadManager(QObject):
                 clean_url in self._active or 
                 clean_url in self._completed or
                 clean_url in self._errors):
-                print(f"DEBUG: URL already in queue: {clean_url}")
+                Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: URL already in queue: {clean_url}")
                 return False
             
             # Add to queue
             self._queue.append(clean_url)
-            print(f"DEBUG: Added to queue: {clean_url}")
+            Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: Added to queue: {clean_url}")
             is_new = True
             
             # Initialize metadata
@@ -114,7 +114,7 @@ class DownloadManager(QObject):
                 'output_dir': output_dir or os.path.expanduser('~/Downloads')
             }
             
-            print(f"DEBUG: Metadata initialized with format_options: {self._metadata[clean_url]['format_options']}")
+            Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: Metadata initialized with format_options: {self._metadata[clean_url]['format_options']}")
         finally:
             self._mutex.unlock()
         
@@ -125,7 +125,7 @@ class DownloadManager(QObject):
             # Fetch metadata in background thread
             # Always fetch metadata for all URLs, even ones that were from the protocol handler
             # This ensures we get proper titles for Chrome extension URLs
-            print(f"DEBUG: Starting quick metadata fetch for: {clean_url}")
+            Logger.instance().info(caller="DownloadManager", msg=f"DEBUG: Starting quick metadata fetch for: {clean_url}")
             self._fetch_quick_metadata_threaded(clean_url)
             
             # Process queue (will start download if slots available)
@@ -215,7 +215,7 @@ class DownloadManager(QObject):
                 except Exception as e: # Restore the except block
                     # Log the error but don't fail - metadata isn't critical
                     # We can use print here as it's isolated in a thread and logger might not be easily accessible
-                    print(f"[QuickMetadataThread ERROR] URL={self.url}: {str(e)}")
+                    Logger.instance().error(caller="DownloadManager", msg=f"[QuickMetadataThread ERROR] URL={self.url}: {str(e)}")
                     
                     # Still emit a signal with a generic title so the UI can show something
                     site = SiteModel.detect_site(self.url)
@@ -243,7 +243,7 @@ class DownloadManager(QObject):
     
     def _on_quick_metadata_ready(self, url, title, pixmap):
         """Handle completion of quick metadata fetch."""
-        print(f"DEBUG: Quick metadata ready for {url}: title={title}, has thumbnail={not pixmap.isNull()}")
+        Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: Quick metadata ready for {url}: title={title}, has thumbnail={not pixmap.isNull()}")
         
         # --- Prepare data under lock ---
         emit_signal = False
@@ -258,7 +258,7 @@ class DownloadManager(QObject):
                 current_title = self._metadata[url].get('title', '')
                 if (title and not title.startswith("Loading:") or 
                     current_title.startswith("Loading")):
-                    print(f"DEBUG: Updating title for {url} from '{current_title}' to '{title}'")
+                    Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: Updating title for {url} from '{current_title}' to '{title}'")
                     self._metadata[url]['title'] = title
                     meta_title_to_emit = title # Use the updated title
                 else:
@@ -282,7 +282,7 @@ class DownloadManager(QObject):
         if emit_signal:
             self.download_started.emit(url, meta_title_to_emit, meta_thumbnail_to_emit)
             # Debug log that we emitted the signal
-            print(f"DEBUG: Emitted download_started signal for {url} with title '{meta_title_to_emit}'")
+            Logger.instance().info(caller="DownloadManager", msg=f"DEBUG: Emitted download_started signal for {url} with title '{meta_title_to_emit}'")
         
         # Clean up thread (this part is fine outside lock)
         if hasattr(self, '_quick_metadata_threads') and url in self._quick_metadata_threads:
@@ -310,7 +310,7 @@ class DownloadManager(QObject):
         
         self._mutex.lock()
         try:
-            print(f"DEBUG: Cancelling/Removing download for URL: {url}")
+            Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: Cancelling/Removing download for URL: {url}")
             
             # Check if download is active
             if url in self._active:
@@ -336,25 +336,25 @@ class DownloadManager(QObject):
                 self._errors.remove(url)
                 need_queue_update = True
                 if url in self._metadata: del self._metadata[url]; metadata_removed = True
-                print(f"DEBUG: Removed error item: {url}")
+                Logger.instance().error(caller="DownloadManager", msg=f"DEBUG: Removed error item: {url}")
             elif url in self._completed:
                 self._completed.remove(url)
                 need_queue_update = True
                 if url in self._metadata: del self._metadata[url]; metadata_removed = True
-                print(f"DEBUG: Removed completed download: {url}")
+                Logger.instance().info(caller="DownloadManager", msg=f"DEBUG: Removed completed download: {url}")
             elif url in self._metadata: # Case where it might be only in metadata (e.g., after completion/error but before UI refresh)
-                print(f"DEBUG: Removing metadata only for URL: {url}")
+                Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: Removing metadata only for URL: {url}")
                 del self._metadata[url]
                 metadata_removed = True
                 need_queue_update = True
             else:
-                print(f"DEBUG: URL not found in any collection: {url}")
+                Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: URL not found in any collection: {url}")
         finally:
             self._mutex.unlock()
         
         # --- Actions outside lock --- 
         if worker_to_cancel is not None:
-            print(f"DEBUG: Cancel signaled for worker: {url_to_cancel}")
+            Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: Cancel signaled for worker: {url_to_cancel}")
             worker_to_cancel.cancel() # Ask worker to stop its internal process
             # Thread management is handled via finished signal connections
 
@@ -511,14 +511,14 @@ class DownloadManager(QObject):
     
     def _on_complete(self, url, output_dir, filename):
         """Handle download completion signal from worker."""
-        print(f"Download complete signal received - URL: {url}") # Keep prints
-        print(f"Output directory: {output_dir}")
-        print(f"Filename: {filename}")
+        Logger.instance().debug(caller="DownloadManager", msg=f"Download complete signal received - URL: {url}")
+        Logger.instance().debug(caller="DownloadManager", msg=f"Output directory: {output_dir}")
+        Logger.instance().debug(caller="DownloadManager", msg=f"Filename: {filename}")
         # File existence check remains useful here
         if filename:
             filepath = os.path.join(output_dir, filename) if output_dir else None
             if not filepath or not os.path.exists(filepath):
-                print(f"WARNING: File does not exist at expected path: {filepath}")
+                Logger.instance().warning(caller="DownloadManager", msg=f"WARNING: File does not exist at expected path: {filepath}")
         
         # --- Update state under lock --- 
         need_queue_update = False
@@ -543,7 +543,7 @@ class DownloadManager(QObject):
     
     def _on_error(self, url, error_message):
         """Handle download error signal from worker."""
-        print(f"DEBUG: _on_error signal received for URL: {url} with message: {error_message}")
+        Logger.instance().error(caller="DownloadManager", msg=f"DEBUG: _on_error signal received for URL: {url} with message: {error_message}")
         
         # --- Update state under lock --- 
         need_queue_update = False
@@ -555,10 +555,10 @@ class DownloadManager(QObject):
                 # Check if this is an "Already Exists" message
                 if error_message == "Already Exists":
                     self._metadata[url]['status'] = 'Already Exists'
-                    print(f"DEBUG: Setting status for {url} to 'Already Exists'")
+                    Logger.instance().debug(caller="DownloadManager", msg=f"DEBUG: Setting status for {url} to 'Already Exists'")
                 else:
                     self._metadata[url]['status'] = 'Error'
-                    print(f"DEBUG: Setting status for {url} to 'Error' (message was: {error_message})")
+                    Logger.instance().error(caller="DownloadManager", msg=f"DEBUG: Setting status for {url} to 'Error' (message was: {error_message})")
                     
                 self._metadata[url]['stats'] = error_message
                 self._metadata[url]['dismissable'] = True
@@ -650,7 +650,7 @@ class DownloadManager(QObject):
             if url in self._metadata:
                 del self._metadata[url]
             
-            print(f"DEBUG: Dismissed error for URL: {url}")
+            Logger.instance().error(caller="DownloadManager", msg=f"DEBUG: Dismissed error for URL: {url}")
         finally:
             self._mutex.unlock()
         

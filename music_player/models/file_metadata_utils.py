@@ -1,6 +1,7 @@
 import os
 from typing import Dict, Optional
 import win32com.client
+from qt_base_app.models.logger import Logger
 
 # Cache for property indices to avoid repeated lookups
 _property_index_cache = {}
@@ -44,7 +45,7 @@ def get_windows_file_properties(file_path: str) -> Dict[str, str]:
                 properties[name] = value
                 
     except Exception as e:
-        print(f"Error getting properties for {file_path}: {e}")
+        Logger.instance().error(caller="file_metadata_utils", msg=f"Error getting properties for {file_path}: {e}")
     
     return properties
 

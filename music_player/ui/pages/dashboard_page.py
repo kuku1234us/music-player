@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QGridLayout, QSizePolicy, QListWidget, QListWidgetItem
 )
+from qt_base_app.models.logger import Logger
 from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon, QColor
 
@@ -150,7 +151,7 @@ class DashboardPage(QWidget):
         """Handle double-click on a recently played item."""
         item_data = item.data(Qt.ItemDataRole.UserRole)
         if not isinstance(item_data, dict):
-            print("[DashboardPage] Error: No data associated with clicked item.")
+            Logger.instance().error(caller="DashboardPage", msg="[DashboardPage] Error: No data associated with clicked item.")
             return
             
         item_type = item_data.get('type')
@@ -158,16 +159,16 @@ class DashboardPage(QWidget):
         name = item_data.get('name')
         
         if not path or not item_type:
-            print("[DashboardPage] Error: Invalid item data.")
+            Logger.instance().error(caller="DashboardPage", msg="[DashboardPage] Error: Invalid item data.")
             return
             
-        print(f"[DashboardPage] Double-clicked recent item: Type={item_type}, Path={path}")
+        Logger.instance().debug(caller="DashboardPage", msg=f"[DashboardPage] Double-clicked recent item: Type={item_type}, Path={path}")
         
         if item_type == 'file':
             if os.path.exists(path):
                 self.play_single_file_requested.emit(path)
             else:
-                print(f"[DashboardPage] Error: File path does not exist: {path}")
+                Logger.instance().error(caller="DashboardPage", msg=f"[DashboardPage] Error: File path does not exist: {path}")
                 # Optionally remove from recent list here? or show message
         elif item_type == 'playlist':
             playlist_path = Path(path)
@@ -178,9 +179,9 @@ class DashboardPage(QWidget):
                 if playlist:
                     self.play_playlist_requested.emit(playlist)
                 else:
-                    print(f"[DashboardPage] Error: Failed to load playlist: {path}")
+                    Logger.instance().error(caller="DashboardPage", msg=f"[DashboardPage] Error: Failed to load playlist: {path}")
             else:
-                print(f"[DashboardPage] Error: Playlist path does not exist: {path}")
+                Logger.instance().error(caller="DashboardPage", msg=f"[DashboardPage] Error: Playlist path does not exist: {path}")
                 # Optionally remove from recent list here? or show message
 
     def showEvent(self, event):

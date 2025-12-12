@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSizePolicy, QHBoxLayout
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QKeyEvent
 from typing import Optional
+from qt_base_app.models.logger import Logger
 
 # Forward declaration for type hinting if VideoWidget is in another file and causes circular import
 # For now, assuming direct import is fine or will be resolved.
@@ -217,10 +218,10 @@ class FullScreenManager(QObject):
             # pylint: disable=protected-access
             self._main_player_ref._set_vlc_window_handle(self._video_widget_ref) # type: ignore
         else:
-            print("[FullScreenManager] Warning: MainPlayer does not have the _set_vlc_window_handle method.")
+            Logger.instance().warning(caller="FullScreenManager", msg="[FullScreenManager] Warning: MainPlayer does not have the _set_vlc_window_handle method.")
 
         self._is_full_screen = True
-        print("[FullScreenManager] Entered full-screen mode.")
+        Logger.instance().debug(caller="FullScreenManager", msg="[FullScreenManager] Entered full-screen mode.")
 
     def exit_full_screen(self):
         """Exits full-screen mode."""
@@ -253,19 +254,17 @@ class FullScreenManager(QObject):
             # pylint: disable=protected-access
             self._main_player_ref._set_vlc_window_handle(None) # type: ignore
         else:
-            print("[FullScreenManager] Warning: MainPlayer does not have the _set_vlc_window_handle method for exit.")
+            Logger.instance().warning(caller="FullScreenManager", msg="[FullScreenManager] Warning: MainPlayer does not have the _set_vlc_window_handle method for exit.")
         
         # Visibility of _video_widget_ref is now PlayerPage's responsibility via _sync_player_page_display
         # We removed the explicit self._video_widget_ref.show()/hide() here.
 
         # --- Add diagnostic prints --- 
-        print(f"[FullScreenManager exit] VideoWidget parent after setParent(None): {self._video_widget_ref.parentWidget()}")
-        print(f"[FullScreenManager exit] VideoWidget visible (state before PlayerPage sync): {self._video_widget_ref.isVisible()}")
-        print(f"[FullScreenManager exit] VideoWidget geometry (state before PlayerPage sync): {self._video_widget_ref.geometry()}")
+        Logger.instance().debug(caller="full_screen_video", msg=f"[FullScreenManager exit] VideoWidget parent after setParent(None): {self._video_widget_ref.parentWidget()}")
+        Logger.instance().debug(caller="full_screen_video", msg=f"[FullScreenManager exit] VideoWidget visible (state before PlayerPage sync): {self._video_widget_ref.isVisible()}")
+        Logger.instance().debug(caller="full_screen_video", msg=f"[FullScreenManager exit] VideoWidget geometry (state before PlayerPage sync): {self._video_widget_ref.geometry()}")
         # The following might be None now if original_layout_ref was for a different parent structure
         # if self._original_parent_widget_ref and self._original_parent_widget_ref.layout():
-        #     print(f"[FullScreenManager exit] Original parent ({self._original_parent_widget_ref.objectName() if self._original_parent_widget_ref else 'None'}) layout: {self._original_parent_widget_ref.layout()}")
-        #     print(f"[FullScreenManager exit] VideoWidget in original layout at index: {self._original_parent_widget_ref.layout().indexOf(self._video_widget_ref)}")
         # -----------------------------
             
         # Restore focus to the main application window or original parent's window.
@@ -286,7 +285,7 @@ class FullScreenManager(QObject):
             main_app_window.setFocus()
 
         self._is_full_screen = False
-        print("[FullScreenManager] Exited full-screen mode (VideoWidget detached).")
+        Logger.instance().debug(caller="FullScreenManager", msg="[FullScreenManager] Exited full-screen mode (VideoWidget detached).")
         self.did_exit_full_screen.emit() # Emit signal after exit is complete
 
     # --- Add new slot to emit dedicated signal for ESC --- 
@@ -294,7 +293,7 @@ class FullScreenManager(QObject):
     def _emit_exit_request_due_to_escape(self):
         """Emits a signal indicating an exit was requested via ESC key from host window."""
         if self._is_full_screen: # Only emit if we are actually in full screen
-            print("[FullScreenManager] Exit requested via ESC, emitting signal.")
+            Logger.instance().debug(caller="FullScreenManager", msg="[FullScreenManager] Exit requested via ESC, emitting signal.")
             self.exit_requested_via_escape.emit()
     # -----------------------------------------------------
 
@@ -326,9 +325,9 @@ if __name__ == '__main__':
     class DummyMainPlayer(QObject):
         def _set_vlc_window_handle(self, widget): # type: ignore
             if widget:
-                print(f"DummyMainPlayer: Setting VLC HWND to {widget.winId()}")
+                Logger.instance().debug(caller="full_screen_video", msg=f"DummyMainPlayer: Setting VLC HWND to {widget.winId()}")
             else:
-                print("DummyMainPlayer: Clearing VLC HWND")
+                Logger.instance().debug(caller="full_screen_video", msg="DummyMainPlayer: Clearing VLC HWND")
 
     # Main application window (simulating the context where VideoWidget lives)
     main_app_window = QWidget()
@@ -354,7 +353,7 @@ if __name__ == '__main__':
         # fs_manager.toggle_full_screen() # This will be fully implemented in M2
         # For M1, let's just test showing/hiding the host window normally
         if fs_manager.is_full_screen:
-            print("M1 Test: Requesting exit from pseudo-fullscreen")
+            Logger.instance().debug(caller="full_screen_video", msg="M1 Test: Requesting exit from pseudo-fullscreen")
             fs_manager.exit_full_screen() # Now calls the M2 implemented logic
             # fs_manager._host_window.hide() # Manually hide for M1 test - NO LONGER NEEDED
             # In M2, VideoWidget would be re-parented back here
@@ -364,7 +363,7 @@ if __name__ == '__main__':
 
 
         else:
-            print("M1 Test: Requesting entry to pseudo-fullscreen")
+            Logger.instance().debug(caller="full_screen_video", msg="M1 Test: Requesting entry to pseudo-fullscreen")
             fs_manager.enter_full_screen() # Now calls the M2 implemented logic
              # In M2, VideoWidget would be re-parented to host_window
             # actual_video_widget.setParent(None) # Detach from current parent for M1 test - NO LONGER NEEDED

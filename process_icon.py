@@ -2,6 +2,8 @@
 import os
 from PIL import Image
 
+from qt_base_app.models.logger import Logger
+
 def resize_icons():
     """
     Loads the microphone.png icon and creates resized versions (16, 48, 128).
@@ -19,12 +21,12 @@ def resize_icons():
 
     # Check if source file exists
     if not os.path.exists(source_icon_path):
-        print(f"Error: Source icon '{source_icon_path}' not found.")
+        Logger.instance().error(caller="process_icon", msg=f"Source icon '{source_icon_path}' not found.")
         return
 
     try:
         with Image.open(source_icon_path) as img:
-            print(f"Opened '{source_icon_path}'. Original size: {img.size}")
+            Logger.instance().info(caller="process_icon", msg=f"Opened '{source_icon_path}'. Original size: {img.size}")
 
             # Ensure the image has an alpha channel for transparency if needed
             if img.mode != 'RGBA':
@@ -39,12 +41,12 @@ def resize_icons():
 
                 # Save the resized image
                 resized_img.save(output_path)
-                print(f"Saved resized icon: '{output_path}' ({size}x{size})")
+                Logger.instance().info(caller="process_icon", msg=f"Saved resized icon: '{output_path}' ({size}x{size})")
 
-        print("Icon resizing complete.")
+        Logger.instance().info(caller="process_icon", msg="Icon resizing complete.")
 
     except Exception as e:
-        print(f"An error occurred during resizing: {e}")
+        Logger.instance().error(caller="process_icon", msg=f"An error occurred during resizing: {e}", exc_info=True)
 
 if __name__ == "__main__":
     resize_icons()

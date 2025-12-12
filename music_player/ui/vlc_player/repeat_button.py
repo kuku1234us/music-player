@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QWidget
 from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QPainterPath
 from PyQt6.QtCore import Qt, QRectF, QSize, pyqtSignal, QByteArray
 from PyQt6.QtSvg import QSvgRenderer
+from qt_base_app.models.logger import Logger
 
 from qt_base_app.theme.theme_manager import ThemeManager
 
@@ -138,7 +139,7 @@ class RepeatButton(QWidget):
             if current_svg_data and original_fill:
                  colored_svg = current_svg_data.replace(original_fill, f'fill="{fill_color}"')
                  if not renderer.load(QByteArray(colored_svg.encode('utf-8'))):
-                      print(f"Error reloading SVG for state {self.repeat_state} with color {fill_color}")
+                      Logger.instance().error(caller="repeat_button", msg=f"Error reloading SVG for state {self.repeat_state} with color {fill_color}")
             elif not renderer.isValid(): # Fallback if color replacement fails or not needed
                  # Ensure *something* is loaded if the renderer became invalid
                  if self.repeat_state == REPEAT_RANDOM: renderer.load(QByteArray(self.REPEAT_RANDOM_SVG.encode()))
@@ -146,7 +147,7 @@ class RepeatButton(QWidget):
                  else: renderer.load(QByteArray(self.REPEAT_ALL_SVG.encode()))
                  
         except Exception as e:
-             print(f"Error processing SVG color: {e}")
+             Logger.instance().error(caller="repeat_button", msg=f"Error processing SVG color: {e}")
              # Ensure a default is loaded on error
              if not renderer.isValid(): renderer.load(QByteArray(self.REPEAT_ALL_SVG.encode()))
 
@@ -210,7 +211,7 @@ class RepeatButton(QWidget):
         allowed_states = [REPEAT_ALL, REPEAT_ONE, REPEAT_RANDOM]
         # If an invalid state (like the old REPEAT_NONE) is passed, default to REPEAT_ALL
         if state not in allowed_states:
-            print(f"Warning: Invalid repeat state '{state}' passed to set_state. Defaulting to REPEAT_ALL.")
+            Logger.instance().warning(caller="repeat_button", msg=f"Warning: Invalid repeat state '{state}' passed to set_state. Defaulting to REPEAT_ALL.")
             state = REPEAT_ALL
              
         if state != self.repeat_state:

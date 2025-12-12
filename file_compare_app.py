@@ -18,6 +18,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QIcon, QPixmap
 import qtawesome as qta
 
+from qt_base_app.models.logger import Logger
 
 class FileComparisonWorker(QThread):
     """Worker thread for file comparison to avoid blocking UI."""
@@ -36,8 +37,8 @@ class FileComparisonWorker(QThread):
             old_files = self._get_files_in_directory(self.old_dir)
             target_files = self._get_files_in_directory(self.target_dir)
             
-            print(f"DEBUG: Old directory has {len(old_files)} unique filenames")
-            print(f"DEBUG: Target directory has {len(target_files)} unique filenames")
+            Logger.instance().debug(caller="file_compare_app", msg=f"Old directory has {len(old_files)} unique filenames")
+            Logger.instance().debug(caller="file_compare_app", msg=f"Target directory has {len(target_files)} unique filenames")
             
             # Find files in OLD directory that also exist in TARGET directory
             # These are the files we want to mark as duplicates in the target
@@ -51,8 +52,8 @@ class FileComparisonWorker(QThread):
                 if old_file in target_files:
                     duplicates.append(old_file)
             
-            print(f"DEBUG: Found {len(duplicates)} files from old directory that exist in target")
-            print(f"DEBUG: This should be <= {len(old_files)} (number of files in old directory)")
+            Logger.instance().debug(caller="file_compare_app", msg=f"Found {len(duplicates)} files from old directory that exist in target")
+            Logger.instance().debug(caller="file_compare_app", msg=f"This should be <= {len(old_files)} (number of files in old directory)")
             
             self.comparison_complete.emit(duplicates)
             
@@ -69,7 +70,7 @@ class FileComparisonWorker(QThread):
                 if os.path.isfile(item_path):
                     files.add(item)
         except Exception as e:
-            print(f"Error reading directory {directory}: {e}")
+            Logger.instance().error(caller="file_compare_app", msg=f"Error reading directory {directory}: {e}", exc_info=True)
         return files
 
 
@@ -89,7 +90,7 @@ class FileDeletionWorker(QThread):
             deleted_count = 0
             total_files = len(self.files_to_delete)
             
-            print(f"DEBUG: Starting deletion of {total_files} files from {self.target_dir}")
+            Logger.instance().debug(caller="file_compare_app", msg=f"Starting deletion of {total_files} files from {self.target_dir}")
             
             for i, filename in enumerate(self.files_to_delete):
                 self.progress.emit(int((i / total_files) * 100))
@@ -98,15 +99,15 @@ class FileDeletionWorker(QThread):
                 file_path = self._find_file_in_directory(self.target_dir, filename)
                 if file_path and os.path.exists(file_path):
                     try:
-                        print(f"DEBUG: Deleting {file_path}")
+                        Logger.instance().debug(caller="file_compare_app", msg=f"Deleting {file_path}")
                         os.remove(file_path)
                         deleted_count += 1
                     except Exception as e:
-                        print(f"Error deleting {file_path}: {e}")
+                        Logger.instance().error(caller="file_compare_app", msg=f"Error deleting {file_path}: {e}", exc_info=True)
                 else:
-                    print(f"DEBUG: File not found in root directory: {filename}")
+                    Logger.instance().debug(caller="file_compare_app", msg=f"File not found in root directory: {filename}")
             
-            print(f"DEBUG: Successfully deleted {deleted_count} out of {total_files} files")
+            Logger.instance().debug(caller="file_compare_app", msg=f"Successfully deleted {deleted_count} out of {total_files} files")
             self.deletion_complete.emit(deleted_count)
             
         except Exception as e:
@@ -120,7 +121,7 @@ class FileDeletionWorker(QThread):
             if os.path.exists(file_path) and os.path.isfile(file_path):
                 return file_path
         except Exception as e:
-            print(f"Error searching for {filename} in {directory}: {e}")
+            Logger.instance().error(caller="file_compare_app", msg=f"Error searching for {filename} in {directory}: {e}", exc_info=True)
         return ""
 
 
@@ -191,7 +192,11 @@ class DirectoryPane(QWidget):
                     if os.path.isfile(item_path):
                         root_files.append(item)
             except Exception as e:
-                print(f"Error reading root directory {self.directory_path}: {e}")
+                Logger.instance().error(
+                    caller="file_compare_app",
+                    msg=f"Error reading root directory {self.directory_path}: {e}",
+                    exc_info=True,
+                )
             
             # Display all files (recursive)
             all_files.sort()
@@ -201,12 +206,19 @@ class DirectoryPane(QWidget):
             
             # Count only root directory files
             self.count_label.setText(f"{len(root_files)} files")
-            print(f"Root directory has {len(root_files)} files, total files (recursive): {len(all_files)}")
+            Logger.instance().debug(
+                caller="file_compare_app",
+                msg=f"Root directory has {len(root_files)} files, total files (recursive): {len(all_files)}",
+            )
             
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error loading directory: {e}")
             self.count_label.setText("0 files")
-            print(f"Error loading directory {self.directory_path}: {e}")
+            Logger.instance().error(
+                caller="file_compare_app",
+                msg=f"Error loading directory {self.directory_path}: {e}",
+                exc_info=True,
+            )
     
     def get_filenames(self) -> Set[str]:
         """Get all filenames in the directory."""
@@ -326,14 +338,20 @@ class FileCompareApp(QMainWindow):
         old_file_count = self.old_pane.file_list.count()
         target_file_count = self.target_pane.file_list.count()
         
-        print(f"DEBUG: Old pane displays {old_file_count} files")
-        print(f"DEBUG: Target pane displays {target_file_count} files")
-        print(f"DEBUG: Comparison found {len(duplicate_filenames)} duplicates")
+        Logger.instance().debug(caller="file_compare_app", msg=f"Old pane displays {old_file_count} files")
+        Logger.instance().debug(caller="file_compare_app", msg=f"Target pane displays {target_file_count} files")
+        Logger.instance().debug(caller="file_compare_app", msg=f"Comparison found {len(duplicate_filenames)} duplicates")
         
         # Validate: duplicates cannot exceed the number of files in old directory
         if len(duplicate_filenames) > old_file_count:
-            print(f"ERROR: Found {len(duplicate_filenames)} duplicates but old directory only has {old_file_count} files!")
-            print("This indicates a bug in the comparison logic. Limiting duplicates to old directory count.")
+            Logger.instance().error(
+                caller="file_compare_app",
+                msg=f"Found {len(duplicate_filenames)} duplicates but old directory only has {old_file_count} files!",
+            )
+            Logger.instance().warning(
+                caller="file_compare_app",
+                msg="This indicates a bug in the comparison logic. Limiting duplicates to old directory count.",
+            )
             # Limit duplicates to the number of files in old directory
             duplicate_filenames = duplicate_filenames[:old_file_count]
         

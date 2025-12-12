@@ -19,6 +19,7 @@ if project_root not in sys.path:
 
 from qt_base_app.app import create_application, run_application
 from qt_base_app.models import SettingsManager # Import SettingsManager
+from qt_base_app.models.logger import Logger
 from music_player.ui.dashboard import MusicPlayerDashboard 
 # Import app defaults (adjust path if needed, assuming models dir exists)
 from music_player.models.settings_defs import MUSIC_PLAYER_DEFAULTS
@@ -81,21 +82,17 @@ def main():
 
     # If connection succeeds, send arg and exit
     if socket.waitForConnected(500):
-        # print("[Run] Another instance is running.")
-        
         # If we have a command line argument, pass it to the existing instance
         if raw_arg:
-            # print(f"[Run] Sending raw argument to existing instance: {raw_arg}")
             socket.write(raw_arg.encode())
             socket.flush()
             if not socket.waitForBytesWritten(1000):
-                print("[Run Warning] Timeout waiting for bytes written to socket.", file=sys.stderr)
+                Logger.instance().warning(caller="run", msg="Timeout waiting for bytes written to socket.")
         
         socket.close()
         return 0 # Exit this instance successfully
 
     # --- No Existing Instance Found - Proceed with Full App Initialization ---
-    # print("[Run] No other instance detected. Starting main application.")
     
     # Now parse the protocol URL if one was provided
     url_to_download = None
@@ -103,7 +100,6 @@ def main():
     
     if raw_arg and raw_arg.startswith('musicplayerdl://'):
         format_type, url_to_download = parse_protocol_url(raw_arg)
-        # print(f"[Run] Parsed protocol URL: {url_to_download} (Type: {format_type})")
 
     # Define Resource Paths (relative to project_root/run.py)
     config_path = os.path.join("music_player", "resources", "music_player_config.yaml")
@@ -132,43 +128,49 @@ def main():
     server = QLocalServer()
     # Ensure any leftover server socket is removed (important on unclean shutdowns)
     if not QLocalServer.removeServer(APPLICATION_ID):
-         print(f"[Run Warning] Could not remove existing server lock for {APPLICATION_ID}. Might be in use?", file=sys.stderr)
+         Logger.instance().warning(
+             caller="run",
+             msg=f"Could not remove existing server lock for {APPLICATION_ID}. Might be in use?",
+         )
 
          
     if not server.listen(APPLICATION_ID):
-        print(f"[Run Error] Failed to start local server {APPLICATION_ID}: {server.errorString()}", file=sys.stderr)
+        Logger.instance().error(
+            caller="run",
+            msg=f"Failed to start local server {APPLICATION_ID}: {server.errorString()}",
+        )
         # Decide if this is critical. Probably is for single-instance logic.
         # return 1 # Exit if server fails
 
     listener = SingleInstanceListener() # Instantiate our signal holder
 
     def handle_new_connection():
-        print("[Run Server] New connection received.")
+        Logger.instance().debug(caller="run", msg="New connection received.")
         conn_socket = server.nextPendingConnection()
         if conn_socket:
             if conn_socket.waitForReadyRead(1000):
                 # Read the raw data sent from the second instance
                 raw_data = conn_socket.readAll().data().decode()
-                print(f"[Run Server] Received raw argument: {raw_data}")
+                Logger.instance().debug(caller="run", msg=f"Received raw argument: {raw_data}")
                 
                 # Only process if it's a protocol URL
                 if raw_data.startswith('musicplayerdl://'):
                     format_type, url = parse_protocol_url(raw_data)
                     
                     if format_type and url and url.startswith("http"):
-                        print(f"[Run Server] Parsed protocol URL: {url} (Type: {format_type})")
+                        Logger.instance().info(caller="run", msg=f"Parsed protocol URL: {url} (Type: {format_type})")
                         listener.url_received.emit(url, format_type)
                     else:
-                        print(f"[Run Server Warning] Failed to parse protocol URL: {raw_data}", file=sys.stderr)
+                        Logger.instance().warning(caller="run", msg=f"Failed to parse protocol URL: {raw_data}")
                 else:
-                    print(f"[Run Server Warning] Received non-protocol URL data: {raw_data}", file=sys.stderr)
+                    Logger.instance().warning(caller="run", msg=f"Received non-protocol URL data: {raw_data}")
                 
                 conn_socket.disconnectFromServer() # Close connection after reading
             else:
-                 print("[Run Server Warning] Timeout waiting for data on new connection.", file=sys.stderr)
+                 Logger.instance().warning(caller="run", msg="Timeout waiting for data on new connection.")
                  conn_socket.abort() # Close immediately if no data read
         else:
-             print("[Run Server Error] Failed to get next pending connection.", file=sys.stderr)
+             Logger.instance().error(caller="run", msg="Failed to get next pending connection.")
 
     server.newConnection.connect(handle_new_connection)
 
@@ -178,12 +180,15 @@ def main():
         if hasattr(window, 'handle_protocol_url') and callable(window.handle_protocol_url):
             listener.url_received.connect(window.handle_protocol_url)
         else:
-            print("[Run Error] Main window object does not have the required 'handle_protocol_url' method.", file=sys.stderr)
+            Logger.instance().error(
+                caller="run",
+                msg="Main window object does not have the required 'handle_protocol_url' method.",
+            )
             # This is likely a critical error for protocol handling.
             # Consider exiting or disabling the feature gracefully.
             # return 1
     except Exception as e:
-        print(f"[Run Error] Failed to connect listener signal: {e}", file=sys.stderr)
+        Logger.instance().error(caller="run", msg=f"Failed to connect listener signal: {e}", exc_info=True)
         # return 1
     # ------------------------------------------------
 
@@ -192,18 +197,21 @@ def main():
         settings = SettingsManager.instance()
         settings.set_defaults(MUSIC_PLAYER_DEFAULTS)
     except Exception as e:
-         print(f"[ERROR][run] Failed to set application defaults: {e}", file=sys.stderr)
+         Logger.instance().error(caller="run", msg=f"Failed to set application defaults: {e}", exc_info=True)
          # Consider exiting if defaults are critical
          # sys.exit(1)
     # ---------------------------------------------
 
     # --- Handle URL Passed on Initial Launch ---
     if url_to_download:
-        print("[Run] Handling URL from initial launch...")
+        Logger.instance().info(caller="run", msg="Handling URL from initial launch...")
         if hasattr(window, 'handle_protocol_url') and callable(window.handle_protocol_url):
             window.handle_protocol_url(url_to_download, format_type)
         else:
-             print("[Run Error] Cannot handle initial URL: Main window missing 'handle_protocol_url' method.", file=sys.stderr)
+             Logger.instance().error(
+                 caller="run",
+                 msg="Cannot handle initial URL: Main window missing 'handle_protocol_url' method.",
+             )
     # -------------------------------------------
 
     # Run the application event loop
@@ -211,7 +219,7 @@ def main():
     
     # Clean up server on exit
     server.close()
-    print("[Run] Server closed.")
+    Logger.instance().debug(caller="run", msg="Server closed.")
     
     return exit_code
 

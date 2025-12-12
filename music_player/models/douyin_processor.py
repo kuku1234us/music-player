@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 import uuid
 from music_player.models.ffmpeg_utils import get_video_duration, parse_ffmpeg_progress
+from qt_base_app.models.logger import Logger
 
 # Global semaphore to limit concurrent re-encoding processes
 # For Intel i7 + RTX 3050 Ti: 2-3 concurrent processes recommended
@@ -268,16 +269,16 @@ class DouyinTrimWorker(QThread):
 
     def run(self):
         # Acquire semaphore to limit concurrent re-encoding
-        print(f"[DouyinTrimWorker] Task {self.task_id}: Waiting for encoding slot...")
+        Logger.instance().debug(caller="DouyinTrimWorker", msg=f"Task {self.task_id}: Waiting for encoding slot...")
         encoding_semaphore.acquire()
         
         try:
-            print(f"[DouyinTrimWorker] Task {self.task_id}: Starting re-encoding (slot acquired)")
+            Logger.instance().info(caller="DouyinTrimWorker", msg=f"Task {self.task_id}: Starting re-encoding (slot acquired)")
             self._perform_trimming()
         finally:
             # Always release the semaphore, even if an error occurs
             encoding_semaphore.release()
-            print(f"[DouyinTrimWorker] Task {self.task_id}: Encoding slot released")
+            Logger.instance().debug(caller="DouyinTrimWorker", msg=f"Task {self.task_id}: Encoding slot released")
     
     def _perform_trimming(self):
         """Perform the actual trimming operation."""
@@ -378,7 +379,6 @@ class DouyinProcessor(QObject):
         if max_concurrent > 8:  # Safety limit
             max_concurrent = 8
             
-        # print(f"[DouyinProcessor] Updating max concurrent encoding from {MAX_CONCURRENT_REENCODING} to {max_concurrent}")
         MAX_CONCURRENT_REENCODING = max_concurrent
         encoding_semaphore = QSemaphore(max_concurrent)
 
@@ -397,7 +397,10 @@ class DouyinProcessor(QObject):
             return
         
         if do_trim:
-            print(f"[DouyinProcessor] Starting batch processing of {len(video_files)} files with max {MAX_CONCURRENT_REENCODING} concurrent encoders")
+            Logger.instance().info(
+                caller="DouyinProcessor",
+                msg=f"Starting batch processing of {len(video_files)} files with max {MAX_CONCURRENT_REENCODING} concurrent encoders",
+            )
             self.trim_batch_started.emit(len(video_files))
             for index, file_path in enumerate(video_files):
                 task_id = str(uuid.uuid4())
@@ -419,12 +422,15 @@ class DouyinProcessor(QObject):
         self.completed_count += 1
         self.trim_file_completed.emit(task_id, file_path)
         
-        print(f"[DouyinProcessor] Completed {self.completed_count}/{self.total_files} files")
+        Logger.instance().info(caller="DouyinProcessor", msg=f"Completed {self.completed_count}/{self.total_files} files")
 
     def _on_worker_finished(self):
         self.workers = [w for w in self.workers if not w.isFinished()]
         if not self.workers:
-            print(f"[DouyinProcessor] All trimming workers finished. Processed {len(self.trimmed_files)} files successfully")
+            Logger.instance().info(
+                caller="DouyinProcessor",
+                msg=f"All trimming workers finished. Processed {len(self.trimmed_files)} files successfully",
+            )
             self.trim_batch_finished.emit()
             # Start merging after trimming is complete
             if self.trimmed_files and self.should_merge_after_trim:
@@ -438,7 +444,7 @@ class DouyinProcessor(QObject):
             self.process_finished.emit()
             return
             
-        print(f"[DouyinProcessor] Starting merge of {len(files_to_merge)} files")
+        Logger.instance().info(caller="DouyinProcessor", msg=f"Starting merge of {len(files_to_merge)} files")
         self.merge_started.emit()
         self.merge_worker = DouyinMergeWorker(
             files_to_merge,
@@ -683,7 +689,7 @@ class _NormalizeWorker(QThread):
 
     def cancel_all_trimming(self):
         self._is_cancelled = True
-        print(f"[DouyinProcessor] Cancelling {len(self.workers)} active workers...")
+        Logger.instance().warning(caller="DouyinProcessor", msg=f"Cancelling {len(self.workers)} active workers...")
         for worker in self.workers:
             if worker.isRunning():
                 worker.terminate()

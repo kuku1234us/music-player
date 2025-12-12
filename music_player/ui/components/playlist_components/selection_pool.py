@@ -1,3 +1,4 @@
+from qt_base_app.models.logger import Logger
 # ./music_player/ui/components/playlist_components/selection_pool.py
 import os
 import time # Import time for throttling
@@ -117,14 +118,14 @@ class ClassificationWorker(QObject):
             
             # Check cancellation *after* the main call returns
             if self.is_cancelled:
-                print("[Worker] Task cancelled after completion.")
+                Logger.instance().debug(caller="Worker", msg="[Worker] Task cancelled after completion.")
                 self.finished.emit([]) # Emit empty list if cancelled
             else:
                 self.finished.emit(results)
                 
         except Exception as e:
             # Catch any other unhandled exception in the worker itself
-            print(f"[Worker] Unhandled exception: {e}")
+            Logger.instance().error(caller="Worker", msg=f"[Worker] Unhandled exception: {e}")
             self.error.emit(f"Worker thread error: {e}")
             # Ensure finished is emitted even on unhandled exception, potentially with empty results
             self.finished.emit([]) # Emit empty list on major error
@@ -176,9 +177,9 @@ class SelectionPoolWidget(QWidget):
             self.groq_model = GroqMusicModel() # No longer pass config
             self.ai_enabled = self.groq_model.api_ready
             if not self.ai_enabled:
-                print("[SelectionPool] AI features disabled (Groq API not ready).")
+                Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] AI features disabled (Groq API not ready).")
         except Exception as e:
-            print(f"[SelectionPool] Error initializing AI Model: {e}")
+            Logger.instance().error(caller="SelectionPool", msg=f"[SelectionPool] Error initializing AI Model: {e}")
             self.ai_enabled = False
         
     def _setup_ui(self):
@@ -393,10 +394,10 @@ class SelectionPoolWidget(QWidget):
     def _remove_selected_items(self):
         """Remove selected items from the selection pool"""
         if hasattr(self.pool_table, '_on_delete_items') and callable(self.pool_table._on_delete_items):
-            print("[SelectionPool] Context menu: Triggering table's delete handler.")
+            Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Context menu: Triggering table's delete handler.")
             self.pool_table._on_delete_items()
         else:
-            print("[SelectionPool] Context menu: Cannot find table's delete handler.")
+            Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Context menu: Cannot find table's delete handler.")
             # Fallback: Manually remove via model (less ideal as it duplicates logic)
             # selected_paths = self.get_selected_tracks()
             # if selected_paths:
@@ -411,7 +412,7 @@ class SelectionPoolWidget(QWidget):
         if isinstance(source_object, dict):
             filepath = source_object.get('path')
             if filepath and os.path.isfile(filepath): # Ensure it's a file
-                print(f"[SelectionPool] Double-click detected, requesting single play: {filepath}")
+                Logger.instance().debug(caller="SelectionPool", msg=f"[SelectionPool] Double-click detected, requesting single play: {filepath}")
                 self.play_single_file_requested.emit(filepath)
 
     def resizeEvent(self, event):
@@ -427,7 +428,7 @@ class SelectionPoolWidget(QWidget):
         """Starts the AI classification process in a background thread."""
         # --- Strict Check: Prevent starting if a thread is already running/cleaning up --- 
         if self.classification_thread is not None:
-            print("[SelectionPool] Cannot start classification: Previous thread is still active or cleaning up.")
+            Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Cannot start classification: Previous thread is still active or cleaning up.")
             QMessageBox.warning(self, "Busy", "Please wait for the previous AI task to fully complete.")
             return
         # ------------------------------------------------------------------------------
@@ -505,32 +506,32 @@ class SelectionPoolWidget(QWidget):
 
         # Start the thread AFTER storing the reference and connecting signals
         self.classification_thread.start()
-        print(f"[SelectionPool] Started classification thread for '{selected_label}'.")
+        Logger.instance().info(caller="SelectionPool", msg=f"[SelectionPool] Started classification thread for '{selected_label}'.")
 
     def _on_stop_classification_requested(self):
         """Signals the background worker thread to stop."""
         if hasattr(self, 'classification_thread') and self.classification_thread and self.classification_thread.isRunning():
             if hasattr(self, 'classification_worker') and self.classification_worker:
-                print("[SelectionPool] Stop requested. Signalling worker...")
+                Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Stop requested. Signalling worker...")
                 self.classification_worker.is_cancelled = True
                 
                 # Change button state immediately to indicate request received
                 self.ai_run_button.setEnabled(False) # Disable until worker confirms stop
                 self.ai_run_button.setToolTip('Stopping...')
             else:
-                print("[SelectionPool] Stop requested but worker reference is missing.")
+                Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Stop requested but worker reference is missing.")
         else:
-            print("[SelectionPool] Stop requested but classification thread is not running.")
+            Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Stop requested but classification thread is not running.")
             # Might need to reset button state here if thread died unexpectedly?
             self._reset_ai_button_state()
 
     def _on_classification_finished(self, matching_paths: list):
         """Handles the results when the classification worker finishes."""
-        print(f"[SelectionPool] Classification finished. Received {len(matching_paths)} matching paths.")
+        Logger.instance().info(caller="SelectionPool", msg=f"[SelectionPool] Classification finished. Received {len(matching_paths)} matching paths.")
         self.progress_overlay.hide()
         
         if not self.model:
-             print("[SelectionPool] Model not available to apply filter.")
+             Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Model not available to apply filter.")
              self._clear_thread_references() # Ensure UI reset even if model gone
              return
              
@@ -538,7 +539,7 @@ class SelectionPoolWidget(QWidget):
         cancelled = False
         if hasattr(self.classification_worker, 'is_cancelled') and self.classification_worker.is_cancelled:
             cancelled = True
-            print("[SelectionPool] Classification was cancelled by user.")
+            Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Classification was cancelled by user.")
             # Don't apply filter if cancelled
             self._clear_thread_references() # Reset UI
             return # Stop here
@@ -548,7 +549,6 @@ class SelectionPoolWidget(QWidget):
         # filtered_objects = [obj for obj in all_objects 
         #                     if isinstance(obj, dict) and os.path.normpath(obj.get('path','')) in matching_paths_set]
 
-        # print(f"[SelectionPool] Applying AI filter. {len(filtered_objects)} matching objects found.")
         # Reset the source model with the filtered list
         if self.model:
             # === Simply call the model's filter method === 
@@ -564,7 +564,7 @@ class SelectionPoolWidget(QWidget):
             else:
                  self.ai_clear_filter_button.hide()
         else:
-             print("[SelectionPool] Error: Model is None, cannot apply filter results.")
+             Logger.instance().error(caller="SelectionPool", msg="[SelectionPool] Error: Model is None, cannot apply filter results.")
 
         # Show clear button if filter resulted in fewer items or none
         # if len(filtered_objects) < len(all_objects):
@@ -578,7 +578,7 @@ class SelectionPoolWidget(QWidget):
 
     def _on_classification_error(self, error_message: str):
         """Handles errors reported by the classification worker."""
-        print(f"[SelectionPool] Classification error signal received: {error_message}")
+        Logger.instance().error(caller="SelectionPool", msg=f"[SelectionPool] Classification error signal received: {error_message}")
         self.progress_overlay.hide()
         QMessageBox.critical(self, "AI Classification Error", error_message)
         # Ensure filter is cleared on error (existing logic)
@@ -595,7 +595,7 @@ class SelectionPoolWidget(QWidget):
             
     def _clear_ai_filter(self, show_message=True): 
         if show_message:
-            print("[SelectionPool] Clearing AI filter.")
+            Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Clearing AI filter.")
         # === Simply call the model's clear method ===
         if self.model:
              self.model.clear_path_filter()
@@ -629,14 +629,14 @@ class SelectionPoolWidget(QWidget):
              try:
                  self.ai_run_button.clicked.connect(self._on_classify_requested)
              except TypeError:
-                 print("[SelectionPool] Warning: Could not reconnect run button signal.")
+                 Logger.instance().warning(caller="SelectionPool", msg="[SelectionPool] Warning: Could not reconnect run button signal.")
                  pass # Avoid error if somehow still connected
                  
         self.ai_run_button.setEnabled(self.ai_enabled) 
 
     def _clear_thread_references(self):
         """Callback solely to clear worker/thread references AND RESET UI after QThread finishes."""
-        print("[SelectionPool] QThread finished signal received. Clearing references and resetting UI.")
+        Logger.instance().info(caller="SelectionPool", msg="[SelectionPool] QThread finished signal received. Clearing references and resetting UI.")
         self.classification_worker = None
         self.classification_thread = None
         # REMOVED: self._unfiltered_pool_objects = None # Clear stored list here too
@@ -668,7 +668,7 @@ class SelectionPoolWidget(QWidget):
              # We rely on SelectionPoolModel.__init__ to build the initial set
         
         if not new_paths_normalized:
-            print("[SelectionPool] add_tracks: No new paths to add.")
+            Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] add_tracks: No new paths to add.")
             return # Nothing new to add
 
         # Create objects only for the new paths
@@ -685,9 +685,9 @@ class SelectionPoolWidget(QWidget):
                      size_bytes = stats.st_size
                      mod_stamp = stats.st_mtime
                  else:
-                      print(f"[SelectionPool] Warning: File not found when adding to pool: {norm_path}")
+                      Logger.instance().warning(caller="SelectionPool", msg=f"[SelectionPool] Warning: File not found when adding to pool: {norm_path}")
              except Exception as e:
-                 print(f"[SelectionPool] Error stating file {norm_path} on add: {e}")
+                 Logger.instance().error(caller="SelectionPool", msg=f"[SelectionPool] Error stating file {norm_path} on add: {e}")
              # -----------------------
              new_track_objects.append({
                  'path': norm_path,
@@ -697,12 +697,12 @@ class SelectionPoolWidget(QWidget):
 
         if not new_track_objects:
              # This case should not happen if new_paths_normalized was non-empty
-             print("[SelectionPool] add_tracks: No track objects created despite new paths.")
+             Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] add_tracks: No track objects created despite new paths.")
              return 
 
         if self.model is None:
             # First time adding: Create FilePoolModel
-            print("[SelectionPool] First tracks added, creating FilePoolModel.")
+            Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] First tracks added, creating FilePoolModel.")
             self.model = FilePoolModel(source_objects=new_track_objects, column_definitions=pool_col_defs)
             self.proxy_model = QSortFilterProxyModel()
             self.proxy_model.setSourceModel(self.model)
@@ -710,10 +710,10 @@ class SelectionPoolWidget(QWidget):
             self.pool_table.resizeRowsToContents()
         else:
             # Model exists: Insert rows using FilePoolModel's insert_rows
-            print(f"[SelectionPool] Adding {len(new_track_objects)} tracks to existing model.")
+            Logger.instance().debug(caller="SelectionPool", msg=f"[SelectionPool] Adding {len(new_track_objects)} tracks to existing model.")
             insert_row_index = self.model.rowCount() # Get row count from potentially filtered model
             if not self.model.insert_rows(insert_row_index, new_track_objects):
-                 print("[SelectionPool] Error inserting rows into model.")
+                 Logger.instance().error(caller="SelectionPool", msg="[SelectionPool] Error inserting rows into model.")
 
     def get_selected_tracks(self) -> List[str]:
         """
@@ -742,22 +742,22 @@ class SelectionPoolWidget(QWidget):
                       objects_to_remove.append(obj)
         
         if objects_to_remove:
-            print(f"[SelectionPool] Requesting model remove {len(objects_to_remove)} objects (remove_tracks).")
+            Logger.instance().debug(caller="SelectionPool", msg=f"[SelectionPool] Requesting model remove {len(objects_to_remove)} objects (remove_tracks).")
             # Call the model's method, which now handles the path set
             self.model.remove_rows_by_objects(objects_to_remove)
         else:
-            print("[SelectionPool] remove_tracks: No matching objects found in model.")
+            Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] remove_tracks: No matching objects found in model.")
 
     def clear_pool(self):
         """
         Removes all items from the selection pool table and internal set.
         """
         if self.model:
-            print("[SelectionPool] Clearing model.")
+            Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Clearing model.")
             self.model.set_source_objects([])
             # Model's override handles clearing the path set
         else:
-             print("[SelectionPool] Clearing pool (model was already None).")
+             Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Clearing pool (model was already None).")
 
     def _browse_folder(self):
         """
@@ -806,7 +806,7 @@ class SelectionPoolWidget(QWidget):
                                 full_path = os.path.join(root, filename)
                                 found_files_initial.append(full_path)
                 except Exception as e:
-                    print(f"Error scanning directory '{directory}': {e}")
+                    Logger.instance().error(caller="selection_pool", msg=f"Error scanning directory '{directory}': {e}")
                     QMessageBox.warning(self, "Scan Error", f"Could not fully scan directory:\n{e}")
                     # Don't return yet, hide overlay in finally
 
@@ -836,13 +836,13 @@ class SelectionPoolWidget(QWidget):
                     except Exception: pass # Ignore errors for individual files
 
                 if deleted_count > 0:
-                    print(f"[SelectionPool] Finished cleanup. Deleted {deleted_count} hidden/small files.")
+                    Logger.instance().info(caller="SelectionPool", msg=f"[SelectionPool] Finished cleanup. Deleted {deleted_count} hidden/small files.")
                     
                 # Add the filtered list to the pool
                 if files_to_add_to_pool:
                     self.add_tracks(files_to_add_to_pool)
                 elif not found_files_initial:
-                    print(f"No audio files found in '{directory}'")
+                    Logger.instance().debug(caller="selection_pool", msg=f"No audio files found in '{directory}'")
             finally:
                 # --- Hide Overlay --- 
                 self.progress_overlay.hide()
@@ -867,5 +867,5 @@ class SelectionPoolWidget(QWidget):
             # QSortFilterProxyModel uses QRegularExpression which handles basic patterns well.
             self.proxy_model.setFilterRegularExpression(search_text)
         else:
-             print("[SelectionPool] Cannot filter: Proxy model not available.")
+             Logger.instance().debug(caller="SelectionPool", msg="[SelectionPool] Cannot filter: Proxy model not available.")
 

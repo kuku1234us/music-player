@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QFil
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer
 import vlc
 from typing import Optional
+from qt_base_app.models.logger import Logger
 
 from .player_widget import PlayerWidget
 from .hotkey_handler import HotkeyHandler
@@ -249,11 +250,11 @@ class MainPlayer(QWidget):
             original_path (str): Path to the original media file that was clipped
             clipped_path (str): Path to the newly created clipped file
         """
-        print(f"[MainPlayer] Clipping successful: '{original_path}' -> '{clipped_path}'")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Clipping successful: '{original_path}' -> '{clipped_path}'")
         
         # Mode Switch: Set to single mode regardless of previous mode
         if self._playback_mode != 'single':
-            print(f"[MainPlayer] Switching from {self._playback_mode} mode to single mode")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Switching from {self._playback_mode} mode to single mode")
             self._playback_mode = 'single'
             self.playback_mode_changed.emit('single')
         
@@ -274,7 +275,7 @@ class MainPlayer(QWidget):
         self.clipping_manager.set_media(self.current_media_path)
         
         # Load New Media: Load the clipped file
-        print(f"[MainPlayer] Loading clipped file: {clipped_path}")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Loading clipped file: {clipped_path}")
         load_successful = self.backend.load_media(clipped_path)
         
         if load_successful:
@@ -284,9 +285,9 @@ class MainPlayer(QWidget):
             # Start Playback: Start immediately from beginning
             self.backend.play()
             
-            print("[MainPlayer] Post-clipping playback started successfully")
+            Logger.instance().info(caller="MainPlayer", msg="[MainPlayer] Post-clipping playback started successfully")
         else:
-            print("[MainPlayer] Failed to load clipped file")
+            Logger.instance().error(caller="MainPlayer", msg="[MainPlayer] Failed to load clipped file")
             self._show_error(f"Failed to load the clipped file: {clipped_path}")
         
         # Focus Management: Ensure hotkey functionality
@@ -303,7 +304,7 @@ class MainPlayer(QWidget):
             original_path (str): Path to the original media file that failed to clip
             error_message (str): Error message describing the failure
         """
-        print(f"[MainPlayer] Clipping failed for '{original_path}': {error_message}")
+        Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Clipping failed for '{original_path}': {error_message}")
         
         # Error Display: Show error message to user
         QMessageBox.critical(self, "Clipping Failed", 
@@ -315,23 +316,23 @@ class MainPlayer(QWidget):
         # Focus Restoration: Restore hotkey functionality after error dialog
         self.setFocus()
         
-        print("[MainPlayer] Clipping failure handled, original media state preserved")
+        Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Clipping failure handled, original media state preserved")
     # -------------------------------------------------------------------
         
     def _on_play_requested(self):
         """Handle play requested from UI"""
         # Handle the simplest cases first
         if self.app_state == STATE_PLAYING:
-            print("[MainPlayer] Play requested while already playing - ignoring")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Play requested while already playing - ignoring")
             return
             
         # Check if we have media to play
         if self._playback_mode == 'playlist':
             if not self._current_playlist or len(self._current_playlist) == 0:
-                print("[MainPlayer] Play requested but playlist is empty")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Play requested but playlist is empty")
                 return
         elif not self.current_media_path:
-            print("[MainPlayer] No media to play in single mode")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] No media to play in single mode")
             return
 
         # After this point, something should start to play unless there are errors
@@ -352,15 +353,15 @@ class MainPlayer(QWidget):
                 next_track_path = self._current_playlist.get_next_file()
                 if not next_track_path:
                     # If we're at the end and no next track (shouldn't happen with repeat), use first track
-                    print("[MainPlayer] No next track available, using first track in playlist")
+                    Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] No next track available, using first track in playlist")
                     next_track_path = self._current_playlist.get_first_file()
                     
-                print(f"[MainPlayer] Loading track from playlist: {next_track_path}")
+                Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Loading track from playlist: {next_track_path}")
                 # Use the existing method that properly handles unified loading
                 self._load_and_play_path(next_track_path)
             else:
                 # Single file mode with an existing media file loaded
-                print(f"[MainPlayer] Restarting track: {self.current_media_path}")
+                Logger.instance().info(caller="MainPlayer", msg=f"[MainPlayer] Restarting track: {self.current_media_path}")
                 # Set state to playing first for responsive UI
                 self._set_app_state(STATE_PLAYING)
                 self.backend.seek(0)  # Rewind to beginning
@@ -371,7 +372,7 @@ class MainPlayer(QWidget):
             
         # At this point, we're in an unexpected state (possibly initial state)
         # Just attempt to start playback with what we have
-        print(f"[MainPlayer] Play requested in state {self.app_state}, attempting to play")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Play requested in state {self.app_state}, attempting to play")
         
         if self._playback_mode == 'playlist' and self._current_playlist:
             first_track = self._current_playlist.get_first_file()
@@ -412,11 +413,11 @@ class MainPlayer(QWidget):
             if state == STATE_PLAYING:
                 if not self.position_save_timer.isActive():
                     self.position_save_timer.start()
-                    print("[MainPlayer] Started periodic position save timer")
+                    Logger.instance().info(caller="MainPlayer", msg="[MainPlayer] Started periodic position save timer")
             else:
                 if self.position_save_timer.isActive():
                     self.position_save_timer.stop()
-                    print(f"[MainPlayer] Stopped periodic position save timer (state: {state})")
+                    Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Stopped periodic position save timer (state: {state})")
         # ------------------------------------------
         
         # Update UI
@@ -438,27 +439,27 @@ class MainPlayer(QWidget):
         """
         # Map backend state to app state
         if state == "error":
-            print(f"[MainPlayer] Backend reported error state.")
+            Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Backend reported error state.")
             self._set_app_state(STATE_ERROR)
             # Optionally show an error message or take other recovery steps
             # self._show_error("An unknown playback error occurred.")
         elif state == "ended":
             # This case should now be fully handled by _on_end_reached directly.
             # We might still log it here if needed for debugging.
-            print("[MainPlayer] Backend state changed to 'ended' (handled by _on_end_reached).")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Backend state changed to 'ended' (handled by _on_end_reached).")
             # No action needed here anymore.
             pass 
         elif state == "playing":
             # If the backend spontaneously reports 'playing', ensure our state matches.
             # This might happen after certain operations or recovery.
             if self.app_state != STATE_PLAYING:
-                print("[MainPlayer] Backend state changed to 'playing', syncing app state.")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Backend state changed to 'playing', syncing app state.")
                 self._set_app_state(STATE_PLAYING)
 
         elif state == "paused":
             # If the backend spontaneously reports 'paused', ensure our state matches.
             if self.app_state != STATE_PAUSED:
-                print("[MainPlayer] Backend state changed to 'paused', syncing app state.")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Backend state changed to 'paused', syncing app state.")
                 self._set_app_state(STATE_PAUSED)
         # Note: We don't explicitly handle "stopped" as our app doesn't use it.
 
@@ -467,7 +468,7 @@ class MainPlayer(QWidget):
         Handler for the media end event.
         Decides what to do when a track finishes playing based on playback mode and repeat settings.
         """
-        print(f"[MainPlayer] _on_end_reached called with mode {self._playback_mode}")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] _on_end_reached called with mode {self._playback_mode}")
         
         # --- NEW: Save position 0 when media ends naturally (for repeat functionality) ---
         if self.current_media_path:
@@ -480,7 +481,7 @@ class MainPlayer(QWidget):
             
             audio_track_id = self._get_current_audio_state()
 
-            print(f"[MainPlayer] Saving position 0 for completed media: {os.path.basename(self.current_media_path)}")
+            Logger.instance().info(caller="MainPlayer", msg=f"[MainPlayer] Saving position 0 for completed media: {os.path.basename(self.current_media_path)}")
             self.position_manager.save_position(self.current_media_path, 0, current_duration, current_rate,
                                                   subtitle_enabled, subtitle_track_id, subtitle_language,
                                                   audio_track_id)
@@ -496,11 +497,11 @@ class MainPlayer(QWidget):
             next_track_path = self._current_playlist.get_next_file()
             
             if next_track_path:
-                print(f"[MainPlayer] Playing next track: {next_track_path}")
+                Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Playing next track: {next_track_path}")
                 self._load_and_play_path(next_track_path)
             else:
                 # If there's no next track, stop playback
-                print("[MainPlayer] No more tracks in playlist, stopping playback")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] No more tracks in playlist, stopping playback")
                 self.backend.stop()
                 self.player_widget.set_playing_state(False)
 
@@ -515,7 +516,7 @@ class MainPlayer(QWidget):
         """
         # For accurate clipping, we always seek immediately regardless of play state
         if not self.current_media_path:
-            print("[MainPlayer] No media loaded, cannot seek")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] No media loaded, cannot seek")
             return
         
         # Different behavior based on current app state
@@ -545,7 +546,7 @@ class MainPlayer(QWidget):
         if seek_successful:
             self.player_widget.timeline.set_position(position_ms)
         else:
-            print(f"[MainPlayer] Seek to {position_ms}ms failed")
+            Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Seek to {position_ms}ms failed")
             # Keep the UI in sync even if seek failed
             self.player_widget.timeline.set_position(position_ms)
         
@@ -559,7 +560,7 @@ class MainPlayer(QWidget):
             if self.current_media_path:
                 # For ended state, just seek to beginning and play instead of reloading
                 # This avoids unnecessary media reload and potential path normalization issues
-                print(f"[MainPlayer] Restarting from ended state: {self.current_media_path}")
+                Logger.instance().info(caller="MainPlayer", msg=f"[MainPlayer] Restarting from ended state: {self.current_media_path}")
                 self._set_app_state(STATE_PLAYING)
                 
                 # Seek to beginning and play
@@ -686,7 +687,7 @@ class MainPlayer(QWidget):
             
             audio_track_id = self._get_current_audio_state()
 
-            print(f"[MainPlayer] Saving position {current_pos}ms at new rate {rate}x due to rate change")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Saving position {current_pos}ms at new rate {rate}x due to rate change")
             self.position_manager.save_position(self.current_media_path, current_pos, current_duration, rate,
                                                   subtitle_enabled, subtitle_track_id, subtitle_language,
                                                   audio_track_id)
@@ -740,12 +741,12 @@ class MainPlayer(QWidget):
         Returns:
             bool: True if loading was successful, False otherwise
         """
-        print(f"[MainPlayer] Unified media loading from {source_context}: {filepath}")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Unified media loading from {source_context}: {filepath}")
         
         try:
             # Validate the file path
             if not filepath or not os.path.exists(filepath):
-                print(f"[MainPlayer] Error: File does not exist: {filepath}")
+                Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Error: File does not exist: {filepath}")
                 return False
             
             # Set mode to single and clear playlist reference
@@ -767,7 +768,7 @@ class MainPlayer(QWidget):
                     path=filepath
                 )
             except Exception as e:
-                print(f"[MainPlayer] Warning: Could not add to recently played: {e}")
+                Logger.instance().warning(caller="MainPlayer", msg=f"[MainPlayer] Warning: Could not add to recently played: {e}")
             
             # Save current position before loading new media if different file
             if (self.current_media_path and 
@@ -790,16 +791,16 @@ class MainPlayer(QWidget):
                         )
                         if success:
                             self.last_saved_position = saved_position
-                            print(f"[MainPlayer] Saved position {saved_position}ms at {current_rate}x for previous media")
+                            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Saved position {saved_position}ms at {current_rate}x for previous media")
                 except Exception as e:
-                    print(f"[MainPlayer] Warning: Could not save previous position: {e}")
+                    Logger.instance().warning(caller="MainPlayer", msg=f"[MainPlayer] Warning: Could not save previous position: {e}")
             
             # Use MediaManager to validate and prepare the media file
             success, actual_path, file_info = MediaManager.prepare_media_for_loading(filepath)
             
             if not success:
                 error_msg = file_info.get('error', f"Failed to prepare media: {actual_path}")
-                print(f"[MainPlayer] Media preparation failed: {error_msg}")
+                Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Media preparation failed: {error_msg}")
                 
                 # Restore video widget state on error
                 if hasattr(self, '_video_widget') and self._video_widget and not video_widget_was_hidden:
@@ -809,11 +810,11 @@ class MainPlayer(QWidget):
             
             # Log any warnings from MediaManager
             if 'warning' in file_info:
-                print(f"[MainPlayer] Warning from MediaManager: {file_info['warning']}")
+                Logger.instance().warning(caller="MainPlayer", msg=f"[MainPlayer] Warning from MediaManager: {file_info['warning']}")
             
             # Update current media path
             self.current_media_path = actual_path
-            print(f"[MainPlayer] Media path set to: {actual_path}")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Media path set to: {actual_path}")
             
             # Notify timeline and clipping manager about new media
             self.player_widget.timeline.set_current_media_path(self.current_media_path)
@@ -828,7 +829,7 @@ class MainPlayer(QWidget):
             if load_successful:
                 # Start playback
                 self.backend.play()
-                print(f"[MainPlayer] Successfully loaded and started playback from {source_context}")
+                Logger.instance().info(caller="MainPlayer", msg=f"[MainPlayer] Successfully loaded and started playback from {source_context}")
                 
                 # The position and rate restoration will be handled automatically
                 # in on_media_metadata_loaded when the backend signals media is ready
@@ -838,7 +839,7 @@ class MainPlayer(QWidget):
                 
                 return True
             else:
-                print(f"[MainPlayer] Backend failed to load media: {actual_path}")
+                Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Backend failed to load media: {actual_path}")
                 self._set_app_state(STATE_PAUSED)
                 
                 # Restore video widget state on error  
@@ -848,7 +849,7 @@ class MainPlayer(QWidget):
                 return False
                 
         except Exception as e:
-            print(f"[MainPlayer] Error in unified media loading: {e}")
+            Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Error in unified media loading: {e}")
             
             # Restore video widget state on error
             if hasattr(self, '_video_widget') and self._video_widget and not video_widget_was_hidden:
@@ -897,10 +898,10 @@ class MainPlayer(QWidget):
         Updates metadata, UI elements, and stores media type.
         """
         if not media:
-            print("[MainPlayer] on_media_metadata_loaded received empty media.")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] on_media_metadata_loaded received empty media.")
             # Try advancing if in playlist mode
             if self._playback_mode == 'playlist':
-                print("[MainPlayer] Attempting next track due to empty media.")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Attempting next track due to empty media.")
                 self.play_next_track(force_advance=True)
             return
 
@@ -913,7 +914,7 @@ class MainPlayer(QWidget):
         
         # --- Store media type internally using received value --- 
         self._is_current_media_video = is_video
-        print(f"[MainPlayer] Media loaded. is_video = {self._is_current_media_video}")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Media loaded. is_video = {self._is_current_media_video}")
         # --------------------------------------------------------
         
         # --- Check and enable subtitles for videos ---
@@ -923,31 +924,31 @@ class MainPlayer(QWidget):
             
             # Check if subtitles are available
             if self.backend.has_subtitle_tracks():
-                print("[MainPlayer] Subtitles detected in video, processing tracks")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Subtitles detected in video, processing tracks")
                 
                 # Get all tracks from backend
                 backend_subtitle_tracks = self.backend.get_subtitle_tracks()
-                print(f"[MainPlayer] Available subtitle tracks: {backend_subtitle_tracks}")
+                Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Available subtitle tracks: {backend_subtitle_tracks}")
                 
                 # Process tracks using SubtitleManager to find best track
                 suitable_track = self.subtitle_manager.process_subtitle_tracks(backend_subtitle_tracks)
                 
                 if suitable_track is not None:
-                    print(f"[MainPlayer] Auto-enabling subtitle track {suitable_track['id']}")
+                    Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Auto-enabling subtitle track {suitable_track['id']}")
                     if self.backend.enable_subtitles(suitable_track['id']):
                         # Update SubtitleManager state
                         self.subtitle_manager.update_subtitle_state(suitable_track['id'], True)
-                        print(f"[MainPlayer] Successfully enabled subtitle track {suitable_track['id']}")
+                        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Successfully enabled subtitle track {suitable_track['id']}")
                     else:
-                        print(f"[MainPlayer] Failed to enable subtitle track {suitable_track['id']}")
+                        Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Failed to enable subtitle track {suitable_track['id']}")
                 else:
-                    print("[MainPlayer] No suitable subtitle track found")
+                    Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] No suitable subtitle track found")
                         
                 # Update subtitle controls in PlayerWidget
                 self._update_subtitle_controls()
             else:
                 # No subtitle tracks available for this video
-                print("[MainPlayer] No subtitle tracks available for this video")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] No subtitle tracks available for this video")
                 # Update subtitle controls to hide them
                 self._update_subtitle_controls()
         else:
@@ -969,9 +970,9 @@ class MainPlayer(QWidget):
                 success = self.backend.set_audio_track(preferred_track['id'])
                 if success:
                     self.audio_manager.update_audio_state(preferred_track['id'])
-                    print(f"[MainPlayer] Set audio track to {preferred_track['id']} ({preferred_track.get('name', 'Unknown')})")
+                    Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Set audio track to {preferred_track['id']} ({preferred_track.get('name', 'Unknown')})")
                 else:
-                    print(f"[MainPlayer] Failed to set audio track {preferred_track['id']}")
+                    Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Failed to set audio track {preferred_track['id']}")
             else:
                 # If no preferred track found but tracks exist, try to use the first valid track
                 for track in backend_audio_tracks:
@@ -979,10 +980,10 @@ class MainPlayer(QWidget):
                         success = self.backend.set_audio_track(track['id'])
                         if success:
                             self.audio_manager.update_audio_state(track['id'])
-                            print(f"[MainPlayer] Fallback: Set audio track to {track['id']} ({track.get('name', 'Unknown')})")
+                            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Fallback: Set audio track to {track['id']} ({track.get('name', 'Unknown')})")
                             break
         else:
-            print("[MainPlayer] No audio tracks available in media")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] No audio tracks available in media")
 
         self._update_audio_controls()
         # --- End Audio track handling ---
@@ -995,13 +996,13 @@ class MainPlayer(QWidget):
         if self.current_media_path:
             saved_position, saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language, saved_audio_track_id = self.position_manager.get_saved_position(self.current_media_path)
             if saved_position and self.backend.get_duration() > saved_position > 5000:
-                print(f"[MainPlayer] Restoring saved position: {saved_position}ms at {saved_rate}x rate")
+                Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Restoring saved position: {saved_position}ms at {saved_rate}x rate")
                 # Use a small delay to ensure media is fully loaded before seeking, setting rate, and restoring subtitles
                 QTimer.singleShot(100, lambda: self._restore_playback_state(
                     saved_position, saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language, saved_audio_track_id))
             elif saved_rate != 1.0 or saved_subtitle_enabled or saved_audio_track_id != -1:
                 # Restore just the playback rate and/or subtitle state if no position to restore
-                print(f"[MainPlayer] Restoring saved playback rate: {saved_rate}x and other settings")
+                Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Restoring saved playback rate: {saved_rate}x and other settings")
                 QTimer.singleShot(100, lambda: self._restore_settings(
                     saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language, saved_audio_track_id))
         # -------------------------------------------------------------------------
@@ -1087,12 +1088,12 @@ class MainPlayer(QWidget):
                 matching_track = track
         
         if matching_track:
-            print(f"[MainPlayer] Restoring subtitle track {matching_track['id']} ({subtitle_language})")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Restoring subtitle track {matching_track['id']} ({subtitle_language})")
             if self.backend.enable_subtitles(matching_track['id']):
                 self.subtitle_manager.update_subtitle_state(matching_track['id'], True)
                 self._update_subtitle_controls()
         else:
-            print(f"[MainPlayer] Could not restore subtitle track {subtitle_track_id} ({subtitle_language}) - track not found")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Could not restore subtitle track {subtitle_track_id} ({subtitle_language}) - track not found")
     
     def _restore_audio_track_state(self, audio_track_id: int):
         """
@@ -1106,7 +1107,7 @@ class MainPlayer(QWidget):
         
         if audio_track_id == -1 or not available_tracks:
             # No saved audio track or no tracks available - use default selection logic
-            print(f"[MainPlayer] No saved audio track (ID: {audio_track_id}), using default selection")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] No saved audio track (ID: {audio_track_id}), using default selection")
             self._apply_default_audio_track_selection(available_tracks)
             return
 
@@ -1114,15 +1115,15 @@ class MainPlayer(QWidget):
         track_exists = any(track['id'] == audio_track_id for track in available_tracks)
 
         if track_exists:
-            print(f"[MainPlayer] Restoring audio track {audio_track_id}")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Restoring audio track {audio_track_id}")
             if self.backend.set_audio_track(audio_track_id):
                 self.audio_manager.update_audio_state(audio_track_id)
                 self._update_audio_controls()
             else:
-                print(f"[MainPlayer] Failed to set saved audio track {audio_track_id}, falling back to default")
+                Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Failed to set saved audio track {audio_track_id}, falling back to default")
                 self._apply_default_audio_track_selection(available_tracks)
         else:
-            print(f"[MainPlayer] Saved audio track {audio_track_id} not found, falling back to default")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Saved audio track {audio_track_id} not found, falling back to default")
             self._apply_default_audio_track_selection(available_tracks)
     
     def _apply_default_audio_track_selection(self, available_tracks):
@@ -1143,9 +1144,9 @@ class MainPlayer(QWidget):
             if success:
                 self.audio_manager.update_audio_state(preferred_track['id'])
                 self._update_audio_controls()
-                print(f"[MainPlayer] Applied default audio track: {preferred_track['id']} ({preferred_track.get('name', 'Unknown')})")
+                Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Applied default audio track: {preferred_track['id']} ({preferred_track.get('name', 'Unknown')})")
             else:
-                print(f"[MainPlayer] Failed to set default audio track {preferred_track['id']}")
+                Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Failed to set default audio track {preferred_track['id']}")
         else:
             # Fallback: try to use the first non-disabled track
             for track in available_tracks:
@@ -1154,7 +1155,7 @@ class MainPlayer(QWidget):
                     if success:
                         self.audio_manager.update_audio_state(track['id'])
                         self._update_audio_controls()
-                        print(f"[MainPlayer] Applied fallback audio track: {track['id']} ({track.get('name', 'Unknown')})")
+                        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Applied fallback audio track: {track['id']} ({track.get('name', 'Unknown')})")
                         break
 
     def _get_current_subtitle_state(self) -> tuple[bool, int, str]:
@@ -1165,7 +1166,7 @@ class MainPlayer(QWidget):
             tuple[bool, int, str]: (subtitle_enabled, subtitle_track_id, subtitle_language)
         """
         if not self._is_current_media_video:
-            print(f"[MainPlayer._get_current_subtitle_state] Not video media, returning False, -1, ''")
+            Logger.instance().debug(caller="main_player", msg=f"[MainPlayer._get_current_subtitle_state] Not video media, returning False, -1, ''")
             return False, -1, ''
         
         state_info = self.subtitle_manager.get_subtitle_state_info()
@@ -1174,8 +1175,8 @@ class MainPlayer(QWidget):
             self.subtitle_manager.current_subtitle_track,
             state_info.get('current_subtitle_language', '')
         )
-        print(f"[MainPlayer._get_current_subtitle_state] Returning: {result}")
-        print(f"[MainPlayer._get_current_subtitle_state] State info: {state_info}")
+        Logger.instance().debug(caller="main_player", msg=f"[MainPlayer._get_current_subtitle_state] Returning: {result}")
+        Logger.instance().debug(caller="main_player", msg=f"[MainPlayer._get_current_subtitle_state] State info: {state_info}")
         return result
     
     def _get_current_audio_state(self) -> int:
@@ -1212,14 +1213,14 @@ class MainPlayer(QWidget):
             # Disable subtitles
             if self.backend.disable_subtitles():
                 self.subtitle_manager.update_subtitle_state(-1, False)
-                print("[MainPlayer] Subtitles disabled")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Subtitles disabled")
         else:
             # Enable subtitles - get the next suitable track from SubtitleManager
             next_track = self.subtitle_manager.get_next_subtitle_track()
             if next_track and next_track['id'] >= 0:
                 if self.backend.enable_subtitles(next_track['id']):
                     self.subtitle_manager.update_subtitle_state(next_track['id'], True)
-                    print(f"[MainPlayer] Enabled subtitle track: {next_track['id']}")
+                    Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Enabled subtitle track: {next_track['id']}")
             
         # Update UI
         self._update_subtitle_controls()
@@ -1244,7 +1245,7 @@ class MainPlayer(QWidget):
             if self.backend.enable_subtitles(track_id):
                 self.subtitle_manager.update_subtitle_state(track_id, True)
                 track_name = next_track.get('display_name', next_track['name'])
-                print(f"[MainPlayer] Switched to subtitle track: {track_id} ({track_name})")
+                Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Switched to subtitle track: {track_id} ({track_name})")
                 
         # Update UI
         self._update_subtitle_controls()
@@ -1270,14 +1271,13 @@ class MainPlayer(QWidget):
         
         # Validate it's one of the allowed modes, default to REPEAT_ALL if not
         if repeat_mode not in [REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM]:
-            print(f"Warning: Invalid or deprecated repeat mode '{repeat_mode}' found in settings, defaulting to REPEAT_ALL.")
+            Logger.instance().warning(caller="main_player", msg=f"Warning: Invalid or deprecated repeat mode '{repeat_mode}' found in settings, defaulting to REPEAT_ALL.")
             repeat_mode = REPEAT_ALL
             # Optionally re-save the setting to clean it up
             # self.settings.set('player/repeat_mode', repeat_mode, SettingType.STRING)
         
         # Store validated mode internally
         self._current_repeat_mode = repeat_mode
-        # print(f"[MainPlayer] Applied repeat mode from settings: {self._current_repeat_mode}")
         
         # Update the playlist's repeat mode if we're in playlist mode
         if self._playback_mode == 'playlist' and self._current_playlist:
@@ -1294,7 +1294,7 @@ class MainPlayer(QWidget):
         """
         # Validate the state received from the UI
         if state not in [REPEAT_ONE, REPEAT_ALL, REPEAT_RANDOM]:
-            print(f"Warning: Received invalid repeat state '{state}' from UI. Resetting UI.")
+            Logger.instance().warning(caller="main_player", msg=f"Warning: Received invalid repeat state '{state}' from UI. Resetting UI.")
             # Reset UI to match internal state if invalid state received
             self.player_widget.set_repeat_state(self._current_repeat_mode)
             self._current_repeat_mode = REPEAT_ALL
@@ -1303,7 +1303,7 @@ class MainPlayer(QWidget):
         # Update internal state if changed
         if state != self._current_repeat_mode:
             self._current_repeat_mode = state
-            print(f"[MainPlayer] Internal repeat mode changed to: {self._current_repeat_mode}")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Internal repeat mode changed to: {self._current_repeat_mode}")
             
             # Update playlist's repeat mode if we're in playlist mode
             if self._playback_mode == 'playlist' and self._current_playlist:
@@ -1315,12 +1315,12 @@ class MainPlayer(QWidget):
     def set_playback_mode(self, mode: str):
         """ Sets the playback mode and updates UI elements accordingly. """
         if mode not in ['single', 'playlist']:
-            print(f"Warning: Invalid playback mode requested: {mode}")
+            Logger.instance().warning(caller="main_player", msg=f"Warning: Invalid playback mode requested: {mode}")
             return
             
         if self._playback_mode != mode:
             self._playback_mode = mode
-            print(f"[MainPlayer] Playback mode set to: {self._playback_mode}")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Playback mode set to: {self._playback_mode}")
             # Enable/disable Next/Prev buttons based on mode
             is_playlist_mode = (self._playback_mode == 'playlist')
             self.player_widget.set_next_prev_enabled(is_playlist_mode)
@@ -1336,7 +1336,7 @@ class MainPlayer(QWidget):
         
         Checks if the requested playlist is already playing and ignores the request if so.
         """
-        print(f"[MainPlayer] load_playlist called with: {playlist}")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] load_playlist called with: {playlist}")
         
         # --- Add check: If this playlist is already playing, do nothing --- 
         # Note: Comparison should still work with object references
@@ -1345,8 +1345,7 @@ class MainPlayer(QWidget):
             # For now, assume reference comparison works. Add if runtime errors occur.
             # from music_player.models.playlist import Playlist
             # if isinstance(playlist, Playlist):
-            #     print(f"[MainPlayer] Playlist '{playlist.name}' is already playing. Ignoring load request.")
-            print(f"[MainPlayer] Playlist is already playing. Ignoring load request.") # Generic message
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Playlist is already playing. Ignoring load request.")
             return
         # --- End check ---
         
@@ -1354,7 +1353,7 @@ class MainPlayer(QWidget):
         from music_player.models.playlist import Playlist
         if not isinstance(playlist, Playlist):
              # Handle the case where a non-playlist object was somehow passed
-             print(f"[MainPlayer] Error: load_playlist called with non-Playlist object: {type(playlist)}")
+             Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Error: load_playlist called with non-Playlist object: {type(playlist)}")
              return
              
         # --- If checks passed, proceed to load --- 
@@ -1381,7 +1380,7 @@ class MainPlayer(QWidget):
         
         # If playlist is empty, just clean the UI and wait - no error
         if len(self._current_playlist) == 0:
-            print(f"[MainPlayer] Playlist '{self._current_playlist.name}' is empty, waiting for tracks to be added.")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Playlist '{self._current_playlist.name}' is empty, waiting for tracks to be added.")
             self.player_widget.update_track_info("No Tracks", f"Playlist: {self._current_playlist.name}", "", None)
             self.player_widget.timeline.set_duration(0)
             self.player_widget.timeline.set_position(0)
@@ -1390,7 +1389,7 @@ class MainPlayer(QWidget):
         # Get the first file path directly from the playlist method
         first_track_path = self._current_playlist.get_first_file()
         # --- DEBUG --- 
-        print(f"[MainPlayer] load_playlist: Received first_track_path: {repr(first_track_path)}")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] load_playlist: Received first_track_path: {repr(first_track_path)}")
         # ------------- 
 
         # Add playlist to recently played WHEN it starts playing
@@ -1399,10 +1398,10 @@ class MainPlayer(QWidget):
             if playlist.filepath:
                 self.recently_played_model.add_item(item_type='playlist', name=playlist.name, path=playlist.filepath)
             else:
-                print(f"[MainPlayer] Warning: Cannot add playlist '{playlist.name}' to recently played, missing filepath.")
+                Logger.instance().warning(caller="MainPlayer", msg=f"[MainPlayer] Warning: Cannot add playlist '{playlist.name}' to recently played, missing filepath.")
         
         if first_track_path:
-            print(f"[MainPlayer] Loading first track from playlist: {first_track_path}")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Loading first track from playlist: {first_track_path}")
             # Use load_and_play_path which now explicitly handles state updates and playback
             self._load_and_play_path(first_track_path)
         else:
@@ -1418,7 +1417,7 @@ class MainPlayer(QWidget):
         Args:
             file_path (str): The absolute path to the media file.
         """
-        print(f"[MainPlayer] Loading and playing path: {file_path}")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Loading and playing path: {file_path}")
         self.load_media_unified(file_path, "internal_playlist_navigation")
 
     def play_next_track(self, force_advance=False):
@@ -1428,41 +1427,39 @@ class MainPlayer(QWidget):
             force_advance (bool): If True, forces advancing even if logic might otherwise prevent it.
                                  (Currently unused in this method's logic but added for compatibility)
         """
-        print(f"[MainPlayer] play_next_track called (force_advance={force_advance})")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] play_next_track called (force_advance={force_advance})")
         if self._playback_mode == 'playlist' and self._current_playlist:
             # Get the next file path directly
             next_track_path = self._current_playlist.get_next_file()
             # --- DEBUG --- 
-            # print(f"[MainPlayer] play_next_track: Received next_track_path: {repr(next_track_path)}")
             # ------------- 
 
             if next_track_path:
-                print(f"[MainPlayer] Playing next track: {next_track_path}")
+                Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Playing next track: {next_track_path}")
                 self._load_and_play_path(next_track_path)
             else:
-                print("[MainPlayer] No next track available in playlist")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] No next track available in playlist")
         else:
-            print("[MainPlayer] Cannot play next track - not in playlist mode or no playlist")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Cannot play next track - not in playlist mode or no playlist")
 
     def play_previous_track(self):
         """
         Plays the previous track in the playlist based on the current state and repeat mode.
         """
-        print("[MainPlayer] play_previous_track called")
+        Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] play_previous_track called")
         if self._playback_mode == 'playlist' and self._current_playlist:
             # Get the previous file path directly
             prev_track_path = self._current_playlist.get_previous_file()
             # --- DEBUG --- 
-            # print(f"[MainPlayer] play_previous_track: Received prev_track_path: {repr(prev_track_path)}")
             # ------------- 
 
             if prev_track_path:
-                print(f"[MainPlayer] Playing previous track: {prev_track_path}")
+                Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Playing previous track: {prev_track_path}")
                 self._load_and_play_path(prev_track_path)
             else:
-                print("[MainPlayer] No previous track available in playlist")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] No previous track available in playlist")
         else:
-            print("[MainPlayer] Cannot play previous track - not in playlist mode or no playlist")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Cannot play previous track - not in playlist mode or no playlist")
 
     @pyqtSlot(str)
     def play_track_from_playlist(self, filepath: str):
@@ -1472,17 +1469,17 @@ class MainPlayer(QWidget):
         Args:
             filepath (str): The absolute path of the track selected in the playlist UI.
         """
-        print(f"[MainPlayer] Received request to play track: {filepath}")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Received request to play track: {filepath}")
         
         # Step 2a: Ensure we are in playlist mode and have the correct playlist
         current_ui_playlist = player_state.get_current_playlist() # Get the playlist currently shown in UI
         
         if not current_ui_playlist:
-            print("[MainPlayer] Error: No current playlist set in player_state. Cannot play track.")
+            Logger.instance().error(caller="MainPlayer", msg="[MainPlayer] Error: No current playlist set in player_state. Cannot play track.")
             return
             
         if self._playback_mode != 'playlist' or self._current_playlist != current_ui_playlist:
-            print(f"[MainPlayer] Switching to playlist mode for playlist: {current_ui_playlist.name}")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Switching to playlist mode for playlist: {current_ui_playlist.name}")
             self.set_playback_mode('playlist')
             # Set internal player playlist reference to the one from the UI
             self._current_playlist = current_ui_playlist
@@ -1491,23 +1488,23 @@ class MainPlayer(QWidget):
                  self._current_playlist.set_repeat_mode(self._current_repeat_mode)
             
         if not self._current_playlist:
-             print("[MainPlayer] Error: Could not set the current playlist reference.")
+             Logger.instance().error(caller="MainPlayer", msg="[MainPlayer] Error: Could not set the current playlist reference.")
              return
              
         # Step 2b: Select the track in the playlist model
         if not self._current_playlist.select_track_by_filepath(filepath):
-            print(f"[MainPlayer] Error: Track '{filepath}' not found in current playlist '{self._current_playlist.name}'.")
+            Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Error: Track '{filepath}' not found in current playlist '{self._current_playlist.name}'.")
             return # Stop if track couldn't be selected
 
         # Step 2c & 2d: Use unified loading system for consistent behavior
-        print(f"[MainPlayer] Loading and playing selected track via unified system: {filepath}")
+        Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Loading and playing selected track via unified system: {filepath}")
         # Set playback mode back to playlist after unified loading (which sets it to single)
         success = self.load_media_unified(filepath, "playlist_track_selection")
         if success:
             # Restore playlist mode since unified loading sets it to single
             self.set_playback_mode('playlist')
             self._current_playlist = current_ui_playlist
-            print(f"[MainPlayer] Restored playlist mode after unified loading")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Restored playlist mode after unified loading")
         
         self.setFocus() # Ensure player retains focus
 
@@ -1520,7 +1517,7 @@ class MainPlayer(QWidget):
             new_volume = min(volume + amount, 200) 
             self.set_volume(new_volume)
         else:
-            print("[MainPlayer] Warning: Could not access volume control to increase volume.")
+            Logger.instance().warning(caller="MainPlayer", msg="[MainPlayer] Warning: Could not access volume control to increase volume.")
             
     def decrease_volume(self, amount=5):
         """Decrease volume by a specified amount (default 5%)."""
@@ -1529,7 +1526,7 @@ class MainPlayer(QWidget):
             new_volume = max(volume - amount, 0)
             self.set_volume(new_volume)
         else:
-            print("[MainPlayer] Warning: Could not access volume control to decrease volume.")
+            Logger.instance().warning(caller="MainPlayer", msg="[MainPlayer] Warning: Could not access volume control to decrease volume.")
             
     def wheelEvent(self, event):
         """Handle mouse wheel events for volume control."""
@@ -1550,7 +1547,6 @@ class MainPlayer(QWidget):
         Args:
             widget (VideoWidget): The widget where video should be rendered.
         """
-        # print(f"[MainPlayer] Setting video output widget: {widget}")
         self._video_widget = widget
         
         # --- Set main player reference for drag and drop ---
@@ -1573,24 +1569,24 @@ class MainPlayer(QWidget):
             if hasattr(self._video_widget, 'fullScreenRequested'):
                 self._video_widget.fullScreenRequested.connect(self._handle_full_screen_request)
             else:
-                print("[MainPlayer] Warning: VideoWidget does not have fullScreenRequested signal.")
+                Logger.instance().warning(caller="MainPlayer", msg="[MainPlayer] Warning: VideoWidget does not have fullScreenRequested signal.")
             # --- Connect to FullScreenManager's exit_requested_via_escape signal ---
             if hasattr(self.full_screen_manager, 'exit_requested_via_escape'):
                 self.full_screen_manager.exit_requested_via_escape.connect(self._handle_exit_request_from_escape)
             else:
-                print("[MainPlayer] Warning: FullScreenManager does not have exit_requested_via_escape signal.")
+                Logger.instance().warning(caller="MainPlayer", msg="[MainPlayer] Warning: FullScreenManager does not have exit_requested_via_escape signal.")
             # --- Connect to FullScreenManager's did_exit_full_screen signal ---
             if hasattr(self.full_screen_manager, 'did_exit_full_screen'):
                 self.full_screen_manager.did_exit_full_screen.connect(self._sync_player_page_display)
             else:
-                print("[MainPlayer] Warning: FullScreenManager does not have did_exit_full_screen signal.")
+                Logger.instance().warning(caller="MainPlayer", msg="[MainPlayer] Warning: FullScreenManager does not have did_exit_full_screen signal.")
             # -------------------------------------------------------------------
         # -------------------------------------------------
 
     def _set_vlc_window_handle(self, widget: Optional[VideoWidget]):
         """Internal helper to set the VLC window handle via the backend."""
         if not widget:
-            print("[MainPlayer] Clearing VLC window handle via backend.")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Clearing VLC window handle via backend.")
             # Call backend method with None to detach
             if self.backend:
                 self.backend.set_video_output(None)
@@ -1600,18 +1596,17 @@ class MainPlayer(QWidget):
         if self.backend and hasattr(self.backend, 'set_video_output'):
             try:
                 win_id_int = int(widget.winId())
-                # print(f"[MainPlayer] Setting VLC window handle via backend: {win_id_int}")
                 # Call the backend's setter method
                 self.backend.set_video_output(win_id_int)
             except Exception as e:
-                print(f"[MainPlayer] Error getting winId or calling backend.set_video_output: {e}")
+                Logger.instance().error(caller="MainPlayer", msg=f"[MainPlayer] Error getting winId or calling backend.set_video_output: {e}")
         else:
-            print("[MainPlayer] Warning: Backend not available or missing set_video_output method.")
+            Logger.instance().warning(caller="MainPlayer", msg="[MainPlayer] Warning: Backend not available or missing set_video_output method.")
 
     # --- Add Stop Method --- 
     def stop(self):
         """Stop playback immediately."""
-        print("[MainPlayer] stop() method called. Calling backend.stop()")
+        Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] stop() method called. Calling backend.stop()")
         
         # --- NEW: Save position and subtitle state when user manually stops ---
         if self.current_media_path and self.backend.get_current_position():
@@ -1720,7 +1715,7 @@ class MainPlayer(QWidget):
             # Disable subtitles
             if self.backend.disable_subtitles():
                 self.subtitle_manager.update_subtitle_state(-1, False)
-                print("[MainPlayer] Subtitles disabled via menu selection")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Subtitles disabled via menu selection")
                 self._update_subtitle_controls()
             return
             
@@ -1732,7 +1727,7 @@ class MainPlayer(QWidget):
             if self.backend.enable_subtitles(track_id):
                 self.subtitle_manager.update_subtitle_state(track_id, True)
                 track_name = selected_track.get('display_name', selected_track['name'])
-                print(f"[MainPlayer] Selected subtitle track: {track_id} ({track_name})")
+                Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Selected subtitle track: {track_id} ({track_name})")
                 
                 # Update UI
                 self._update_subtitle_controls()
@@ -1747,35 +1742,35 @@ class MainPlayer(QWidget):
         if self.backend.set_audio_track(track_id):
             self.audio_manager.update_audio_state(track_id)
             self._update_audio_controls()
-            print(f"[MainPlayer] Selected audio track: {track_id}")
+            Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Selected audio track: {track_id}")
 
     # --- Add slot for full screen request ---
     @pyqtSlot()
     def _handle_full_screen_request(self):
         """Handles the request to toggle full-screen mode."""
         if self.full_screen_manager:
-            print("[MainPlayer] Toggling full screen via FullScreenManager.")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Toggling full screen via FullScreenManager.")
             self.full_screen_manager.toggle_full_screen()
             # --- Sync player page display after toggle ---
             # if not self.full_screen_manager.is_full_screen: # If exited full screen # REMOVED - Handled by did_exit_full_screen signal
             #     self._sync_player_page_display()
             # --------------------------------------------
         else:
-            print("[MainPlayer] Warning: FullScreenManager not initialized. Cannot toggle full screen.")
+            Logger.instance().warning(caller="MainPlayer", msg="[MainPlayer] Warning: FullScreenManager not initialized. Cannot toggle full screen.")
     # --------------------------------------
 
     # --- Add method to be called by HotkeyHandler for F12 ---
     def request_toggle_full_screen(self):
         """Public method to request toggling full-screen mode, typically called by HotkeyHandler."""
         if self.full_screen_manager:
-            print("[MainPlayer] F12 pressed, toggling full screen via FullScreenManager.")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] F12 pressed, toggling full screen via FullScreenManager.")
             self.full_screen_manager.toggle_full_screen()
             # --- Sync player page display after toggle ---
             # if not self.full_screen_manager.is_full_screen: # If exited full screen # REMOVED - Handled by did_exit_full_screen signal
             #     self._sync_player_page_display()
             # --------------------------------------------
         else:
-            print("[MainPlayer] Warning: FullScreenManager not initialized. F12 action ignored.")
+            Logger.instance().warning(caller="MainPlayer", msg="[MainPlayer] Warning: FullScreenManager not initialized. F12 action ignored.")
     # ------------------------------------------------------
 
     # --- Add new slot for ESC exit from FullScreenManager ---
@@ -1783,17 +1778,17 @@ class MainPlayer(QWidget):
     def _handle_exit_request_from_escape(self):
         """Handles the explicit exit request from FullScreenManager (due to ESC)."""
         if self.full_screen_manager and self.full_screen_manager.is_full_screen:
-            print("[MainPlayer] ESC pressed in full screen, triggering manager to exit.")
+            Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] ESC pressed in full screen, triggering manager to exit.")
             self.full_screen_manager.exit_full_screen() # Manager handles the exit mechanics and will emit did_exit_full_screen
             # self._sync_player_page_display() # MainPlayer syncs its own UI view # REMOVED - Handled by did_exit_full_screen signal
         else:
-            print("[MainPlayer] Warning: FullScreenManager not init or not in full screen for ESC exit.")
+            Logger.instance().warning(caller="MainPlayer", msg="[MainPlayer] Warning: FullScreenManager not init or not in full screen for ESC exit.")
     # ---------------------------------------------------------
 
     # --- Add method to synchronize PlayerPage display state ---
     def _sync_player_page_display(self):
         """Ensures the PlayerPage displays the correct view (video or album art)."""
-        print(f"[MainPlayer._sync_player_page_display] Called. Current media is video: {self._is_current_media_video}")
+        Logger.instance().debug(caller="main_player", msg=f"[MainPlayer._sync_player_page_display] Called. Current media is video: {self._is_current_media_video}")
         if not self._player_page_ref: # Check if player_page_ref is set
             # Try to find PlayerPage if not set (e.g., if MainPlayer is child of Dashboard)
             # This is a fallback, ideally _player_page_ref is set explicitly.
@@ -1806,27 +1801,26 @@ class MainPlayer(QWidget):
 
         if self._player_page_ref and hasattr(self._player_page_ref, 'show_video_view') and hasattr(self._player_page_ref, 'show_album_art_view'):
             if self._is_current_media_video:
-                print("[MainPlayer] Syncing PlayerPage to show video view.")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Syncing PlayerPage to show video view.")
                 self._player_page_ref.show_video_view()
             else:
-                print("[MainPlayer] Syncing PlayerPage to show album art view.")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Syncing PlayerPage to show album art view.")
                 self._player_page_ref.show_album_art_view()
             
             # --- NEW: Re-set the window handle after restoring the view, regardless of media type ---
             if self._video_widget:
-                print("[MainPlayer] Re-setting VLC window handle after exiting full screen.")
+                Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] Re-setting VLC window handle after exiting full screen.")
                 # Use a small delay to ensure the widget has been fully reparented and has a valid winId
                 QTimer.singleShot(50, lambda: self._set_vlc_window_handle(self._video_widget))
             # -----------------------------------------------------------
         else:
-            print("[MainPlayer] Warning: _player_page_ref not set or PlayerPage missing view methods. Cannot sync display.")
+            Logger.instance().warning(caller="MainPlayer", msg="[MainPlayer] Warning: _player_page_ref not set or PlayerPage missing view methods. Cannot sync display.")
     # ---------------------------------------------------------
 
     # --- Method for PlayerPage to register itself (optional, alternative to parent search) ---
     def register_player_page(self, player_page: PlayerPage):
         """Allows PlayerPage to register itself with MainPlayer."""
         self._player_page_ref = player_page
-        # print("[MainPlayer] PlayerPage registered.")
     # ------------------------------------------------------------------------------------
 
     # --- Add Periodic Position Save Method (Phase 3) ---

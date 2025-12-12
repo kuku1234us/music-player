@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QProgressBar, QStyleOp
 from PyQt6.QtCore import Qt, QTimer
 from typing import Optional
 from PyQt6.QtGui import QPainter, QColor
+from qt_base_app.models.logger import Logger
 
 from qt_base_app.theme.theme_manager import ThemeManager
 
@@ -122,10 +123,10 @@ class ConversionProgress(QWidget):
         self.details_label.setText("Please wait...")
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("Waiting...") # Changed from "Overall: 0%"
-        print(f"[ConversionProgress DEBUG] show_conversion_started: About to show. Current size: {self.size()}, isVisible before show: {self.isVisible()}")
+        Logger.instance().info(caller="conversion_progress", msg=f"[ConversionProgress DEBUG] show_conversion_started: About to show. Current size: {self.size()}, isVisible before show: {self.isVisible()}")
         self.show()
         self.adjustSize()
-        print(f"[ConversionProgress DEBUG] show_conversion_started: Shown. New size: {self.size()}, isVisible after show: {self.isVisible()}")
+        Logger.instance().info(caller="conversion_progress", msg=f"[ConversionProgress DEBUG] show_conversion_started: Shown. New size: {self.size()}, isVisible after show: {self.isVisible()}")
 
     def show_file_progress(self, task_id: str, filename: str, current_file_index: int, total_files: int, percentage: float):
         """Called when a new file starts or its progress updates for the first time."""

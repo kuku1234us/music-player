@@ -7,6 +7,7 @@ import re
 import os
 from typing import Optional, Tuple
 from pathlib import Path
+from qt_base_app.models.logger import Logger
 
 def validate_ffmpeg_path(ffmpeg_path: str = "ffmpeg") -> Tuple[bool, str]:
     """
@@ -116,7 +117,7 @@ def get_video_resolution(input_path: str, ffmpeg_path: str = "ffmpeg") -> Option
             return width, height
         return None
     except Exception as e:
-        print(f"[FFmpegUtils] Error getting video resolution: {e}")
+        Logger.instance().error(caller="FFmpegUtils", msg=f"Error getting video resolution: {e}", exc_info=True)
         return None
 
 def check_ffmpeg_requirements(ffmpeg_path: str = "ffmpeg") -> dict:
@@ -213,7 +214,7 @@ def get_video_duration(input_path: str, ffmpeg_path: str = "ffmpeg") -> Optional
         return None
         
     except Exception as e:
-        print(f"[FFmpegUtils] Error getting video duration: {e}")
+        Logger.instance().error(caller="FFmpegUtils", msg=f"Error getting video duration: {e}", exc_info=True)
         return None
 
 def validate_and_normalize_path(file_path: str) -> str:

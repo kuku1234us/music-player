@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QMessageBox, QInputDialog,
     QFileDialog, QMenu, QStackedWidget
 )
+from qt_base_app.models.logger import Logger
 from PyQt6.QtCore import Qt, QSettings, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon, QAction, QColor
 import qtawesome as qta
@@ -261,7 +262,7 @@ class PlaylistsPage(QWidget):
                          open(target_path, 'w', encoding='utf-8') as dst:
                         # Basic copy, doesn't guarantee internal format is useful later
                         dst.write(src.read())
-                    print(f"Warning: Copied non-JSON playlist '{file_path.name}'. Internal parsing not implemented.")
+                    Logger.instance().warning(caller="playlists_page", msg=f"Warning: Copied non-JSON playlist '{file_path.name}'. Internal parsing not implemented.")
                     # Create a placeholder Playlist object if needed for UI update
                     # imported_playlist = Playlist(name=target_path.stem, filepath=target_path)
 
@@ -297,7 +298,7 @@ class PlaylistsPage(QWidget):
         if isinstance(playlist, Playlist):
             self._enter_play_mode(playlist)
         else:
-            print(f"Error: Could not retrieve Playlist object from selected item: {item.text()}")
+            Logger.instance().error(caller="playlists_page", msg=f"Error: Could not retrieve Playlist object from selected item: {item.text()}")
 
     # --- Placeholder methods for context menu actions --- 
     # These will eventually be connected to signals from PlaylistDashboardWidget

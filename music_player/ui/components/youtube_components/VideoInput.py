@@ -11,6 +11,7 @@ from PyQt6.QtGui import QColor
 
 from music_player.models import YoutubeModel, SiteModel, YtDlpModel
 from qt_base_app.theme.theme_manager import ThemeManager
+from qt_base_app.models.logger import Logger
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 from music_player.models.settings_defs import (
     YT_ACTIVE_RESOLUTION_KEY, YT_HTTPS_ENABLED_KEY, YT_M4A_ENABLED_KEY,
@@ -39,7 +40,6 @@ class ToggleButton(QPushButton):
             else:
                 # Key provided, but not found in settings - log this maybe?
                 # For now, just defaults to False as initialized above.
-                # print(f"Debug: Setting key '{self.setting_key}' not found. Using default False.")
                 pass # Keep initial_checked as False
         # ---------------------------------------------------------
 
@@ -95,7 +95,6 @@ class ToggleButton(QPushButton):
     def _save_state(self, checked):
         """Save the button's state to settings using self.setting_key."""
         if not self._exclusive and self.setting_key:
-            # print(f"DEBUG: Saving state for {self.setting_key}: {checked}")
             self._settings.set(self.setting_key, checked, SettingType.BOOL)
     
     def toggle(self):
@@ -233,21 +232,21 @@ class VideoInput(QWidget):
         """Load the active resolution from settings and update buttons."""
         active_res_text = self._settings.get(YT_ACTIVE_RESOLUTION_KEY, None, SettingType.STRING)
         if active_res_text is None:
-             print(f"Warning: Setting key '{YT_ACTIVE_RESOLUTION_KEY}' not found. Check set_defaults. Defaulting to 720p.")
+             Logger.instance().warning(
+                 caller="VideoInput",
+                 msg=f"Setting key '{YT_ACTIVE_RESOLUTION_KEY}' not found. Check set_defaults. Defaulting to 720p.",
+             )
              active_res_text = "720p"
              self._settings.set(YT_ACTIVE_RESOLUTION_KEY, active_res_text, SettingType.STRING)
 
-        # print(f"DEBUG: Loading active resolution: {active_res_text}")
         found_button = False
         for button in self.resolution_group.buttons():
             if button.text() == active_res_text:
                 button.setChecked(True)
                 found_button = True
-                # print(f"DEBUG: Setting initial resolution to {button.text()}")
             else:
                 button.setChecked(False)
         if not found_button:
-            # print(f"DEBUG: Active resolution '{active_res_text}' not found, defaulting to 720p")
             self.btn_720p.setChecked(True)
             self._settings.set(YT_ACTIVE_RESOLUTION_KEY, "720p", SettingType.STRING)
 
@@ -266,11 +265,9 @@ class VideoInput(QWidget):
                 button.setChecked(False)
         
         if active_button_text:
-            # print(f"DEBUG: Saving active resolution: {active_button_text}")
             self._settings.set(YT_ACTIVE_RESOLUTION_KEY, active_button_text, SettingType.STRING)
 
         if sender == self.btn_audio:
-            # print("DEBUG: Audio button selected, turning off M4A by default")
             self.btn_m4a.setChecked(False)
         
         self.update_format()
@@ -333,8 +330,6 @@ class VideoInput(QWidget):
                 if subtitle_lang == 'zh': subtitle_lang = ['zh-CN', 'zh-TW', 'zh-HK']
             else: subtitle_lang = self.subtitle_lang_combo.currentText().strip()
         
-        # print(f"DEBUG: Generating format options with resolution={resolution}, prefer_best_video={prefer_best_video}, https={use_https}, m4a={use_m4a}, subtitle_lang={subtitle_lang}")
-        
         # Direct call to YtDlpModel since we know the signature matches
         options = YtDlpModel.generate_format_string(
             resolution=resolution,
@@ -344,8 +339,6 @@ class VideoInput(QWidget):
             prefer_best_video=prefer_best_video,
             prefer_avc=(resolution is not None and not prefer_best_video)  # Use AVC only for specific resolutions
         )
-        
-        # print(f"DEBUG: Generated format options: {options}")
         return options
 
     def set_format_audio_only(self):
@@ -385,7 +378,5 @@ class VideoInput(QWidget):
         """Handle subtitle language changes, save to settings, update format."""
         index = self.subtitle_lang_combo.findText(text)
         lang_code = self.subtitle_lang_combo.itemData(index) if index >= 0 else text
-        
-        # print(f"DEBUG: Subtitle language changed to: {lang_code}")
         self._settings.set(YT_SUBTITLES_LANG_KEY, lang_code, SettingType.STRING)
         self.update_format()

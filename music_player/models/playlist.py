@@ -519,11 +519,9 @@ class Playlist:
         if 0 <= self._current_index < len(self.tracks):
             track_data = self.tracks[self._current_index]
             # --- DEBUG --- 
-            # Logger.instance().debug("Playlist", f"get_first_file: Index {self._current_index}, Data: {track_data}, Is Dict: {isinstance(track_data, dict)}")
             # ------------- 
             path_to_return = track_data.get('path') if isinstance(track_data, dict) else None
             # --- MORE DEBUG ---
-            # Logger.instance().debug("Playlist", f"get_first_file: Value to be returned: {repr(path_to_return)}")
             # ------------------
             return path_to_return
         # --- DEBUG --- 

@@ -53,7 +53,6 @@ class YoutubePage(QWidget):
         self._setup_ui()
         self._connect_signals()
         # Use logger
-        # self.logger.info(self.__class__.__name__, "Initialized.")
 
     def _setup_ui(self):
         """Set up the user interface layout and widgets."""
@@ -78,7 +77,6 @@ class YoutubePage(QWidget):
         # REMOVED Load initial output directory call
 
         # Use logger
-        # self.logger.info(self.__class__.__name__, "UI setup complete.") 
 
     def _connect_signals(self):
         """Connect signals and slots for the page."""
@@ -98,11 +96,9 @@ class YoutubePage(QWidget):
         
         # Connect the navigation signal from DownloadQueue to our own signal
         self.download_queue.navigate_to_file.connect(self.navigate_to_file)
-        # self.logger.info(self.__class__.__name__, "Connected download_queue.navigate_to_file signal")
         
         # Connect the play file signal from DownloadQueue to our own signal
         self.download_queue.play_file.connect(self.play_file)
-        # self.logger.info(self.__class__.__name__, "Connected download_queue.play_file signal")
 
     @pyqtSlot()
     def _on_add_download_clicked(self):

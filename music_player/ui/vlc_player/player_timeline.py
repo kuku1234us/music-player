@@ -4,6 +4,7 @@ Player timeline component for showing track progress and time information.
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
+from qt_base_app.models.logger import Logger
 
 from .custom_slider import CustomSlider
 from music_player.models.ClippingManager import ClippingManager
@@ -96,7 +97,7 @@ class PlayerTimeline(QWidget):
             
     def set_duration(self, duration_ms):
         """Set the total duration of the current track"""
-        print(f"[PlayerTimeline] set_duration called with: {duration_ms} ms") # DEBUG
+        Logger.instance().debug(caller="PlayerTimeline", msg=f"[PlayerTimeline] set_duration called with: {duration_ms} ms")
         self.duration_ms = duration_ms
         self._update_time_labels()
             
@@ -171,15 +172,15 @@ class PlayerTimeline(QWidget):
                     end_percent = end_ms / self.duration_ms
                     segments_percent_list.append((start_percent, end_percent))
             
-            print(f"[PlayerTimeline DEBUG] _on_clipping_markers_updated: Calling set_clipping_markers with pending_percent={pending_begin_percent}, segments_percent={segments_percent_list}") # DEBUG
+            Logger.instance().debug(caller="player_timeline", msg=f"[PlayerTimeline DEBUG] _on_clipping_markers_updated: Calling set_clipping_markers with pending_percent={pending_begin_percent}, segments_percent={segments_percent_list}")
             self.position_slider.set_clipping_markers(pending_begin_percent, segments_percent_list)
         elif media_path == "" and (self._current_media_path == "" or self._current_media_path is None) : # Case where media was cleared globally
-            print(f"[PlayerTimeline DEBUG] _on_clipping_markers_updated: Clearing markers (media_path empty, current_media_path empty/None)") # DEBUG
+            Logger.instance().debug(caller="player_timeline", msg=f"[PlayerTimeline DEBUG] _on_clipping_markers_updated: Clearing markers (media_path empty, current_media_path empty/None)")
             self.position_slider.set_clipping_markers(None, []) # Clear with empty list
         elif self._current_media_path != media_path:
             # If the update is for a different media path (e.g. stale signal) or 
             # if current media path is now empty but update is for an old one, clear markers.
-            print(f"[PlayerTimeline DEBUG] _on_clipping_markers_updated: Clearing markers (media_path mismatch or stale)") # DEBUG
+            Logger.instance().debug(caller="player_timeline", msg=f"[PlayerTimeline DEBUG] _on_clipping_markers_updated: Clearing markers (media_path mismatch or stale)")
             self.position_slider.set_clipping_markers(None, []) # Clear with empty list
 
     def _on_begin_marker_badge_clicked(self):
@@ -188,7 +189,6 @@ class PlayerTimeline(QWidget):
         via timeline click is currently deferred. Use Shift+B / Shift+E / Shift+Del hotkeys.
         """
         # self.clipping_manager.clear_pending_begin_marker() # Example if it were to clear pending
-        # print("[PlayerTimeline] Begin marker badge clicked - interaction deferred for multi-segment.")
         pass
 
     def _on_end_marker_badge_clicked(self):
@@ -197,5 +197,4 @@ class PlayerTimeline(QWidget):
         via timeline click is currently deferred. Use Shift+B / Shift+E / Shift+Del hotkeys.
         """
         # self.clipping_manager.clear_last_segment() # Example if it were to clear last segment
-        # print("[PlayerTimeline] End marker badge clicked - interaction deferred for multi-segment.")
         pass 

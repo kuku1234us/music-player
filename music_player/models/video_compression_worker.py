@@ -7,6 +7,7 @@ import subprocess
 import time
 from typing import Optional, List
 from pathlib import Path
+from qt_base_app.models.logger import Logger
 
 from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
 
@@ -88,7 +89,7 @@ class VideoCompressionWorker(QRunnable):
         4. Handle file operations
         5. Clean up
         """
-        print(f"[VideoCompressionWorker] Starting compression for task: {self.task.task_id}")
+        Logger.instance().info(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Starting compression for task: {self.task.task_id}")
         
         try:
             # Mark task as started
@@ -105,7 +106,7 @@ class VideoCompressionWorker(QRunnable):
             
             # Check if compression is needed
             if not self._is_compression_needed():
-                print(f"[VideoCompressionWorker] Skipping compression for already small video: {self.task.original_filename}")
+                Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Skipping compression for already small video: {self.task.original_filename}")
                 # Since we are skipping compression, the "compressed" file is the original file.
                 # We need to handle this in file operations.
                 self.task.output_path = self.task.input_path 
@@ -139,11 +140,11 @@ class VideoCompressionWorker(QRunnable):
                 os.path.basename(final_output_path)
             )
             
-            print(f"[VideoCompressionWorker] Compression completed: {self.task.original_filename}")
+            Logger.instance().info(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Compression completed: {self.task.original_filename}")
             
         except Exception as e:
             error_msg = str(e)
-            print(f"[VideoCompressionWorker] Compression failed: {error_msg}")
+            Logger.instance().error(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Compression failed: {error_msg}")
             self.task.mark_failed(error_msg)
             self.signals.worker_failed.emit(self.task.task_id, error_msg)
             
@@ -159,7 +160,7 @@ class VideoCompressionWorker(QRunnable):
         
         This method sets the cancellation flag and terminates any running FFmpeg process.
         """
-        print(f"[VideoCompressionWorker] Cancellation requested for task: {self.task.task_id}")
+        Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Cancellation requested for task: {self.task.task_id}")
         self.cancelled = True
         
         # Terminate FFmpeg process if running
@@ -171,7 +172,7 @@ class VideoCompressionWorker(QRunnable):
                 if self.process.poll() is None:
                     self.process.kill()
             except Exception as e:
-                print(f"[VideoCompressionWorker] Error terminating process: {e}")
+                Logger.instance().error(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Error terminating process: {e}")
     
     def _validate_inputs(self):
         """Validate input file, output directory, and FFmpeg installation."""
@@ -215,7 +216,7 @@ class VideoCompressionWorker(QRunnable):
         self.ffmpeg_version = get_ffmpeg_version(self.ffmpeg_path) or "unknown"
         
         self.ffmpeg_validated = True
-        print(f"[VideoCompressionWorker] FFmpeg validated: {self.ffmpeg_path} (version: {self.ffmpeg_version})")
+        Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] FFmpeg validated: {self.ffmpeg_path} (version: {self.ffmpeg_version})")
     
     def _is_compression_needed(self) -> bool:
         """Check if video resolution is larger than 720p."""
@@ -231,9 +232,9 @@ class VideoCompressionWorker(QRunnable):
         self.total_duration_seconds = get_video_duration(self.task.input_path, self.ffmpeg_path)
         
         if self.total_duration_seconds:
-            print(f"[VideoCompressionWorker] Video duration: {self.total_duration_seconds:.2f} seconds")
+            Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Video duration: {self.total_duration_seconds:.2f} seconds")
         else:
-            print("[VideoCompressionWorker] Could not determine video duration")
+            Logger.instance().debug(caller="VideoCompressionWorker", msg="[VideoCompressionWorker] Could not determine video duration")
     
     def _build_ffmpeg_command(self) -> List[str]:
         """
@@ -248,8 +249,8 @@ class VideoCompressionWorker(QRunnable):
         """Execute the FFmpeg compression command with enhanced error handling."""
         cmd = self._build_ffmpeg_command()
         
-        print(f"[VideoCompressionWorker] Starting FFmpeg compression...")
-        print(f"[VideoCompressionWorker] Command: {' '.join(cmd)}")
+        Logger.instance().info(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Starting FFmpeg compression...")
+        Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Command: {' '.join(cmd)}")
         
         try:
             # Enhanced subprocess configuration for Unicode filename support
@@ -315,9 +316,9 @@ class VideoCompressionWorker(QRunnable):
         # But allow for cases where it might be larger (e.g., very short videos)
         input_size = os.path.getsize(self.task.input_path)
         if output_size > input_size * 2:  # Allow up to 2x size increase
-            print(f"[VideoCompressionWorker] Warning: Output file ({format_file_size(output_size)}) is larger than input ({format_file_size(input_size)})")
+            Logger.instance().warning(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Warning: Output file ({format_file_size(output_size)}) is larger than input ({format_file_size(input_size)})")
         
-        print(f"[VideoCompressionWorker] Output file created: {format_file_size(output_size)}")
+        Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Output file created: {format_file_size(output_size)}")
     
     def _monitor_ffmpeg_progress(self):
         """Monitor FFmpeg progress and emit progress signals with improved parsing."""
@@ -344,7 +345,7 @@ class VideoCompressionWorker(QRunnable):
                         self.last_progress_update = progress
                 
         except Exception as e:
-            print(f"[VideoCompressionWorker] Error monitoring progress: {e}")
+            Logger.instance().error(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Error monitoring progress: {e}")
     
     def _parse_ffmpeg_progress(self, line: str) -> Optional[float]:
         """
@@ -370,7 +371,7 @@ class VideoCompressionWorker(QRunnable):
         try:
             # If compression was skipped, the output path is the same as the input path
             if self.task.output_path == self.task.input_path:
-                print(f"[VideoCompressionWorker] No file operations needed for skipped video: {self.task.original_filename}")
+                Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] No file operations needed for skipped video: {self.task.original_filename}")
                 return self.task.input_path # The "final" path is the original path
 
             # Verify compressed file exists and is valid
@@ -387,7 +388,7 @@ class VideoCompressionWorker(QRunnable):
                 # Check if the conflict is with the original input file
                 if os.path.abspath(final_output_path) == os.path.abspath(self.task.input_path):
                     # This is expected - we want to replace the original file
-                    print(f"[VideoCompressionWorker] Will replace original file: {os.path.basename(final_output_path)}")
+                    Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Will replace original file: {os.path.basename(final_output_path)}")
                 else:
                     # Genuine conflict with a different file, need to resolve
                     base_path = Path(final_output_path)
@@ -399,16 +400,16 @@ class VideoCompressionWorker(QRunnable):
                             raise Exception("Too many filename conflicts")
                     
                     if final_output_path != original_final_path:
-                        print(f"[VideoCompressionWorker] Filename conflict resolved: {os.path.basename(final_output_path)}")
+                        Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Filename conflict resolved: {os.path.basename(final_output_path)}")
             
             # Handle the case where we need to replace the original file
             if os.path.abspath(final_output_path) == os.path.abspath(self.task.input_path):
                 # Delete original file first since we want to replace it
                 try:
                     os.remove(self.task.input_path)
-                    print(f"[VideoCompressionWorker] Deleted original file: {self.task.original_filename}")
+                    Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Deleted original file: {self.task.original_filename}")
                 except Exception as e:
-                    print(f"[VideoCompressionWorker] Warning: Could not delete original file: {e}")
+                    Logger.instance().warning(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Warning: Could not delete original file: {e}")
                     # If we can't delete the original, we'll need a different filename
                     base_path = Path(final_output_path)
                     counter = 1
@@ -417,20 +418,20 @@ class VideoCompressionWorker(QRunnable):
                         counter += 1
                         if counter > 1000:  # Prevent infinite loop
                             raise Exception("Too many filename conflicts")
-                    print(f"[VideoCompressionWorker] Using alternative filename: {os.path.basename(final_output_path)}")
+                    Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Using alternative filename: {os.path.basename(final_output_path)}")
             
             # Rename compressed file to final name
             if self.task.output_path != final_output_path:
                 os.rename(self.task.output_path, final_output_path)
-                print(f"[VideoCompressionWorker] Renamed to: {os.path.basename(final_output_path)}")
+                Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Renamed to: {os.path.basename(final_output_path)}")
             
             # Delete original file (only if we haven't already deleted it above)
             if os.path.abspath(final_output_path) != os.path.abspath(self.task.input_path) and os.path.exists(self.task.input_path):
                 try:
                     os.remove(self.task.input_path)
-                    print(f"[VideoCompressionWorker] Deleted original file: {self.task.original_filename}")
+                    Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Deleted original file: {self.task.original_filename}")
                 except Exception as e:
-                    print(f"[VideoCompressionWorker] Warning: Could not delete original file: {e}")
+                    Logger.instance().warning(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Warning: Could not delete original file: {e}")
                     # Don't fail the entire operation if we can't delete the original
             
             return final_output_path
@@ -455,6 +456,6 @@ class VideoCompressionWorker(QRunnable):
         if os.path.exists(self.task.output_path):
             try:
                 os.remove(self.task.output_path)
-                print(f"[VideoCompressionWorker] Cleaned up temp file: {self.task.output_path}")
+                Logger.instance().debug(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Cleaned up temp file: {self.task.output_path}")
             except Exception as e:
-                print(f"[VideoCompressionWorker] Error cleaning up temp file: {e}") 
+                Logger.instance().error(caller="VideoCompressionWorker", msg=f"[VideoCompressionWorker] Error cleaning up temp file: {e}")

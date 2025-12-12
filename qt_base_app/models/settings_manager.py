@@ -18,7 +18,8 @@ import yaml
 from datetime import datetime
 from pathlib import Path
 from PyQt6.QtCore import QSettings
-import sys # Added sys for stderr printing
+
+from qt_base_app.models.logger import Logger
 
 T = TypeVar('T')
 
@@ -67,7 +68,7 @@ class SettingsManager:
     def initialize(cls, organization_name: str, application_name: str):
         """Initialize the SettingsManager singleton with application-specific names."""
         if cls._instance is not None:
-            print("[SettingsManager WARN] Already initialized.", file=sys.stderr)
+            Logger.instance().warning(caller="SettingsManager", msg="Already initialized.")
             return
             
         if not organization_name or not application_name:
@@ -77,7 +78,7 @@ class SettingsManager:
         cls._application_name = application_name
         cls._instance = cls() # Call __init__ which will now use the stored names
         cls._initialized = True
-        # print(f"[SettingsManager] Initialized for Org: '{organization_name}', App: '{application_name}'")
+        Logger.instance().info(caller="SettingsManager", msg=f"Initialized (Org='{organization_name}', App='{application_name}').")
 
     @classmethod
     def instance(cls) -> 'SettingsManager':
@@ -239,29 +240,19 @@ class SettingsManager:
                 try:
                     path_obj = Path(value) # Convert first
                     if not path_obj.exists():
-                        # Use Logger if available, otherwise print
                         msg = f"Path setting '{key}' does not exist: {path_obj}"
-                        try:
-                            print(f"[SettingsManager WARNING] {msg}", file=sys.stderr)
-                        except Exception:
-                            print(f"[SettingsManager WARNING] {msg}")
+                        Logger.instance().warning(caller="SettingsManager", msg=msg)
                         return None # Indicate invalid path
                     if not path_obj.is_dir():
                         msg = f"Path setting '{key}' is not a directory: {path_obj}"
-                        try:
-                            print(f"[SettingsManager WARNING] {msg}", file=sys.stderr)
-                        except Exception:
-                            print(f"[SettingsManager WARNING] {msg}")
+                        Logger.instance().warning(caller="SettingsManager", msg=msg)
                         return None # Indicate invalid path
                     # Path is valid, return the Path object
                     return path_obj 
                 except Exception as e:
                     # Handle potential errors during Path() conversion itself
                     msg = f"Error converting path setting '{key}': {e}"
-                    try:
-                        print(f"[SettingsManager WARNING] {msg}", file=sys.stderr)
-                    except Exception:
-                        print(f"[SettingsManager WARNING] {msg}")
+                    Logger.instance().warning(caller="SettingsManager", msg=msg, exc_info=True)
                     return None # Indicate invalid path
             # --- End Path Validation --- #
 
@@ -273,8 +264,11 @@ class SettingsManager:
                     try:
                         value = self._deserialize_value(value, setting_type)
                     except (json.JSONDecodeError, ValueError) as e:
-                        # Use print instead of logger
-                        print(f"[SettingsManager WARN] Error deserializing setting '{key}' for type {setting_type}: {e}", file=sys.stderr)
+                        Logger.instance().warning(
+                            caller="SettingsManager",
+                            msg=f"Error deserializing setting '{key}' for type {setting_type}: {e}",
+                            exc_info=True,
+                        )
                         return default # Return default on deserialization error
                 # Get the final converter
                 converter = self._type_converters.get(setting_type)
@@ -285,13 +279,18 @@ class SettingsManager:
                 try:
                     return converter(value)
                 except (ValueError, TypeError) as e:
-                    # Use print instead of logger
-                    print(f"[SettingsManager WARN] Error converting setting '{key}' to type {setting_type}: {e}", file=sys.stderr)
+                    Logger.instance().warning(
+                        caller="SettingsManager",
+                        msg=f"Error converting setting '{key}' to type {setting_type}: {e}",
+                        exc_info=True,
+                    )
                     return default # Return default on final conversion error
             else:
                 # Should not happen if setting_type is valid
-                # Use print instead of logger
-                print(f"[SettingsManager ERROR] Invalid setting_type provided for key '{key}': {setting_type}", file=sys.stderr)
+                Logger.instance().error(
+                    caller="SettingsManager",
+                    msg=f"Invalid setting_type provided for key '{key}': {setting_type}",
+                )
                 return default
             # --- End Other Type Conversions --- #
                 
@@ -390,15 +389,25 @@ class SettingsManager:
             config_path = Path(config_path) # Ensure it's a Path object
             with open(config_path, 'r', encoding='utf-8') as f:
                 self._yaml_config = yaml.safe_load(f) or {}
-                # print(f"[SettingsManager] Loaded YAML config from: {config_path}") # Simple print
         except FileNotFoundError:
-            print(f"[SettingsManager WARN] YAML config file not found at {config_path}. Using empty config.", file=sys.stderr)
+            Logger.instance().warning(
+                caller="SettingsManager",
+                msg=f"YAML config file not found at {config_path}. Using empty config.",
+            )
             self._yaml_config = {}
         except yaml.YAMLError as e:
-            print(f"[SettingsManager ERROR] Error parsing YAML config file {config_path}: {e}", file=sys.stderr)
+            Logger.instance().error(
+                caller="SettingsManager",
+                msg=f"Error parsing YAML config file {config_path}: {e}",
+                exc_info=True,
+            )
             self._yaml_config = {}
         except Exception as e:
-            print(f"[SettingsManager ERROR] Error loading YAML config {config_path}: {e}", file=sys.stderr)
+            Logger.instance().error(
+                caller="SettingsManager",
+                msg=f"Error loading YAML config {config_path}: {e}",
+                exc_info=True,
+            )
             self._yaml_config = {}
             
     def get_yaml_config(self, key_path: str, default: Any = None) -> Any:
@@ -426,6 +435,10 @@ class SettingsManager:
             # Key not found at some level
             return default
         except Exception as e:
-            print(f"[SettingsManager ERROR] Error accessing YAML config key '{key_path}': {e}", file=sys.stderr)
+            Logger.instance().error(
+                caller="SettingsManager",
+                msg=f"Error accessing YAML config key '{key_path}': {e}",
+                exc_info=True,
+            )
             return default
     # -------------------------------------------------------- 

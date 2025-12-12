@@ -253,9 +253,9 @@ class PlaylistPlaymodeWidget(QWidget):
                 player_state.set_current_playlist(self.current_playlist)
                 self.track_selected_for_playback.emit(track_path)
             else:
-                print(f"[PlayMode] Double-clicked path not found in current playlist: {track_path}")
+                Logger.instance().debug(caller="PlayMode", msg=f"[PlayMode] Double-clicked path not found in current playlist: {track_path}")
         else:
-             print("[PlayMode] Could not retrieve source object on double click.")
+             Logger.instance().debug(caller="PlayMode", msg="[PlayMode] Could not retrieve source object on double click.")
     
     def resizeEvent(self, event):
         # Update widget sizes when the parent widget is resized
@@ -388,7 +388,7 @@ class PlaylistPlaymodeWidget(QWidget):
         if self.current_playlist is None or not tracks_to_add:
             return
         if self.model is None:
-            print("[PlayMode] Cannot add tracks: Table model not initialized.")
+            Logger.instance().debug(caller="PlayMode", msg="[PlayMode] Cannot add tracks: Table model not initialized.")
             return
             
         # Create track data dictionaries for the model
@@ -410,7 +410,7 @@ class PlaylistPlaymodeWidget(QWidget):
         if added_to_playlist_count > 0:
             save_success = self.current_playlist.save()
             if not save_success:
-                print(f"Error: Failed to save playlist '{self.current_playlist.name}' after adding tracks.")
+                Logger.instance().error(caller="playlist_playmode", msg=f"Error: Failed to save playlist '{self.current_playlist.name}' after adding tracks.")
                 # Should probably revert the playlist.add_track calls if save fails?
                 return
                 
@@ -418,10 +418,10 @@ class PlaylistPlaymodeWidget(QWidget):
             # Determine insertion point (e.g., end of table)
             insert_row_index = self.model.rowCount() 
             if self.model.insert_rows(insert_row_index, new_track_objects):
-                 print(f"[PlayMode] Inserted {len(new_track_objects)} rows into model.")
+                 Logger.instance().debug(caller="PlayMode", msg=f"[PlayMode] Inserted {len(new_track_objects)} rows into model.")
                  # View updates automatically via model signals
             else:
-                 print("[PlayMode] ERROR: Failed to insert rows into model.")
+                 Logger.instance().error(caller="PlayMode", msg="[PlayMode] ERROR: Failed to insert rows into model.")
                  # UI might be out of sync with playlist file
             
             # Remove from selection pool
@@ -435,10 +435,10 @@ class PlaylistPlaymodeWidget(QWidget):
     def _on_play_playlist_requested(self):
         """Emit signal to request playback of the entire current playlist."""
         if self.current_playlist:
-            print(f"[PlayMode] Play playlist requested for: {self.current_playlist.name}")
+            Logger.instance().debug(caller="PlayMode", msg=f"[PlayMode] Play playlist requested for: {self.current_playlist.name}")
             self.playlist_play_requested.emit(self.current_playlist)
         else:
-            print("[PlayMode] Play playlist requested but no playlist loaded.")
+            Logger.instance().debug(caller="PlayMode", msg="[PlayMode] Play playlist requested but no playlist loaded.")
 
     def get_current_playlist(self) -> Optional[Playlist]: # Added Optional
         return self.current_playlist
@@ -449,10 +449,10 @@ class PlaylistPlaymodeWidget(QWidget):
         """Accept drag events if they contain file URLs."""
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-            print("[PlayMode] Drag Enter accepted.") # Debug
+            Logger.instance().debug(caller="PlayMode", msg="[PlayMode] Drag Enter accepted.")
         else:
             event.ignore()
-            print("[PlayMode] Drag Enter ignored.") # Debug
+            Logger.instance().debug(caller="PlayMode", msg="[PlayMode] Drag Enter ignored.")
 
     def dragMoveEvent(self, event):
         """Accept move events during drag."""
@@ -481,7 +481,7 @@ class PlaylistPlaymodeWidget(QWidget):
                 self.selection_pool_widget.add_tracks(files_to_add_to_pool)
         else:
             # Dropped onto Playlist Area - Add directly to playlist/model
-            print("[PlayMode] Drop onto playlist area - using _handle_add_selected_from_pool logic.")
+            Logger.instance().debug(caller="PlayMode", msg="[PlayMode] Drop onto playlist area - using _handle_add_selected_from_pool logic.")
             # Simplified: Treat drop onto playlist like adding from pool
             # This reuses the logic for adding to playlist object, saving, inserting rows
             # Note: This doesn't filter duplicates already in the playlist efficiently before calling add_track
@@ -501,7 +501,7 @@ class PlaylistPlaymodeWidget(QWidget):
                                     full_path = os.path.join(root, filename)
                                     scanned_files.append(str(Path(full_path).resolve()))
                 except Exception as e:
-                     print(f"[PlayMode] Error processing path {path_str} during drop scan: {e}")
+                     Logger.instance().error(caller="PlayMode", msg=f"[PlayMode] Error processing path {path_str} during drop scan: {e}")
             
             if scanned_files:
                  # Call the same handler used for adding from the pool
@@ -519,7 +519,7 @@ class PlaylistPlaymodeWidget(QWidget):
         Returns:
             List of unique, valid, absolute audio file paths.
         """
-        print(f"[PlayMode] Processing dropped paths: {paths_to_process}")
+        Logger.instance().debug(caller="PlayMode", msg=f"[PlayMode] Processing dropped paths: {paths_to_process}")
         audio_files_found = []
         for path_str in paths_to_process:
             try:
@@ -527,16 +527,16 @@ class PlaylistPlaymodeWidget(QWidget):
                 if p.is_file() and p.suffix.lower() in AUDIO_EXTENSIONS:
                     audio_files_found.append(str(p.resolve())) # Store resolved path
                 elif p.is_dir():
-                    print(f"[PlayMode] Scanning dropped folder: {p}") # Debug
+                    Logger.instance().debug(caller="PlayMode", msg=f"[PlayMode] Scanning dropped folder: {p}")
                     for root, _, files in os.walk(p):
                         for filename in files:
                             if Path(filename).suffix.lower() in AUDIO_EXTENSIONS:
                                 full_path = os.path.join(root, filename)
                                 audio_files_found.append(str(Path(full_path).resolve())) # Store resolved path
             except Exception as e:
-                print(f"[PlayMode] Error processing dropped path {path_str}: {e}")
+                Logger.instance().error(caller="PlayMode", msg=f"[PlayMode] Error processing dropped path {path_str}: {e}")
 
-        print(f"[PlayMode] Found {len(audio_files_found)} potential audio files.")
+        Logger.instance().debug(caller="PlayMode", msg=f"[PlayMode] Found {len(audio_files_found)} potential audio files.")
         if not audio_files_found:
             return [] # Nothing to add
 
@@ -566,9 +566,8 @@ class PlaylistPlaymodeWidget(QWidget):
                 files_to_add.append(file_path) # Add the original resolved path
             # else: # Debugging
                 # reason = "playlist" if norm_path in current_playlist_tracks_set else "pool"
-                # print(f"[PlayMode] Skipping duplicate ({reason}): {norm_path}")
 
-        print(f"[PlayMode] Filtered duplicates, {len(files_to_add)} files remain to be added.")
+        Logger.instance().debug(caller="PlayMode", msg=f"[PlayMode] Filtered duplicates, {len(files_to_add)} files remain to be added.")
         return files_to_add
 
     def _on_sort_changed(self, logicalIndex: int, order: Qt.SortOrder):
@@ -580,7 +579,6 @@ class PlaylistPlaymodeWidget(QWidget):
     def _update_playlist_model_sort_order(self):
         """Gets the current visual order and updates the Playlist object."""
         if not self.current_playlist or not self.tracks_table.model():
-            # print("[PlayMode] _update_playlist_model_sort_order called but no playlist or model.") # Can be noisy
             return
 
         # Get the source objects in the current visual order
@@ -593,11 +591,9 @@ class PlaylistPlaymodeWidget(QWidget):
                 sorted_original_indices.append(track_obj['original_index'])
             else:
                 # This indicates a problem with data preparation or retrieval
-                print(f"[PlayMode] Warning: Could not find 'original_index' in ordered track object during sort update: {track_obj}")
+                Logger.instance().warning(caller="PlayMode", msg=f"[PlayMode] Warning: Could not find 'original_index' in ordered track object during sort update: {track_obj}")
 
         # Update the Playlist object with the new order
         if sorted_original_indices:
-            # print(f"[PlayMode] Updating playlist sort order with {len(sorted_original_indices)} indices.") # Can be noisy
             self.current_playlist.update_sort_order(sorted_original_indices)
         # else: # No need to warn if list is empty, just means table was empty
-            # print("[PlayMode] Warning: Could not extract sorted original indices during sort update.")

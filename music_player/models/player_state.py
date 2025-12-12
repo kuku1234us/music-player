@@ -3,6 +3,7 @@ Shared state module for the Music Player application.
 Stores global references and state that needs to be accessed by multiple components.
 """
 from typing import Optional, List, Callable
+from qt_base_app.models.logger import Logger
 # Delay import to prevent circular dependency
 # from music_player.models.playlist import Playlist
 
@@ -34,7 +35,7 @@ def select_track(filepath: str) -> None:
     """
     // ... existing code ...
         except Exception as e:
-            print(f"[PlayerState] Error in track selection callback: {e}")
+            Logger.instance().error(caller="PlayerState", msg=f"[PlayerState] Error in track selection callback: {e}")
 
 # --- Track Play Request Mechanism - REMOVED --- 
 # def register_track_play_requested_callback(callback: Callable[[int], None]) -> None:
@@ -64,20 +65,16 @@ def select_track(filepath: str) -> None:
 #     
 #     # First, validate that we have a playlist and the index is valid
 #     if current_playing_playlist is None:
-#         print("[PlayerState] Error: No playlist is currently set")
 #         return
 #         
 #     if track_index < 0 or track_index >= len(current_playing_playlist.tracks):
-#         print(f"[PlayerState] Error: Track index {track_index} is out of range")
 #         return
 #     
 #     # Get the filepath for logging purposes
 #     filepath = current_playing_playlist.tracks[track_index]
-#     print(f"[PlayerState] Requesting to play track at index {track_index}: {filepath}")
 #     
 #     # Notify all registered callbacks
 #     for callback in _track_play_requested_callbacks:
 #         try:
 #             callback(track_index)
 #         except Exception as e:
-#             print(f"[PlayerState] Error in track play requested callback: {e}") 

@@ -1,3 +1,4 @@
+from qt_base_app.models.logger import Logger
 # music_player/ui/components/browser_components/browser_table.py
 import os
 import shutil
@@ -50,7 +51,7 @@ class MetadataWorker(QRunnable):
             # Call callback on main thread
             self.callback(self.file_path, tooltip)
         except Exception as e:
-            print(f"[MetadataWorker] Error fetching metadata for {self.file_path}: {e}")
+            Logger.instance().error(caller="MetadataWorker", msg=f"[MetadataWorker] Error fetching metadata for {self.file_path}: {e}")
             self.callback(self.file_path, None)
 
 # --- Icon Delegate ---
@@ -190,15 +191,15 @@ class BrowserTableView(BaseTableView):
         # Check if we got a valid path
         if path_str:
             if is_dir:
-                print(f"[BrowserTable] Directory double-clicked: {path_str}")
+                Logger.instance().debug(caller="BrowserTable", msg=f"[BrowserTable] Directory double-clicked: {path_str}")
                 self.directoryDoubleClicked.emit(path_str)
             else:
                 # Verify it's actually a file on disk before emitting play signal
                 if Path(path_str).is_file():
-                    print(f"[BrowserTable] File double-clicked: {path_str}")
+                    Logger.instance().debug(caller="BrowserTable", msg=f"[BrowserTable] File double-clicked: {path_str}")
                     self.fileDoubleClicked.emit(path_str)
                 else:
-                     print(f"[BrowserTable] Double-clicked non-file/non-existent path: {path_str}")
+                     Logger.instance().debug(caller="BrowserTable", msg=f"[BrowserTable] Double-clicked non-file/non-existent path: {path_str}")
                      super().mouseDoubleClickEvent(event) # Fallback
             event.accept() # We handled it
         else:
@@ -211,7 +212,7 @@ class BrowserTableView(BaseTableView):
         """Handles Delete key press: Deletes from disk first, then asks model to remove rows."""
         proxy_model = self.model() # Get the model assigned to the view (likely the proxy)
         if not proxy_model:
-            print("[BrowserTableView] No model set on the view.")
+            Logger.instance().debug(caller="BrowserTableView", msg="[BrowserTableView] No model set on the view.")
             return
             
         # --- Access the Source Model --- 
@@ -221,24 +222,24 @@ class BrowserTableView(BaseTableView):
         elif isinstance(proxy_model, BaseTableModel): # Handle case where maybe proxy isn't used
             source_model = proxy_model 
         else:
-             print(f"[BrowserTableView] Unexpected model type ({type(proxy_model)}). Cannot determine source model.")
+             Logger.instance().debug(caller="BrowserTableView", msg=f"[BrowserTableView] Unexpected model type ({type(proxy_model)}). Cannot determine source model.")
              return
 
         if not source_model:
-             print("[BrowserTableView] Could not retrieve source model.")
+             Logger.instance().debug(caller="BrowserTableView", msg="[BrowserTableView] Could not retrieve source model.")
              return
         # -------------------------------
 
         # Check if the SOURCE model supports our expected deletion method
         if not (hasattr(source_model, 'remove_rows_by_objects') and callable(source_model.remove_rows_by_objects)):
-            print(f"[BrowserTableView] Source model ({type(source_model)}) does not support 'remove_rows_by_objects'. Cannot perform deletion.")
+            Logger.instance().debug(caller="BrowserTableView", msg=f"[BrowserTableView] Source model ({type(source_model)}) does not support 'remove_rows_by_objects'. Cannot perform deletion.")
             return
 
         selected_objects = self.get_selected_items_data() # This should get data from source model via proxy
         if not selected_objects:
             return
 
-        print(f"[BrowserTableView] Delete requested for {len(selected_objects)} item(s). Performing disk deletion...")
+        Logger.instance().debug(caller="BrowserTableView", msg=f"[BrowserTableView] Delete requested for {len(selected_objects)} item(s). Performing disk deletion...")
         deleted_count = 0
         successfully_deleted_objects = []
         error_messages = []
@@ -265,35 +266,35 @@ class BrowserTableView(BaseTableView):
             try:
                 p = Path(path_str)
                 if not p.exists():
-                     print(f"[BrowserTableView] Warning: Item not found on disk: {path_str}")
+                     Logger.instance().warning(caller="BrowserTableView", msg=f"[BrowserTableView] Warning: Item not found on disk: {path_str}")
                      # Assume it's already gone, mark for removal from model view
                      successfully_deleted_objects.append(obj)
                      continue
 
                 if is_dir:
-                    print(f"[BrowserTableView] Deleting directory from disk: {path_str}")
+                    Logger.instance().debug(caller="BrowserTableView", msg=f"[BrowserTableView] Deleting directory from disk: {path_str}")
                     shutil.rmtree(p)
                     deleted_count += 1
                     successfully_deleted_objects.append(obj) # Add to list for model removal
                 else:
-                    print(f"[BrowserTableView] Deleting file from disk: {path_str}")
+                    Logger.instance().debug(caller="BrowserTableView", msg=f"[BrowserTableView] Deleting file from disk: {path_str}")
                     os.remove(p)
                     deleted_count += 1
                     successfully_deleted_objects.append(obj) # Add to list for model removal
             except OSError as e:
                 err = f"OS Error deleting {p.name}: {e.strerror}"
-                print(f"[BrowserTableView] {err}")
+                Logger.instance().debug(caller="BrowserTableView", msg=f"[BrowserTableView] {err}")
                 error_messages.append(err)
             except Exception as e:
                 err = f"Unexpected error deleting {p.name}: {e}"
-                print(f"[BrowserTableView] {err}")
+                Logger.instance().debug(caller="BrowserTableView", msg=f"[BrowserTableView] {err}")
                 error_messages.append(err)
         # --- End Disk Deletion ---
 
         # --- Update Model --- 
         # Ask the SOURCE model to remove only the rows corresponding to successfully deleted objects
         if successfully_deleted_objects:
-             print(f"[BrowserTableView] Requesting source model ({type(source_model)}) to remove {len(successfully_deleted_objects)} rows from view.")
+             Logger.instance().debug(caller="BrowserTableView", msg=f"[BrowserTableView] Requesting source model ({type(source_model)}) to remove {len(successfully_deleted_objects)} rows from view.")
              source_model.remove_rows_by_objects(successfully_deleted_objects) # <-- Call on source_model
 
         # --- Emit Signal --- 

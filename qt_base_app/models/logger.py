@@ -6,8 +6,12 @@ import re
 from pathlib import Path
 from typing import Optional, Any, Dict
 
-# Import SettingsManager
-from .settings_manager import SettingsManager
+_fallback_logger = logging.getLogger("MusicPlayerFallback")
+if not _fallback_logger.handlers:
+    _fallback_handler = logging.StreamHandler(sys.stderr)
+    _fallback_handler.setFormatter(logging.Formatter("[%(levelname)-5s][fallback]%(message)s"))
+    _fallback_logger.addHandler(_fallback_handler)
+_fallback_logger.setLevel(logging.INFO)
 
 def _sanitize_filename(name: str) -> str:
     """Removes invalid characters for filenames."""
@@ -63,7 +67,12 @@ class Logger:
     def configure(self): # Remove config parameter
         """Configures the logger by fetching settings from SettingsManager."""
         if self._initialized: # Check if already configured
-             print("[Logger] Logger already configured. Skipping reconfiguration.") # Updated message
+             # Avoid printing; in production the logger is already configured and this is noise.
+             if self._logger is not None:
+                 try:
+                     self._logger.debug("Logger already configured. Skipping reconfiguration.", extra={'caller': 'logger'})
+                 except Exception:
+                     pass
              return
         self._configure() # Call internal method without config
         self._initialized = True # Mark as configured
@@ -73,7 +82,8 @@ class Logger:
         if self._logger is not None:
             return
         try:
-            # Get SettingsManager instance
+            # Import SettingsManager lazily to avoid circular imports.
+            from .settings_manager import SettingsManager
             settings = SettingsManager.instance()
             
             # Read Configuration directly from SettingsManager
@@ -96,7 +106,6 @@ class Logger:
 
             # --- Clear any existing handlers for THIS logger instance --- 
             if logger_instance.hasHandlers():
-                print(f"[Logger] Clearing {len(logger_instance.handlers)} existing handlers for {app_title}.")
                 for handler in logger_instance.handlers[:]: # Iterate over a copy
                     logger_instance.removeHandler(handler)
             # -----------------------------------------------------------
@@ -125,9 +134,12 @@ class Logger:
                     file_handler.setLevel(log_level) # Set level on the handler
                     file_handler.setFormatter(file_formatter)
                     logger_instance.addHandler(file_handler)
-                    print(f"[File Logger] Logging to file: {log_file_path}") 
+                    try:
+                        logger_instance.info(f"Logging to file: {log_file_path}", extra={'caller': 'logger'})
+                    except Exception:
+                        _fallback_logger.info(f"Logging to file: {log_file_path}")
                 except Exception as e:
-                    print(f"[File Logger Error] Error setting up file logger: {e}", file=sys.stderr)
+                    _fallback_logger.error(f"Error setting up file logger: {e}", exc_info=True)
 
             # Configure Console Handler
             if log_to_console:
@@ -136,55 +148,50 @@ class Logger:
                     console_handler.setLevel(log_level) # Set level on the handler
                     console_handler.setFormatter(console_formatter)
                     logger_instance.addHandler(console_handler)
-                    # print(f"[Console Logger] Logging to console enabled") 
                 except Exception as e:
-                    print(f"[Console Logger Error] Error setting up console logger: {e}", file=sys.stderr)
+                    _fallback_logger.error(f"Error setting up console logger: {e}", exc_info=True)
 
             # Store the configured logger
             self._logger = logger_instance
-            # Log initialization message using the logger itself (will use configured formatters)
-            # self._logger.info(f"--- Logger Initialized (Level: {log_level_str}) ---", extra={'caller': 'logger'})
 
         except Exception as e:
-            print(f"[FATAL ERROR] Configuring logger: {e}", file=sys.stderr)
-            logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-            self._logger = logging.getLogger("FallbackLogger")
-            self._logger.error(f"Logger configuration failed: {e}", exc_info=True)
+            _fallback_logger.critical(f"Configuring logger failed: {e}", exc_info=True)
+            self._logger = None
 
     # --- Public Logging Methods (Modified Signatures) ---
 
     def debug(self, caller: str, msg: str, *args, **kwargs):
         """Logs a DEBUG message, prepended with the caller name."""
         if not self._initialized or self._logger is None:
-            print(f"[Logger Not Configured] DEBUG from {caller}: {msg}", file=sys.stderr)
+            _fallback_logger.debug(f"[{caller}] {msg}", *args, **kwargs)
             return
         self._logger.debug(msg, *args, extra={'caller': caller}, **kwargs)
 
     def info(self, caller: str, msg: str, *args, **kwargs):
         """Logs an INFO message, prepended with the caller name."""
         if not self._initialized or self._logger is None:
-            print(f"[Logger Not Configured] INFO from {caller}: {msg}", file=sys.stderr)
+            _fallback_logger.info(f"[{caller}] {msg}", *args, **kwargs)
             return
         self._logger.info(msg, *args, extra={'caller': caller}, **kwargs)
 
     def warning(self, caller: str, msg: str, *args, **kwargs):
         """Logs a WARNING message (as WARN), prepended with the caller name."""
         if not self._initialized or self._logger is None:
-            print(f"[Logger Not Configured] WARN from {caller}: {msg}", file=sys.stderr)
+            _fallback_logger.warning(f"[{caller}] {msg}", *args, **kwargs)
             return
         self._logger.warning(msg, *args, extra={'caller': caller}, **kwargs)
 
     def error(self, caller: str, msg: str, *args, exc_info=False, **kwargs):
         """Logs an ERROR message, prepended with the caller name."""
         if not self._initialized or self._logger is None:
-            print(f"[Logger Not Configured] Error from {caller}: {msg}", file=sys.stderr)
+            _fallback_logger.error(f"[{caller}] {msg}", *args, exc_info=exc_info, **kwargs)
             return
         self._logger.error(msg, *args, exc_info=exc_info, extra={'caller': caller}, **kwargs)
 
     def exception(self, caller: str, msg: str, *args, **kwargs):
         """Logs an EXCEPTION message, prepended with the caller name."""
         if not self._initialized or self._logger is None:
-            print(f"[Logger Not Configured] Exception from {caller}: {msg}", file=sys.stderr)
+            _fallback_logger.exception(f"[{caller}] {msg}", *args, **kwargs)
             return
         # The 'exception' method implicitly handles exc_info=True
         self._logger.exception(msg, *args, extra={'caller': caller}, **kwargs)
@@ -192,6 +199,6 @@ class Logger:
     def critical(self, caller: str, msg: str, *args, exc_info=False, **kwargs):
         """Logs a CRITICAL message, prepended with the caller name."""
         if not self._initialized or self._logger is None:
-            print(f"[Logger Not Configured] CRITICAL from {caller}: {msg}", file=sys.stderr)
+            _fallback_logger.critical(f"[{caller}] {msg}", *args, exc_info=exc_info, **kwargs)
             return
         self._logger.critical(msg, *args, exc_info=exc_info, extra={'caller': caller}, **kwargs) 

@@ -7,6 +7,7 @@ import datetime
 from pathlib import Path
 import concurrent.futures
 from functools import partial
+from qt_base_app.models.logger import Logger
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem,
@@ -138,7 +139,7 @@ class DirectoryWorker(QRunnable):
                         'is_dir': is_dir
                     })
                 except Exception as e:
-                    print(f"[DirectoryWorker] Error accessing item {item_path}: {e}")
+                    Logger.instance().error(caller="DirectoryWorker", msg=f"[DirectoryWorker] Error accessing item {item_path}: {e}")
                     continue  # Skip this item
                 
                 processed_count += 1
@@ -149,7 +150,7 @@ class DirectoryWorker(QRunnable):
                 
         except Exception as e:
             error_msg = f"Error listing directory {self.directory_path}: {e}"
-            print(f"[DirectoryWorker] {error_msg}")
+            Logger.instance().error(caller="DirectoryWorker", msg=f"[DirectoryWorker] {error_msg}")
             self.signals.error.emit(error_msg)
             return
             
@@ -548,7 +549,7 @@ class BrowserPage(QWidget):
         """
         # Validate the directory exists
         if not directory_path or not directory_path.is_dir():
-            print(f"[BrowserPage] Cannot navigate: Invalid directory path: {directory_path}")
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Cannot navigate: Invalid directory path: {directory_path}")
             return False
             
         # Always save to settings
@@ -561,16 +562,16 @@ class BrowserPage(QWidget):
             self._populate_table(self._current_directory)
             return True
         else:
-            print(f"[BrowserPage] Already in directory: {directory_path}")
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Already in directory: {directory_path}")
             return True
 
     def _refresh_view(self):
         """Refreshes the table view for the current directory."""
         if self._current_directory and self._current_directory.is_dir():
-            print(f"[BrowserPage] Refreshing view for: {self._current_directory}")
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Refreshing view for: {self._current_directory}")
             self._populate_table(self._current_directory)
         else:
-            print("[BrowserPage] Cannot refresh: No valid directory selected.")
+            Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] Cannot refresh: No valid directory selected.")
             # Optionally show a message if needed
 
     def _populate_table(self, directory_path: Path):
@@ -611,7 +612,7 @@ class BrowserPage(QWidget):
         
         # Check if this is for the current directory (could have changed during loading)
         if self._current_directory != directory_path:
-            print(f"[BrowserPage] Ignoring loading results for outdated directory: {directory_path}")
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Ignoring loading results for outdated directory: {directory_path}")
             return
             
         if not files_data:
@@ -632,7 +633,7 @@ class BrowserPage(QWidget):
         
         # --- Handle Pending Selection ---
         if directory_path == self._pending_selection_dir and self._pending_selection_filename:
-            print(f"[BrowserPage] Executing pending selection for: {self._pending_selection_filename}")
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Executing pending selection for: {self._pending_selection_filename}")
             self._select_file_by_name(self._pending_selection_filename)
         # Clear pending state regardless of whether selection happened (avoid stale requests)
         self._pending_selection_dir = None
@@ -647,7 +648,7 @@ class BrowserPage(QWidget):
         # Clear reference to worker
         self.current_directory_worker = None
         
-        print(f"[BrowserPage] Directory loading error: {error_msg}")
+        Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Directory loading error: {error_msg}")
         self.empty_label.setText(f"Error: {error_msg}")
         self.empty_label.show()
         self.file_table.hide()
@@ -718,31 +719,31 @@ class BrowserPage(QWidget):
             return
 
         # Test connection first
-        print("[BrowserPage] Testing connection to OPlayer device...")
+        Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] Testing connection to OPlayer device...")
         if not self.oplayer_service.test_connection():
             error_msg = "Could not connect to OPlayer device. Check connection and device status."
-            print(f"[BrowserPage] Error: {error_msg}")
+            Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Error: {error_msg}")
             QMessageBox.critical(self, "Connection Error", error_msg)
             return
 
         # Reset state and start the first upload
         self._current_upload_index = 0
         self._total_files_to_upload = len(self._files_to_upload)
-        print(f"[BrowserPage] Starting upload of {self._total_files_to_upload} files.")
+        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Starting upload of {self._total_files_to_upload} files.")
         self._start_next_upload()
         
     def _start_next_upload(self):
         """Initiates the upload for the next file in the queue."""
         if self._current_upload_index < self._total_files_to_upload:
             file_path = self._files_to_upload[self._current_upload_index]
-            print(f"[BrowserPage] Uploading file {self._current_upload_index + 1}/{self._total_files_to_upload}: {file_path}")
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Uploading file {self._current_upload_index + 1}/{self._total_files_to_upload}: {file_path}")
             # Start the upload via the service
             if not self.oplayer_service.upload_file(file_path):
                  # Handle immediate failure from service (e.g., file vanished)
                  self._on_upload_failed(f"Could not start upload for {os.path.basename(file_path)}")
                  # No need to call _start_next_upload here, _on_upload_failed will do it.
         else:
-            print("[BrowserPage] All file uploads finished or attempted.")
+            Logger.instance().info(caller="BrowserPage", msg="[BrowserPage] All file uploads finished or attempted.")
             # Optionally show a final summary message or just hide the overlay after a delay
             # self.upload_status.show_upload_completed(f"Finished uploading {self._total_files_to_upload} files.")
             # For now, let the last completion/failure message linger
@@ -751,21 +752,20 @@ class BrowserPage(QWidget):
     def _on_upload_started(self, filename):
         """Handle upload started signal"""
         status_text = f"Uploading {self._current_upload_index + 1}/{self._total_files_to_upload}: {filename}"
-        print(f"[BrowserPage] {status_text}")
+        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] {status_text}")
         self.upload_status.show_upload_started(status_text)
         self._update_upload_status_position()
         
     @pyqtSlot(int)
     def _on_upload_progress(self, percentage):
         """Handle upload progress signal"""
-        # print(f"[BrowserPage] Upload progress: {percentage}%") # Can be noisy - Keep commented
         self.upload_status.show_upload_progress(percentage)
         
     @pyqtSlot(str)
     def _on_upload_completed(self, filename):
         """Handle upload completed signal"""
         status_text = f"Completed {self._current_upload_index + 1}/{self._total_files_to_upload}: {filename}"
-        print(f"[BrowserPage] {status_text}")
+        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] {status_text}")
         self.upload_status.show_upload_completed(status_text) # Show completion briefly
         
         # Move to the next file
@@ -781,7 +781,7 @@ class BrowserPage(QWidget):
              filename = os.path.basename(self._files_to_upload[self._current_upload_index])
              
         status_text = f"Failed {self._current_upload_index + 1}/{self._total_files_to_upload}: {filename}"
-        print(f"[BrowserPage] Upload Failed: {status_text} - Error: {error_msg}")
+        Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Upload Failed: {status_text} - Error: {error_msg}")
         self.upload_status.show_upload_failed(f"{status_text}\n{error_msg}") # Show failure
         
         # Move to the next file even if one failed
@@ -889,7 +889,7 @@ class BrowserPage(QWidget):
         
         # Check if we're in the middle of navigation - skip loading last directory if so
         if self._navigation_in_progress:
-            print(f"[BrowserPage] Skipping auto-load of last directory (navigation in progress)")
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Skipping auto-load of last directory (navigation in progress)")
             return
         
         # Get the last browsed directory from settings
@@ -918,7 +918,7 @@ class BrowserPage(QWidget):
             # Maybe briefly highlight the field or show a status icon?
             # For now, just log and don't save if host is empty. 
             # The validator should prevent invalid IPs, but not empty strings.
-            print("[BrowserPage] OPlayer host cannot be empty. Settings not saved.")
+            Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] OPlayer host cannot be empty. Settings not saved.")
             return
         
         # Check if settings actually changed compared to current service config
@@ -926,11 +926,10 @@ class BrowserPage(QWidget):
         current_host = self.oplayer_service.host
         current_port = self.oplayer_service.ftp_port
         if host == current_host and port == current_port:
-            # print("[BrowserPage] OPlayer settings unchanged.") # Optional: reduce noise
             return
 
         # 1. Save to SettingsManager
-        print(f"[BrowserPage] Auto-saving OPlayer settings: {host}:{port}")
+        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Auto-saving OPlayer settings: {host}:{port}")
         self.settings.set('oplayer/ftp_host', host, SettingType.STRING)
         self.settings.set('oplayer/ftp_port', port, SettingType.INT)
         self.settings.sync() # Persist immediately
@@ -939,7 +938,7 @@ class BrowserPage(QWidget):
         self.oplayer_service.update_connection_settings(host=host, port=port)
 
         # 3. Log success (no temporary message needed for auto-save)
-        print("[BrowserPage] OPlayer settings updated and service reconfigured.")
+        Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] OPlayer settings updated and service reconfigured.")
 
     def _show_temporary_message(self, message: str, is_error: bool = False):
         """Displays a temporary message overlay."""
@@ -983,7 +982,7 @@ class BrowserPage(QWidget):
             in_progress (bool): True if navigation is in progress, False otherwise
         """
         self._navigation_in_progress = in_progress
-        print(f"[BrowserPage] Navigation in progress set to: {in_progress}")
+        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Navigation in progress set to: {in_progress}")
 
     def navigate_to_file(self, directory_path, filename=None):
         """
@@ -998,10 +997,10 @@ class BrowserPage(QWidget):
         Returns:
             bool: True if navigation process was initiated successfully
         """
-        print(f"[BrowserPage] navigate_to_file called: dir={directory_path}, file={filename}")
+        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] navigate_to_file called: dir={directory_path}, file={filename}")
         
         if not directory_path:
-            print("[BrowserPage] Cannot navigate: Empty directory path provided.")
+            Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] Cannot navigate: Empty directory path provided.")
             return False
             
         # Convert to Path object for consistency
@@ -1009,7 +1008,7 @@ class BrowserPage(QWidget):
             try:
                 target_dir = Path(directory_path)
             except Exception as e:
-                print(f"[BrowserPage] Cannot navigate: Invalid directory path '{directory_path}': {e}")
+                Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Cannot navigate: Invalid directory path '{directory_path}': {e}")
                 return False
         else:
             target_dir = directory_path
@@ -1017,17 +1016,17 @@ class BrowserPage(QWidget):
         # --- Navigation/Refresh Logic ---
         needs_load = False
         if self._current_directory == target_dir:
-            print(f"[BrowserPage] Already in target directory: {target_dir}")
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Already in target directory: {target_dir}")
             # Check if file exists in the CURRENT model
             if filename and self._is_file_in_table(filename):
-                print(f"[BrowserPage] File '{filename}' found in current view. Selecting.")
+                Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] File '{filename}' found in current view. Selecting.")
                 self._select_file_by_name(filename)
                 # Clear any old pending selection from previous navigations
                 self._pending_selection_dir = None
                 self._pending_selection_filename = None
                 return True # Selection done immediately
             elif filename:
-                print(f"[BrowserPage] File '{filename}' not in current view. Refresh required.")
+                Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] File '{filename}' not in current view. Refresh required.")
                 # File not found, need refresh, then select
                 needs_load = True
                 self._pending_selection_dir = target_dir
@@ -1039,7 +1038,7 @@ class BrowserPage(QWidget):
                  self._pending_selection_filename = None
                  return True # Already in the directory
         else:
-            print(f"[BrowserPage] Navigating to different directory: {target_dir}")
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Navigating to different directory: {target_dir}")
             # Need to navigate to a different directory
             needs_load = True
             self._pending_selection_dir = target_dir
@@ -1071,7 +1070,7 @@ class BrowserPage(QWidget):
         try:
             proxy_model = self.file_table.model()
             if not proxy_model:
-                print("[BrowserPage] _is_file_in_table: No model available.")
+                Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] _is_file_in_table: No model available.")
                 return False
             
             for row in range(proxy_model.rowCount()):
@@ -1084,7 +1083,7 @@ class BrowserPage(QWidget):
                     return True
             return False
         except Exception as e:
-            print(f"[BrowserPage] Error in _is_file_in_table for '{filename}': {e}")
+            Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Error in _is_file_in_table for '{filename}': {e}")
             return False
 
     def _select_file_by_name(self, filename: str) -> bool:
@@ -1095,7 +1094,7 @@ class BrowserPage(QWidget):
         try:
             proxy_model = self.file_table.model()
             if not proxy_model:
-                print("[BrowserPage] _select_file_by_name: No model available.")
+                Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] _select_file_by_name: No model available.")
                 return False
                 
             # Check if already selected (visual check, might not be strictly necessary but good for log)
@@ -1104,7 +1103,7 @@ class BrowserPage(QWidget):
                 for index in selected_indices:
                     if index.column() == self.COL_FILENAME:
                         if proxy_model.data(index, Qt.ItemDataRole.DisplayRole) == filename:
-                            print(f"[BrowserPage] File '{filename}' is already selected. Scrolling to ensure visible.")
+                            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] File '{filename}' is already selected. Scrolling to ensure visible.")
                             self.file_table.scrollTo(index, QAbstractItemView.ScrollHint.EnsureVisible)
                             return True
             
@@ -1116,15 +1115,15 @@ class BrowserPage(QWidget):
                 
                 if (data == filename or 
                     (isinstance(item_data, dict) and item_data.get('filename') == filename)):
-                    print(f"[BrowserPage] Selecting file: '{filename}' at view row {row}")
+                    Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Selecting file: '{filename}' at view row {row}")
                     self.file_table.selectRow(row)
                     self.file_table.scrollTo(index, QAbstractItemView.ScrollHint.EnsureVisible)
                     return True
             
-            print(f"[BrowserPage] File not found in browser table for selection: '{filename}'")
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] File not found in browser table for selection: '{filename}'")
             return False
         except Exception as e:
-            print(f"[BrowserPage] Error in _select_file_by_name for '{filename}': {e}")
+            Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Error in _select_file_by_name for '{filename}': {e}")
             return False
     # --- End Helper methods --- 
 
@@ -1148,9 +1147,9 @@ class BrowserPage(QWidget):
                     if path_str not in [f['path'] for f in files_to_convert]: # Avoid duplicates
                         files_to_convert.append(obj) # Pass the whole object, manager might need more info
                 else:
-                    print(f"[BrowserPage] Skipping non-media-like file for conversion: {path_str}")
+                    Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Skipping non-media-like file for conversion: {path_str}")
             elif is_dir:
-                print(f"[BrowserPage] Skipping directory for conversion: {path_str}")
+                Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Skipping directory for conversion: {path_str}")
 
         if not files_to_convert:
             QMessageBox.information(self, "No Convertible Files", "The current selection contains no files suitable for MP3 conversion.")
@@ -1161,17 +1160,17 @@ class BrowserPage(QWidget):
             return
         
         output_directory = str(self._current_directory)
-        print(f"[BrowserPage] Starting MP3 conversion for {len(files_to_convert)} files to directory: {output_directory}")
+        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Starting MP3 conversion for {len(files_to_convert)} files to directory: {output_directory}")
         self.conversion_manager.start_conversions(files_to_convert, output_directory)
 
     def _on_conversion_batch_started(self, total_files: int):
-        print(f"[BrowserPage] Conversion batch started for {total_files} files.")
+        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Conversion batch started for {total_files} files.")
         self.conversion_progress_overlay.show_conversion_started(total_files)
         self._update_conversion_progress_position()
         self.cancel_conversion_button.show() # Show cancel button when batch starts
 
     def _on_conversion_file_started(self, task_id: str, original_filename: str, file_index: int, total_files: int):
-        print(f"[BrowserPage] Conversion started for file {file_index + 1}/{total_files}: {original_filename} (Task ID: {task_id})")
+        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Conversion started for file {file_index + 1}/{total_files}: {original_filename} (Task ID: {task_id})")
         # Pass task_id to show_file_progress, percentage is 0.0 initially
         self.conversion_progress_overlay.show_file_progress(task_id, os.path.basename(original_filename), file_index, total_files, 0.0)
         self._update_conversion_progress_position() # Ensure visible and positioned
@@ -1179,10 +1178,9 @@ class BrowserPage(QWidget):
     def _on_conversion_file_progress(self, task_id: str, percentage: float):
         # Now directly call the new update method on the overlay
         self.conversion_progress_overlay.update_current_file_progress(task_id, percentage)
-        # print(f"[BrowserPage] Conversion progress for Task ID {task_id}: {percentage*100:.1f}%") # Can be noisy
 
     def _on_conversion_file_completed(self, task_id: str, original_filename: str, output_filepath: str):
-        print(f"[BrowserPage] Conversion completed: {original_filename} -> {output_filepath} (Task ID: {task_id})")
+        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Conversion completed: {original_filename} -> {output_filepath} (Task ID: {task_id})")
         # The ConversionProgress overlay might already show "Completed: ..." based on its own logic
         # or simply wait for the next file to start.
         # We can call show_file_completed to ensure the filename is updated if it was showing an error previously.
@@ -1190,12 +1188,12 @@ class BrowserPage(QWidget):
         self._update_conversion_progress_position()
 
     def _on_conversion_file_failed(self, task_id: str, original_filename: str, error_message: str):
-        print(f"[BrowserPage] Conversion failed for {original_filename} (Task ID: {task_id}): {error_message}")
+        Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Conversion failed for {original_filename} (Task ID: {task_id}): {error_message}")
         self.conversion_progress_overlay.show_file_failed(os.path.basename(original_filename), error_message)
         self._update_conversion_progress_position()
 
     def _on_conversion_batch_finished(self):
-        print("[BrowserPage] Conversion batch finished.")
+        Logger.instance().info(caller="BrowserPage", msg="[BrowserPage] Conversion batch finished.")
         self.conversion_progress_overlay.show_batch_finished()
         self.cancel_conversion_button.hide() # Hide cancel button when batch finishes
         self._update_conversion_progress_position() # Ensure final message is positioned
@@ -1205,7 +1203,7 @@ class BrowserPage(QWidget):
 
     # --- NEW: Cancel Conversion Handler --- #
     def _on_cancel_conversions_clicked(self):
-        print("[BrowserPage] Cancel conversions button clicked.")
+        Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] Cancel conversions button clicked.")
         if self.conversion_manager:
             self.conversion_manager.cancel_all_conversions()
         # The ConversionProgress overlay and cancel button will be hidden by
@@ -1256,7 +1254,7 @@ class BrowserPage(QWidget):
 
         # Compression (optionally with rotation applied during encode)
         output_directory = str(self._current_directory)
-        print(f"[BrowserPage] Starting video processing for {len(items_to_process)} items. Compress={do_compress}, Rotate={rotate}")
+        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Starting video processing for {len(items_to_process)} items. Compress={do_compress}, Rotate={rotate}")
         if do_compress:
             self.video_compression_manager.start_compressions(items_to_process, output_directory, rotate_direction=rotate)
         else:
@@ -1304,13 +1302,13 @@ class BrowserPage(QWidget):
         self._rotation_manager.start_rotations(video_files, direction)
 
     def _on_video_compression_batch_started(self, total_files: int):
-        print(f"[BrowserPage] Video compression batch started for {total_files} files.")
+        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Video compression batch started for {total_files} files.")
         self.video_compression_progress_overlay.show_compression_started(total_files)
         self._update_video_compression_progress_position()
         self.cancel_video_compression_button.show() # Show cancel button when batch starts
 
     def _on_video_compression_file_started(self, task_id: str, original_filename: str, file_index: int, total_files: int):
-        print(f"[BrowserPage] Video compression started for file {file_index + 1}/{total_files}: {original_filename} (Task ID: {task_id})")
+        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Video compression started for file {file_index + 1}/{total_files}: {original_filename} (Task ID: {task_id})")
         # Pass task_id to show_file_progress, percentage is 0.0 initially
         self.video_compression_progress_overlay.show_file_progress(task_id, os.path.basename(original_filename), file_index, total_files, 0.0)
         self._update_video_compression_progress_position() # Ensure visible and positioned
@@ -1318,10 +1316,9 @@ class BrowserPage(QWidget):
     def _on_video_compression_file_progress(self, task_id: str, percentage: float):
         # Now directly call the new update method on the overlay
         self.video_compression_progress_overlay.update_current_file_progress(task_id, percentage)
-        # print(f"[BrowserPage] Video compression progress for Task ID {task_id}: {percentage*100:.1f}%") # Can be noisy
 
     def _on_video_compression_file_completed(self, task_id: str, original_filename: str, compressed_filename: str):
-        print(f"[BrowserPage] Video compression completed: {original_filename} -> {compressed_filename} (Task ID: {task_id})")
+        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Video compression completed: {original_filename} -> {compressed_filename} (Task ID: {task_id})")
         # The VideoCompressionProgress overlay might already show "Completed: ..." based on its own logic
         # or simply wait for the next file to start.
         # We can call show_file_completed to ensure the filename is updated if it was showing an error previously.
@@ -1329,12 +1326,12 @@ class BrowserPage(QWidget):
         self._update_video_compression_progress_position()
 
     def _on_video_compression_file_failed(self, task_id: str, original_filename: str, error_message: str):
-        print(f"[BrowserPage] Video compression failed for {original_filename} (Task ID: {task_id}): {error_message}")
+        Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Video compression failed for {original_filename} (Task ID: {task_id}): {error_message}")
         self.video_compression_progress_overlay.show_file_failed(os.path.basename(original_filename), error_message)
         self._update_video_compression_progress_position()
 
     def _on_video_compression_batch_finished(self):
-        print("[BrowserPage] Video compression batch finished.")
+        Logger.instance().info(caller="BrowserPage", msg="[BrowserPage] Video compression batch finished.")
         self.video_compression_progress_overlay.show_batch_finished()
         self.cancel_video_compression_button.hide() # Hide cancel button when batch finishes
         self._update_video_compression_progress_position() # Ensure final message is positioned
@@ -1342,7 +1339,7 @@ class BrowserPage(QWidget):
         QTimer.singleShot(500, self._refresh_view) # Short delay before refresh
 
     def _on_cancel_video_compressions_clicked(self):
-        print("[BrowserPage] Cancel video compressions button clicked.")
+        Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] Cancel video compressions button clicked.")
         if self.video_compression_manager:
             self.video_compression_manager.cancel_all_compressions()
         # The VideoCompressionProgress overlay and cancel button will be hidden by

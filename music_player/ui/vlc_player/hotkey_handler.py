@@ -8,6 +8,7 @@ from PyQt6.QtGui import QKeyEvent
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 from .enums import STATE_PLAYING, STATE_PAUSED
 from music_player.models.ClippingManager import ClippingManager
+from qt_base_app.models.logger import Logger
 # Import the seek interval setting key and default
 from music_player.models.settings_defs import PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL
 
@@ -188,19 +189,19 @@ class HotkeyHandler(QObject):
         """Increase playback speed by 0.10"""
         current_rate = self.main_player.get_rate()
         new_rate = current_rate + 0.10
-        print(f"[HotkeyHandler] ']' key: Increasing speed to {new_rate:.2f}x")
+        Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] ']' key: Increasing speed to {new_rate:.2f}x")
         self.main_player.set_rate(new_rate)
         
     def _decrease_playback_speed(self):
         """Decrease playback speed by 0.10"""
         current_rate = self.main_player.get_rate()
         new_rate = max(0.10, current_rate - 0.10)  # Prevent negative or zero speed
-        print(f"[HotkeyHandler] '[' key: Decreasing speed to {new_rate:.2f}x")
+        Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] '[' key: Decreasing speed to {new_rate:.2f}x")
         self.main_player.set_rate(new_rate)
         
     def _reset_playback_speed(self):
         """Reset playback speed to normal (1.0)"""
-        print(f"[HotkeyHandler] '0' key: Resetting speed to 1.0x")
+        Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] '0' key: Resetting speed to 1.0x")
         self.main_player.set_rate(1.0)
         
     def _request_toggle_full_screen(self):
@@ -208,7 +209,7 @@ class HotkeyHandler(QObject):
         if hasattr(self.main_player, 'request_toggle_full_screen'):
             self.main_player.request_toggle_full_screen()
         else:
-            print("[HotkeyHandler] MainPlayer does not have request_toggle_full_screen method.")
+            Logger.instance().debug(caller="HotkeyHandler", msg="[HotkeyHandler] MainPlayer does not have request_toggle_full_screen method.")
         
     def _increase_volume(self):
         """Increase volume by 10%"""
@@ -224,53 +225,46 @@ class HotkeyHandler(QObject):
 
     def _mark_clip_begin(self):
         """Marks the beginning of the clip at the current playback position."""
-        print(f"[HotkeyHandler DEBUG] _mark_clip_begin: current_media_path='{self.main_player.current_media_path}', app_state='{self.main_player.app_state}'") # DEBUG
+        Logger.instance().debug(caller="hotkey_handler", msg=f"[HotkeyHandler DEBUG] _mark_clip_begin: current_media_path='{self.main_player.current_media_path}', app_state='{self.main_player.app_state}'")
         if self.main_player.current_media_path and self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
             current_time_ms = self.main_player.backend.get_current_position()
-            print(f"[HotkeyHandler DEBUG] _mark_clip_begin: current_time_ms={current_time_ms}") # DEBUG
+            Logger.instance().debug(caller="hotkey_handler", msg=f"[HotkeyHandler DEBUG] _mark_clip_begin: current_time_ms={current_time_ms}")
             if current_time_ms is not None:
                 self.clipping_manager.mark_begin(current_time_ms)
             else: 
-                print(f"[HotkeyHandler DEBUG] _mark_clip_begin: current_time_ms is None, not calling clipping_manager.mark_begin") # DEBUG
+                Logger.instance().debug(caller="hotkey_handler", msg=f"[HotkeyHandler DEBUG] _mark_clip_begin: current_time_ms is None, not calling clipping_manager.mark_begin")
         else:
-            print(f"[HotkeyHandler DEBUG] _mark_clip_begin: Conditions not met.") # DEBUG
+            Logger.instance().debug(caller="hotkey_handler", msg=f"[HotkeyHandler DEBUG] _mark_clip_begin: Conditions not met.")
 
     def _mark_clip_end(self):
         """Marks the end of the clip at the current playback position."""
         if self.main_player.current_media_path and self.main_player.app_state in [STATE_PLAYING, STATE_PAUSED]:
             current_time_ms = self.main_player.backend.get_current_position()
             if current_time_ms is not None:
-                # print(f"[HotkeyHandler] Mark end at {current_time_ms}ms") # For debugging
                 self.clipping_manager.mark_end(current_time_ms)
             # else: # For debugging
-                # print(f"[HotkeyHandler] Could not get current position to mark end.")
 
     def _perform_clip(self):
         """Initiates the clipping process using Ctrl+S hotkey combination."""
         if self.main_player.current_media_path: # Basic check: media must be loaded
-            # print(f"[HotkeyHandler] Perform clip requested.") # For debugging
             self.clipping_manager.perform_clip()
         # else: # For debugging
-            # print(f"[HotkeyHandler] Cannot perform clip: No media loaded.") 
 
     # --- NEW Hotkey Methods for Multi-Segment ---
     def _clear_pending_begin_marker(self):
         """Clears the current pending begin marker."""
         if self.main_player.current_media_path:
             self.clipping_manager.clear_pending_begin_marker()
-            # print("[HotkeyHandler] Clear pending begin marker requested.")
 
     def _clear_last_segment(self):
         """Clears the last added segment."""
         if self.main_player.current_media_path:
             self.clipping_manager.clear_last_segment()
-            # print("[HotkeyHandler] Clear last segment requested.")
 
     def _clear_all_segments(self):
         """Clears all defined segments and any pending begin marker."""
         if self.main_player.current_media_path:
             self.clipping_manager.clear_all_segments()
-            # print("[HotkeyHandler] Clear all segments requested.")
     # ------------------------------------------ 
 
     def _frame_backward(self):
@@ -279,7 +273,7 @@ class HotkeyHandler(QObject):
             frame_duration_ms = self._get_frame_duration_ms()
             if frame_duration_ms > 0:
                 self.main_player.seek_relative(-frame_duration_ms / 1000.0)  # Convert to seconds
-                print(f"[HotkeyHandler] Frame backward: {frame_duration_ms}ms")
+                Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Frame backward: {frame_duration_ms}ms")
 
     def _frame_forward(self):
         """Move forward by exactly one frame."""
@@ -287,7 +281,7 @@ class HotkeyHandler(QObject):
             frame_duration_ms = self._get_frame_duration_ms()
             if frame_duration_ms > 0:
                 self.main_player.seek_relative(frame_duration_ms / 1000.0)  # Convert to seconds
-                print(f"[HotkeyHandler] Frame forward: {frame_duration_ms}ms")
+                Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Frame forward: {frame_duration_ms}ms")
 
     def _get_frame_duration_ms(self):
         """
@@ -303,7 +297,7 @@ class HotkeyHandler(QObject):
                 if fps and fps > 0:
                     return 1000.0 / fps
         except Exception as e:
-            print(f"[HotkeyHandler] Could not get video FPS: {e}")
+            Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Could not get video FPS: {e}")
         
         # Try to detect frame rate from VLC media player
         try:
@@ -317,7 +311,7 @@ class HotkeyHandler(QObject):
                     # So we'll use common video frame rates as fallback
                     pass
         except Exception as e:
-            print(f"[HotkeyHandler] Could not detect frame rate from VLC: {e}")
+            Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Could not detect frame rate from VLC: {e}")
         
         # Common video frame rates (in order of likelihood)
         common_fps = [29.97, 30, 25, 24, 23.976, 60, 50]
@@ -327,29 +321,29 @@ class HotkeyHandler(QObject):
         default_fps = 30.0
         frame_duration = 1000.0 / default_fps
         
-        print(f"[HotkeyHandler] Using default {default_fps} FPS, frame duration: {frame_duration:.2f}ms")
+        Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Using default {default_fps} FPS, frame duration: {frame_duration:.2f}ms")
         return frame_duration
 
     def _seek_backward_2x(self):
         """Seek backward by 2x the configured seek interval"""
         seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
         self.main_player.seek_relative(-seek_interval * 2)
-        print(f"[HotkeyHandler] Shift+Left: Seeking backward {seek_interval * 2}s")
+        Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Shift+Left: Seeking backward {seek_interval * 2}s")
         
     def _seek_forward_2x(self):
         """Seek forward by 2x the configured seek interval"""
         seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
         self.main_player.seek_relative(seek_interval * 2)
-        print(f"[HotkeyHandler] Shift+Right: Seeking forward {seek_interval * 2}s")
+        Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Shift+Right: Seeking forward {seek_interval * 2}s")
         
     def _seek_backward_4x(self):
         """Seek backward by 4x the configured seek interval"""
         seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
         self.main_player.seek_relative(-seek_interval * 4)
-        print(f"[HotkeyHandler] Ctrl+Left: Seeking backward {seek_interval * 4}s")
+        Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Ctrl+Left: Seeking backward {seek_interval * 4}s")
         
     def _seek_forward_4x(self):
         """Seek forward by 4x the configured seek interval"""
         seek_interval = self.settings.get(PREF_SEEK_INTERVAL_KEY, DEFAULT_SEEK_INTERVAL, SettingType.FLOAT)
         self.main_player.seek_relative(seek_interval * 4)
-        print(f"[HotkeyHandler] Ctrl+Right: Seeking forward {seek_interval * 4}s") 
+        Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Ctrl+Right: Seeking forward {seek_interval * 4}s")

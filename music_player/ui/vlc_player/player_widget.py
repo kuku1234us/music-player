@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QSizePolicy, QSlider
 )
+from qt_base_app.models.logger import Logger
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
@@ -322,7 +323,7 @@ class PlayerWidget(QWidget):
             self.controls.set_prev_enabled(enabled)
         else:
             # Fallback or warning if PlayerControls doesn't have the expected methods
-            print("Warning: PlayerWidget cannot set next/prev state - PlayerControls lacks methods.")
+            Logger.instance().warning(caller="player_widget", msg="Warning: PlayerWidget cannot set next/prev state - PlayerControls lacks methods.")
             # You might need to access buttons directly if the methods don't exist:
             # if hasattr(self.controls, 'next_button') and hasattr(self.controls, 'prev_button'):
             #     self.controls.next_button.setEnabled(enabled)

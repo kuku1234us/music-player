@@ -5,6 +5,7 @@ import re
 import requests
 from urllib.parse import urlparse
 from PyQt6.QtGui import QPixmap
+from qt_base_app.models.logger import Logger
 
 class BilibiliModel:
     """Model for Bilibili data and operations."""
@@ -37,7 +38,7 @@ class BilibiliModel:
             return None
             
         except Exception as e:
-            print(f"Error extracting Bilibili ID: {e}")
+            Logger.instance().error(caller="BilibiliModel", msg=f"Error extracting Bilibili ID: {e}")
             return None
     
     @staticmethod
@@ -111,7 +112,7 @@ class BilibiliModel:
                         pixmap.loadFromData(img_response.content)
         
         except Exception as e:
-            print(f"Error fetching Bilibili metadata: {e}")
+            Logger.instance().error(caller="BilibiliModel", msg=f"Error fetching Bilibili metadata: {e}")
             # If we failed to get metadata, just return the video ID as a title
             title = f"Bilibili Video: {video_id}"
         

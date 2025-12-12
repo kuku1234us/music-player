@@ -1,3 +1,4 @@
+from qt_base_app.models.logger import Logger
 # music_player/ai/groq_music_model.py
 
 import os
@@ -103,17 +104,17 @@ class GroqMusicModel:
             prompts_path = working_dir / "playlists" / "aiprompts.json"
             
             if not prompts_path.exists():
-                print(f"Warning: AI prompts file not found at {prompts_path}")
+                Logger.instance().warning(caller="groq_music_model", msg=f"Warning: AI prompts file not found at {prompts_path}")
                 return
                 
             with open(prompts_path, 'r', encoding='utf-8') as f:
                 self.prompt_configs = json.load(f)
             
         except json.JSONDecodeError as e:
-            print(f"Error parsing aiprompts.json: {e}")
+            Logger.instance().error(caller="groq_music_model", msg=f"Error parsing aiprompts.json: {e}")
             self.prompt_configs = []
         except Exception as e:
-            print(f"Error loading AI prompts: {e}")
+            Logger.instance().error(caller="groq_music_model", msg=f"Error loading AI prompts: {e}")
             self.prompt_configs = []
 
     def _initialize_groq_client(self):
@@ -125,7 +126,7 @@ class GroqMusicModel:
             self.groq_client = groq.Client(api_key=self.groq_api_key)
             self.api_ready = True 
         except Exception as e:
-            print(f"Failed to initialize Groq client: {e}")
+            Logger.instance().error(caller="groq_music_model", msg=f"Failed to initialize Groq client: {e}")
             self.groq_client = None
             self.api_ready = False
 
@@ -165,8 +166,10 @@ class GroqMusicModel:
         """
         if not self.api_ready or not self.groq_client:
             msg = "Groq API not ready."
-            if error_callback: error_callback(msg)
-            else: print(msg)
+            if error_callback:
+                error_callback(msg)
+            else:
+                Logger.instance().error(caller="groq_music_model", msg=msg)
             return []
 
         if not prompt_config or not filenames:
@@ -176,12 +179,12 @@ class GroqMusicModel:
         last_request_time = 0
         total_files = len(filenames)
 
-        print(f"Starting classification for '{prompt_config.get('target_label', 'Unknown')}' with {total_files} files using {self.model_name}.")
+        Logger.instance().info(caller="groq_music_model", msg=f"Starting classification for '{prompt_config.get('target_label', 'Unknown')}' with {total_files} files using {self.model_name}.")
 
         for i in range(0, total_files, self.batch_size):
             # --- Cancellation Check --- 
             if worker_cancelled_check():
-                print("[GroqMusicModel] Cancellation requested, stopping classification.")
+                Logger.instance().debug(caller="GroqMusicModel", msg="[GroqMusicModel] Cancellation requested, stopping classification.")
                 break # Exit the loop
             # ------------------------
             
@@ -194,19 +197,19 @@ class GroqMusicModel:
                 elapsed_since_last = current_time - last_request_time
                 wait_time = self._min_request_interval_seconds - elapsed_since_last
                 if wait_time > 0:
-                    print(f"[GroqMusicModel] Throttling: Waiting {wait_time:.2f} seconds.")
+                    Logger.instance().debug(caller="GroqMusicModel", msg=f"[GroqMusicModel] Throttling: Waiting {wait_time:.2f} seconds.")
                     # Allow interruption during sleep
                     for _ in range(int(wait_time * 10)): # Check every 100ms
                          if worker_cancelled_check(): break
                          time.sleep(0.1)
                     if worker_cancelled_check(): 
-                        print("[GroqMusicModel] Cancellation requested during sleep.")
+                        Logger.instance().debug(caller="GroqMusicModel", msg="[GroqMusicModel] Cancellation requested during sleep.")
                         break
             # ------------------
 
             # --- Cancellation Check (After potential sleep) --- 
             if worker_cancelled_check():
-                print("[GroqMusicModel] Cancellation requested before batch processing.")
+                Logger.instance().debug(caller="GroqMusicModel", msg="[GroqMusicModel] Cancellation requested before batch processing.")
                 break # Exit the loop
             # ------------------------
 
@@ -214,29 +217,29 @@ class GroqMusicModel:
 
             # Generate the prompt for this specific batch using filenames only
             # --- Add logging ---
-            print("[GroqMusicModel] Extracting basenames...")
+            Logger.instance().debug(caller="GroqMusicModel", msg="[GroqMusicModel] Extracting basenames...")
             # -------------------
             batch_filenames_only = [os.path.basename(f) for f in batch_full_paths]
             # --- Add logging ---
-            print("[GroqMusicModel] Generating prompt string...")
+            Logger.instance().debug(caller="GroqMusicModel", msg="[GroqMusicModel] Generating prompt string...")
             # -------------------
             prompt_string = generate_prompt(prompt_config, batch_filenames_only)
             # --- Add logging ---
-            print("[GroqMusicModel] Prompt string generated.")
+            Logger.instance().debug(caller="GroqMusicModel", msg="[GroqMusicModel] Prompt string generated.")
             # -------------------
 
             # --- DEBUG: Print the final prompt --- 
-            print("-" * 20 + " PROMPT START " + "-" * 20)
-            print(prompt_string)
-            print("-" * 20 + " PROMPT END " + "-" * 22)
+            Logger.instance().debug(caller="groq_music_model", msg="-" * 20 + " PROMPT START " + "-" * 20)
+            Logger.instance().debug(caller="groq_music_model", msg=prompt_string)
+            Logger.instance().debug(caller="groq_music_model", msg="-" * 20 + " PROMPT END " + "-" * 22)
             # -------------------------------------
 
             try:
                 # === API Call and Parsing Logic Moved Here ===
-                print(f"[GroqMusicModel] Processing batch {i // self.batch_size + 1} / {(total_files + self.batch_size - 1) // self.batch_size}")
+                Logger.instance().debug(caller="GroqMusicModel", msg=f"[GroqMusicModel] Processing batch {i // self.batch_size + 1} / {(total_files + self.batch_size - 1) // self.batch_size}")
                 
                 # --- Add logging before API call ---
-                print("[GroqMusicModel] Attempting Groq API call...")
+                Logger.instance().debug(caller="GroqMusicModel", msg="[GroqMusicModel] Attempting Groq API call...")
                 # -------------------------------------
                 
                 chat_completion = self.groq_client.chat.completions.create(
@@ -247,14 +250,13 @@ class GroqMusicModel:
                 )
                 
                 # --- Add logging after API call ---
-                print("[GroqMusicModel] Groq API call finished.")
+                Logger.instance().info(caller="GroqMusicModel", msg="[GroqMusicModel] Groq API call finished.")
                 # -----------------------------------
                 
                 response_content = chat_completion.choices[0].message.content
                 
                 # Parse the response robustly
                 lines = response_content.strip().split('\n')
-                # print(f"Received response content:\n{response_content[:300]}...") # Optional detailed logging
                 
                 for line_num, line in enumerate(lines):
                     line = line.strip()
@@ -274,41 +276,49 @@ class GroqMusicModel:
                                     pass # Correctly identified as not matching
                                 else:
                                     # Just print parsing warnings
-                                    print(f"Warning: Unexpected answer '{answer}' for batch index {batch_index} (list num {list_num}) in line: '{line}'")
+                                    Logger.instance().warning(caller="groq_music_model", msg=f"Warning: Unexpected answer '{answer}' for batch index {batch_index} (list num {list_num}) in line: '{line}'")
                             else:
-                                print(f"Warning: Parsed list number {list_num} out of range for current batch size {len(batch_full_paths)}. Line: '{line}'")
+                                Logger.instance().warning(caller="groq_music_model", msg=f"Warning: Parsed list number {list_num} out of range for current batch size {len(batch_full_paths)}. Line: '{line}'")
                         else:
-                            print(f"Warning: Could not parse response line format: '{line}'")
+                            Logger.instance().warning(caller="groq_music_model", msg=f"Warning: Could not parse response line format: '{line}'")
                     except Exception as parse_err:
-                         print(f"Error parsing response line: '{line}'. Error: {parse_err}")
+                         Logger.instance().error(caller="groq_music_model", msg=f"Error parsing response line: '{line}'. Error: {parse_err}")
                 # ==============================================
 
             # === Exception Handling Moved Here ===
             except groq.APIConnectionError as e:
                 msg = f"Groq Connection Error: {e}"
-                if error_callback: error_callback(msg)
-                else: print(msg)
-                print("[GroqMusicModel] Halting classification due to connection error.")
+                if error_callback:
+                    error_callback(msg)
+                else:
+                    Logger.instance().error(caller="groq_music_model", msg=msg)
+                Logger.instance().error(caller="GroqMusicModel", msg="[GroqMusicModel] Halting classification due to connection error.")
                 break # Stop processing further batches
             except groq.RateLimitError as e:
                 msg = f"Groq Rate Limit Error: {e}."
-                if error_callback: error_callback(msg)
-                else: print(msg)
-                print("[GroqMusicModel] Halting classification due to rate limit.")
+                if error_callback:
+                    error_callback(msg)
+                else:
+                    Logger.instance().warning(caller="groq_music_model", msg=msg)
+                Logger.instance().debug(caller="GroqMusicModel", msg="[GroqMusicModel] Halting classification due to rate limit.")
                 break # Stop processing further batches
             except groq.APIStatusError as e:
                 error_detail = f"Groq API Error (Status {e.status_code}): {e.message}"
                 if hasattr(e, 'body') and e.body and 'error' in e.body:
                     error_detail += f" - {e.body['error'].get('message', 'No additional details.')}"
-                if error_callback: error_callback(error_detail)
-                else: print(error_detail)
-                print("[GroqMusicModel] Halting classification due to API status error.")
+                if error_callback:
+                    error_callback(error_detail)
+                else:
+                    Logger.instance().error(caller="groq_music_model", msg=error_detail)
+                Logger.instance().error(caller="GroqMusicModel", msg="[GroqMusicModel] Halting classification due to API status error.")
                 break # Stop processing further batches
             except Exception as e:
                 msg = f"Unexpected Error during batch processing: {e}"
-                if error_callback: error_callback(msg)
-                else: print(msg)
-                print("[GroqMusicModel] Halting classification due to unexpected error.")
+                if error_callback:
+                    error_callback(msg)
+                else:
+                    Logger.instance().error(caller="groq_music_model", msg=msg)
+                Logger.instance().error(caller="GroqMusicModel", msg="[GroqMusicModel] Halting classification due to unexpected error.")
                 break # Stop processing further batches
             # ======================================
             
@@ -318,5 +328,5 @@ class GroqMusicModel:
                 progress_callback(current_processed, total_files)
 
         # --- Loop Finished --- 
-        print(f"Finished classification. Found {len(classified_paths)} matching files.")
+        Logger.instance().info(caller="groq_music_model", msg=f"Finished classification. Found {len(classified_paths)} matching files.")
         return classified_paths 

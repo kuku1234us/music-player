@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Any, Tuple # Added Any for file_info type hint, Tuple for queue items
 import time # For timestamp in log file
 import queue as Queue # Explicitly import queue to avoid conflict with self.queue
+from qt_base_app.models.logger import Logger
 
 from PyQt6.QtCore import QObject, pyqtSignal, QRunnable, QThreadPool, QTimer
 
@@ -69,27 +70,27 @@ class ConversionWorker(QRunnable):
                         self.log_file_handle.write(f"[{stream_name} RAW] {stripped_line}\\n")
                         self.log_file_handle.flush() # Flush frequently for real-time logging
                     except Exception as e_log:
-                        print(f"[ConversionWorker THREAD LOG ERR] {stream_name}: {e_log}")
+                        Logger.instance().debug(caller="conversion_manager", msg=f"[ConversionWorker THREAD LOG ERR] {stream_name}: {e_log}")
                 q.put((stream_name, stripped_line))
                 if self.is_cancelled: # Check for cancellation within the loop
                     break
         except Exception as e:
             # Log error to main console and attempt to queue it for main thread logging
             error_msg = f"[{stream_name} THREAD ERR] Error reading stream: {e}"
-            print(error_msg)
+            Logger.instance().error(caller="conversion_manager", msg=error_msg)
             if self.log_file_handle and not self.log_file_handle.closed:
                  try:
                     self.log_file_handle.write(error_msg + "\\n")
                     self.log_file_handle.flush()
                  except Exception as e_log_err:
-                        print(f"[ConversionWorker THREAD LOG ERR ON ERR] {stream_name}: {e_log_err}")
+                        Logger.instance().debug(caller="conversion_manager", msg=f"[ConversionWorker THREAD LOG ERR ON ERR] {stream_name}: {e_log_err}")
             q.put((stream_name, f"THREAD_ERROR: {e}")) # Signal error to main loop
         finally:
             if pipe:
                 pipe.close()
             # Signal that this thread is done by putting a special marker (optional, but can be useful)
             q.put((stream_name, None)) # None indicates pipe closed for this stream
-            print(f"[ConversionWorker] {stream_name} reader thread finished.")
+            Logger.instance().info(caller="ConversionWorker", msg=f"[ConversionWorker] {stream_name} reader thread finished.")
 
     def run(self):
         """Execute the FFmpeg conversion process."""
@@ -291,7 +292,7 @@ class ConversionWorker(QRunnable):
                     self._log_worker("Closing FFmpeg log file.", is_final=True)
                     self.log_file_handle.close()
                 except Exception as e_close:
-                    print(f"[ConversionWorker ERROR] Exception while closing log file {log_file_path_str}: {e_close}")
+                    Logger.instance().error(caller="conversion_manager", msg=f"[ConversionWorker ERROR] Exception while closing log file {log_file_path_str}: {e_close}")
             
             # Fallback: ensure process is terminated if it's somehow still running
             if 'process' in locals() and process.poll() is None:
@@ -304,20 +305,20 @@ class ConversionWorker(QRunnable):
         log_prefix = "[ConversionWorker]"
         if is_critical: log_prefix = "[ConversionWorker CRITICAL]"
         
-        print(f"{log_prefix} {message}")
+        Logger.instance().debug(caller="conversion_manager", msg=f"{log_prefix} {message}")
         if self.log_file_handle and not self.log_file_handle.closed:
             try:
                 self.log_file_handle.write(f"{log_prefix} {message}\\n")
                 if not is_final: # Avoid flushing if we are about to close
                     self.log_file_handle.flush()
             except Exception as e:
-                print(f"[ConversionWorker LOG ERR] Failed to write to worker log: {e}")
+                Logger.instance().error(caller="conversion_manager", msg=f"[ConversionWorker LOG ERR] Failed to write to worker log: {e}")
 
     def _get_media_duration(self) -> bool:
         """Uses ffprobe to get the media duration in milliseconds."""
         # Ensure log handle is valid before trying to use it
         if not self.log_file_handle or self.log_file_handle.closed:
-            print("[ConversionWorker CRITICAL] Log file not open in _get_media_duration.")
+            Logger.instance().debug(caller="conversion_manager", msg="[ConversionWorker CRITICAL] Log file not open in _get_media_duration.")
             # Can't emit worker_failed directly here as signals might not be connected yet
             # or it might be too early. The main run() should handle this.
             # Setting task error and returning False should be enough.
@@ -437,10 +438,10 @@ class ConversionManager(QObject):
 
     def start_conversions(self, files_info: List[Any], output_dir_str: str):
         """Adds files to the conversion queue and starts processing if not already active."""
-        print(f"[ConversionManager] Received {len(files_info)} files for conversion to '{output_dir_str}'.")
+        Logger.instance().debug(caller="ConversionManager", msg=f"[ConversionManager] Received {len(files_info)} files for conversion to '{output_dir_str}'.")
         output_dir = Path(output_dir_str)
         if not output_dir.is_dir():
-            print(f"[ConversionManager] Output directory {output_dir_str} is not valid. Aborting.")
+            Logger.instance().debug(caller="ConversionManager", msg=f"[ConversionManager] Output directory {output_dir_str} is not valid. Aborting.")
             # Optionally emit a batch failed signal or an error signal
             return
 
@@ -450,7 +451,7 @@ class ConversionManager(QObject):
         for file_data in files_info:
             input_path_str = file_data.get('path')
             if not input_path_str:
-                print(f"[ConversionManager] Skipping item, missing 'path': {file_data}")
+                Logger.instance().debug(caller="ConversionManager", msg=f"[ConversionManager] Skipping item, missing 'path': {file_data}")
                 continue
             
             input_filepath = Path(input_path_str)
@@ -461,7 +462,7 @@ class ConversionManager(QObject):
 
             # Avoid adding duplicate tasks if already in queue or active
             if any(t.task_id == task_id for t in self._task_queue) or task_id in self._active_tasks_map:
-                print(f"[ConversionManager] Task for {original_filename} already exists. Skipping.")
+                Logger.instance().debug(caller="ConversionManager", msg=f"[ConversionManager] Task for {original_filename} already exists. Skipping.")
                 continue
 
             task = ConversionTask(
@@ -474,7 +475,7 @@ class ConversionManager(QObject):
             new_tasks_added +=1
 
         if new_tasks_added == 0 and initial_queue_size == 0:
-            print("[ConversionManager] No new valid tasks to add and queue is empty.")
+            Logger.instance().debug(caller="ConversionManager", msg="[ConversionManager] No new valid tasks to add and queue is empty.")
             return
 
         if not self._is_processing_queue:
@@ -488,11 +489,11 @@ class ConversionManager(QObject):
             # Update batch total if this is considered part of the ongoing batch
             # For simplicity now, let's assume `conversion_batch_started` is only for new batch starts.
             # A more robust approach might involve a global task counter or batch IDs.
-            print(f"[ConversionManager] Added {new_tasks_added} tasks to active queue. Current queue size: {len(self._task_queue)}")
+            Logger.instance().debug(caller="ConversionManager", msg=f"[ConversionManager] Added {new_tasks_added} tasks to active queue. Current queue size: {len(self._task_queue)}")
 
     def _process_next_task(self):
         if not self._task_queue:
-            print("[ConversionManager] Queue is empty. Batch processing finished.")
+            Logger.instance().info(caller="ConversionManager", msg="[ConversionManager] Queue is empty. Batch processing finished.")
             self._is_processing_queue = False
             self.active_worker = None
             if self._current_batch_total > 0: # Ensure batch_finished is only emitted if a batch was started
@@ -522,7 +523,7 @@ class ConversionManager(QObject):
         if task_id in self._active_tasks_map:
             task = self._active_tasks_map[task_id]
             task.total_duration_ms = duration_ms
-            print(f"[ConversionManager] Duration updated for {task.original_filename}: {duration_ms}ms")
+            Logger.instance().debug(caller="ConversionManager", msg=f"[ConversionManager] Duration updated for {task.original_filename}: {duration_ms}ms")
 
     def _on_worker_progress(self, task_id: str, percentage: float):
         if task_id in self._active_tasks_map:
@@ -536,7 +537,7 @@ class ConversionManager(QObject):
             task.status = "completed"
             task.progress = 1.0
             self._current_batch_processed_count += 1
-            print(f"[ConversionManager] Completed: {task.original_filename} -> {output_filepath}")
+            Logger.instance().info(caller="ConversionManager", msg=f"[ConversionManager] Completed: {task.original_filename} -> {output_filepath}")
             self.conversion_file_completed.emit(task_id, task.original_filename, str(output_filepath))
             self._process_next_task() # Start next one
         self.active_worker = None
@@ -549,20 +550,20 @@ class ConversionManager(QObject):
             self._current_batch_processed_count += 1
             # Don't print error if it's a cancellation message, it's already logged by worker
             if "cancelled by user" not in error_message.lower():
-                print(f"[ConversionManager] Failed: {task.original_filename}. Error: {error_message}")
+                Logger.instance().error(caller="ConversionManager", msg=f"[ConversionManager] Failed: {task.original_filename}. Error: {error_message}")
             self.conversion_file_failed.emit(task_id, task.original_filename, error_message)
             self._process_next_task() # Start next one, even if one failed
         self.active_worker = None
 
     def cancel_all_conversions(self):
         """Stops the current conversion and clears the queue."""
-        print("[ConversionManager] Conversion cancellation requested by user.")
+        Logger.instance().debug(caller="ConversionManager", msg="[ConversionManager] Conversion cancellation requested by user.")
         tasks_cancelled_count = 0
 
         # Clear pending tasks from the queue first
         if self._task_queue:
             tasks_cancelled_count += len(self._task_queue)
-            print(f"[ConversionManager] Clearing {len(self._task_queue)} pending tasks from queue due to cancellation.")
+            Logger.instance().debug(caller="ConversionManager", msg=f"[ConversionManager] Clearing {len(self._task_queue)} pending tasks from queue due to cancellation.")
             # For each task that was pending, we could emit a failure/cancelled signal
             # This ensures the UI (batch count) can be updated if it relies on individual file signals.
             for task in list(self._task_queue): # Iterate over a copy for safe removal
@@ -572,26 +573,26 @@ class ConversionManager(QObject):
         
         # Cancel active worker if any
         if self.active_worker and hasattr(self.active_worker, 'cancel'):
-            print("[ConversionManager] Sending cancel signal to active worker.")
+            Logger.instance().debug(caller="ConversionManager", msg="[ConversionManager] Sending cancel signal to active worker.")
             self.active_worker.cancel() # This will trigger the worker to terminate and emit its own failure signal
             # The worker's failure will then call _process_next_task, which will find an empty queue
             # and then emit conversion_batch_finished if appropriate.
             tasks_cancelled_count +=1 # The active task is also considered cancelled
         elif not self._is_processing_queue and not self._task_queue:
-             print("[ConversionManager] No active conversion or pending tasks to cancel at this moment.")
+             Logger.instance().debug(caller="ConversionManager", msg="[ConversionManager] No active conversion or pending tasks to cancel at this moment.")
              # If a batch was started but nothing was actually running/queued, and user hits cancel,
              # ensure batch_finished is still emitted to clean up UI (e.g. hide cancel button)
              if self._current_batch_total > 0 and self._current_batch_processed_count == 0:
-                 print("[ConversionManager] Emitting batch_finished due to cancellation with no active/pending tasks.")
+                 Logger.instance().info(caller="ConversionManager", msg="[ConversionManager] Emitting batch_finished due to cancellation with no active/pending tasks.")
                  self.conversion_batch_finished.emit()
                  self._current_batch_total = 0 # Reset batch tracking
         
         if tasks_cancelled_count == 0 and not (self._current_batch_total > 0 and self._current_batch_processed_count == 0) :
-            print("[ConversionManager] No tasks were actively cancelled or pending to clear.")
+            Logger.instance().debug(caller="ConversionManager", msg="[ConversionManager] No tasks were actively cancelled or pending to clear.")
             # If nothing was cancelled but a batch is technically in progress (e.g., one file just finished, next hasn't started)
             # and _process_next_task hasn't run yet for an empty queue, we might need to ensure batch_finished if queue is now empty.
             if not self._task_queue and not self.active_worker:
-                 print("[ConversionManager] Queue is empty and no active worker after cancel request. Forcing batch finish check.")
+                 Logger.instance().debug(caller="ConversionManager", msg="[ConversionManager] Queue is empty and no active worker after cancel request. Forcing batch finish check.")
                  # This call will check the queue and potentially emit batch_finished
                  self._process_next_task() 
 
@@ -605,7 +606,7 @@ class ConversionManager(QObject):
         except (subprocess.CalledProcessError, FileNotFoundError):
             results["ffmpeg"] = False
         except Exception as e:
-            print(f"[ConversionManager] Error checking ffmpeg: {e}")
+            Logger.instance().error(caller="ConversionManager", msg=f"[ConversionManager] Error checking ffmpeg: {e}")
             results["ffmpeg"] = False # Mark as false on other errors too
 
         try:
@@ -614,6 +615,6 @@ class ConversionManager(QObject):
         except (subprocess.CalledProcessError, FileNotFoundError):
             results["ffprobe"] = False
         except Exception as e:
-            print(f"[ConversionManager] Error checking ffprobe: {e}")
+            Logger.instance().error(caller="ConversionManager", msg=f"[ConversionManager] Error checking ffprobe: {e}")
             results["ffprobe"] = False
         return results 

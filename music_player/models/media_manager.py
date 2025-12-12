@@ -4,6 +4,7 @@ Media Manager for handling media loading and validation business logic.
 import os
 from typing import Optional, Tuple, Dict, Any, List
 from pathlib import Path
+from qt_base_app.models.logger import Logger
 
 
 class MediaManager:
@@ -27,7 +28,7 @@ class MediaManager:
         actual_path = file_path
         if isinstance(file_path, dict):
             actual_path = file_path.get('path', '')
-            print(f"[MediaManager] Warning: Received dict, extracted path: {actual_path}")
+            Logger.instance().warning(caller="MediaManager", msg=f"[MediaManager] Warning: Received dict, extracted path: {actual_path}")
         
         # Validate path exists
         if not actual_path:
@@ -61,7 +62,7 @@ class MediaManager:
                 'is_valid': True
             }
         except Exception as e:
-            print(f"[MediaManager] Error getting file info for {file_path}: {e}")
+            Logger.instance().error(caller="MediaManager", msg=f"[MediaManager] Error getting file info for {file_path}: {e}")
             return {'is_valid': False, 'error': str(e)}
     
     @staticmethod
@@ -113,7 +114,7 @@ class MediaManager:
                 normalized_path = MediaManager._resolve_network_path(normalized_path)
             
         except Exception as e:
-            print(f"[MediaManager] Warning: Failed to normalize path {actual_path}: {e}")
+            Logger.instance().error(caller="MediaManager", msg=f"[MediaManager] Warning: Failed to normalize path {actual_path}: {e}")
             normalized_path = actual_path  # Fall back to original if normalization fails
         
         # Get file information using the normalized path
@@ -168,7 +169,7 @@ class MediaManager:
                                 relative_path = path[3:]  # Remove "Z:\"
                                 unc_path = os.path.join(unc_root, relative_path).replace('\\', '/')
                                 unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
-                                print(f"[MediaManager] Resolved mapped drive: {path} -> {unc_path}")
+                                Logger.instance().debug(caller="MediaManager", msg=f"[MediaManager] Resolved mapped drive: {path} -> {unc_path}")
                                 return unc_path
                         
                         # Alternative parsing for different NET USE output formats
@@ -182,13 +183,13 @@ class MediaManager:
                                     relative_path = path[3:]  # Remove "Z:\"
                                     unc_path = os.path.join(unc_part, relative_path).replace('\\', '/')
                                     unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
-                                    print(f"[MediaManager] Resolved mapped drive: {path} -> {unc_path}")
+                                    Logger.instance().debug(caller="MediaManager", msg=f"[MediaManager] Resolved mapped drive: {path} -> {unc_path}")
                                     return unc_path
                                     
             except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
-                print(f"[MediaManager] Could not resolve network drive {drive_letter}: {e}")
+                Logger.instance().debug(caller="MediaManager", msg=f"[MediaManager] Could not resolve network drive {drive_letter}: {e}")
             except Exception as e:
-                print(f"[MediaManager] Unexpected error resolving network drive {drive_letter}: {e}")
+                Logger.instance().error(caller="MediaManager", msg=f"[MediaManager] Unexpected error resolving network drive {drive_letter}: {e}")
         
         # Return original path if not a mapped drive or resolution failed
         return path
@@ -270,6 +271,6 @@ class MediaManager:
                     break
                     
         except Exception as e:
-            print(f"[MediaManager] Error suggesting backup files: {e}")
+            Logger.instance().error(caller="MediaManager", msg=f"[MediaManager] Error suggesting backup files: {e}")
         
         return suggestions 

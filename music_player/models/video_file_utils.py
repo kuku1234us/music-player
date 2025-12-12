@@ -4,6 +4,7 @@ Utilities for video file detection and discovery.
 import os
 from pathlib import Path
 from typing import List, Set
+from qt_base_app.models.logger import Logger
 
 # Supported video file extensions
 SUPPORTED_VIDEO_EXTENSIONS: Set[str] = {
@@ -62,7 +63,7 @@ def get_video_files_in_directory(directory_path: str, recursive: bool = False) -
                 if os.path.isfile(item_path) and is_video_file(item_path):
                     video_files.append(item_path)
     except (OSError, IOError) as e:
-        print(f"[VideoFileUtils] Error scanning directory {directory_path}: {e}")
+        Logger.instance().error(caller="VideoFileUtils", msg=f"[VideoFileUtils] Error scanning directory {directory_path}: {e}")
     
     return sorted(video_files)
 
@@ -83,7 +84,7 @@ def discover_video_files(paths: List[str]) -> List[str]:
     
     for path in paths:
         if not path or not os.path.exists(path):
-            print(f"[VideoFileUtils] Path does not exist: {path}")
+            Logger.instance().debug(caller="VideoFileUtils", msg=f"[VideoFileUtils] Path does not exist: {path}")
             continue
         
         try:
@@ -92,16 +93,16 @@ def discover_video_files(paths: List[str]) -> List[str]:
                 if is_video_file(path):
                     video_files.append(path)
                 else:
-                    print(f"[VideoFileUtils] Skipping non-video file: {path}")
+                    Logger.instance().debug(caller="VideoFileUtils", msg=f"[VideoFileUtils] Skipping non-video file: {path}")
             elif os.path.isdir(path):
                 # Directory - recursively find video files
                 found_videos = get_video_files_in_directory(path, recursive=True)
                 video_files.extend(found_videos)
-                print(f"[VideoFileUtils] Found {len(found_videos)} video files in directory: {path}")
+                Logger.instance().debug(caller="VideoFileUtils", msg=f"[VideoFileUtils] Found {len(found_videos)} video files in directory: {path}")
             else:
-                print(f"[VideoFileUtils] Skipping unknown path type: {path}")
+                Logger.instance().debug(caller="VideoFileUtils", msg=f"[VideoFileUtils] Skipping unknown path type: {path}")
         except Exception as e:
-            print(f"[VideoFileUtils] Error processing path {path}: {e}")
+            Logger.instance().error(caller="VideoFileUtils", msg=f"[VideoFileUtils] Error processing path {path}: {e}")
     
     # Remove duplicates while preserving order
     unique_video_files = []
@@ -111,7 +112,7 @@ def discover_video_files(paths: List[str]) -> List[str]:
             unique_video_files.append(video_file)
             seen.add(video_file)
     
-    print(f"[VideoFileUtils] Total unique video files discovered: {len(unique_video_files)}")
+    Logger.instance().debug(caller="VideoFileUtils", msg=f"[VideoFileUtils] Total unique video files discovered: {len(unique_video_files)}")
     return unique_video_files
 
 def get_video_file_info(file_path: str) -> dict:
@@ -141,7 +142,7 @@ def get_video_file_info(file_path: str) -> dict:
             if os.path.isfile(file_path):
                 info['size_bytes'] = os.path.getsize(file_path)
     except Exception as e:
-        print(f"[VideoFileUtils] Error getting file info for {file_path}: {e}")
+        Logger.instance().error(caller="VideoFileUtils", msg=f"[VideoFileUtils] Error getting file info for {file_path}: {e}")
     
     return info
 
@@ -165,9 +166,9 @@ def validate_video_files(file_paths: List[str]) -> List[str]:
             if os.path.exists(file_path) and os.path.isfile(file_path) and is_video_file(file_path):
                 valid_files.append(file_path)
             else:
-                print(f"[VideoFileUtils] Invalid video file: {file_path}")
+                Logger.instance().debug(caller="VideoFileUtils", msg=f"[VideoFileUtils] Invalid video file: {file_path}")
         except Exception as e:
-            print(f"[VideoFileUtils] Error validating file {file_path}: {e}")
+            Logger.instance().error(caller="VideoFileUtils", msg=f"[VideoFileUtils] Error validating file {file_path}: {e}")
     
     return valid_files
 

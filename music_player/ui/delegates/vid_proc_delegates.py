@@ -54,7 +54,6 @@ class HighResImageWorker(QThread):
                 if not img.isNull():
                     self.result_ready.emit(img)
                 else:
-                    # self.logger.warning("HighResImageWorker", f"Image loaded but null: {out_path}")
                     self.result_ready.emit(QImage())
             else:
                 self.logger.error("HighResImageWorker", f"Output file not found: {out_path}")
@@ -83,10 +82,8 @@ class ImagePopup(QDialog):
         
         # Initial display with low-res image
         if low_res_image and not low_res_image.isNull():
-            # self.logger.debug("ImagePopup", f"Showing low-res preview {low_res_image.size()}")
             self.update_display(low_res_image)
         else:
-            # self.logger.warning("ImagePopup", "Low-res image is null")
             self.resize(400, 300)
             self.lbl_image.setText("Loading preview...")
             self.lbl_image.setStyleSheet("color: white;")
@@ -123,7 +120,6 @@ class ImagePopup(QDialog):
         else:
             self.lbl_image.setPixmap(QPixmap.fromImage(image))
             
-        # self.logger.debug("ImagePopup", f"Resizing to {target_w}x{target_h} for image {image.width()}x{image.height()}")
         self.resize(target_w, target_h)
         
         # Re-center
@@ -133,7 +129,6 @@ class ImagePopup(QDialog):
 
     def on_high_res_ready(self, img):
         if not img.isNull():
-            # self.logger.debug("ImagePopup", f"High-res ready {img.size()}")
             self.update_display(img)
         else:
             self.logger.error("ImagePopup", "HighResImageWorker returned null image")

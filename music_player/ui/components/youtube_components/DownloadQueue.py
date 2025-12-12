@@ -2,9 +2,10 @@
 Download queue component for displaying current downloads.
 """
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QScrollArea, QLabel, 
+    QWidget, QVBoxLayout, QScrollArea, QLabel,
     QSizePolicy, QHBoxLayout, QSpinBox, QPushButton
 )
+from qt_base_app.models.logger import Logger
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 import os
 
@@ -123,7 +124,7 @@ class DownloadQueue(QScrollArea):
         Handle navigation request from a YoutubeProgress component.
         Forwards the request to any attached slot via the navigate_to_file signal.
         """
-        print(f"[DownloadQueue] Navigation request received for: {output_path}/{filename}")
+        Logger.instance().debug(caller="DownloadQueue", msg=f"[DownloadQueue] Navigation request received for: {output_path}/{filename}")
         self.navigate_to_file.emit(output_path, filename)
     
     def _on_play_file_requested(self, filepath):
@@ -131,7 +132,7 @@ class DownloadQueue(QScrollArea):
         Handle play file request from a YoutubeProgress component.
         Forwards the request to any attached slot via the play_file signal.
         """
-        print(f"[DownloadQueue] Play file request received for: {filepath}")
+        Logger.instance().debug(caller="DownloadQueue", msg=f"[DownloadQueue] Play file request received for: {filepath}")
         self.play_file.emit(filepath)
     
     def update_queue(self):
@@ -260,7 +261,7 @@ class DownloadQueue(QScrollArea):
     def on_download_complete(self, url, output_dir=None, filename=None):
         """Handle download completion signal."""
         # Important transition message
-        print(f"Download complete - URL: {url}")
+        Logger.instance().debug(caller="DownloadQueue", msg=f"Download complete - URL: {url}")
         
         if url in self.progress_components:
             component = self.progress_components[url]
@@ -275,16 +276,16 @@ class DownloadQueue(QScrollArea):
                 if filename:
                     filepath = os.path.join(output_dir, filename)
                     if not os.path.exists(filepath):
-                        print(f"WARNING: File does not exist at expected path: {filepath}")
+                        Logger.instance().warning(caller="DownloadQueue", msg=f"WARNING: File does not exist at expected path: {filepath}")
             else:
-                print(f"WARNING: No output directory provided for {url}")
+                Logger.instance().warning(caller="DownloadQueue", msg=f"WARNING: No output directory provided for {url}")
         else:
-            print(f"WARNING: No component found for URL: {url}")
+            Logger.instance().warning(caller="DownloadQueue", msg=f"WARNING: No component found for URL: {url}")
     
     def on_download_error(self, url, error_message):
         """Handle download error signal."""
         # Keep error messages
-        print(f"Error for URL: {url} - {error_message}")
+        Logger.instance().error(caller="DownloadQueue", msg=f"Error for URL: {url} - {error_message}")
         
         if url in self.progress_components:
             component = self.progress_components[url]
@@ -316,9 +317,9 @@ class DownloadQueue(QScrollArea):
             if url and isinstance(url, str):
                 self.download_manager.cancel_download(url)
             else:
-                print(f"Error: Invalid URL for cancellation: {url}")
+                Logger.instance().error(caller="DownloadQueue", msg=f"Error: Invalid URL for cancellation: {url}")
         except Exception as e:
-            print(f"Error cancelling download: {e}")
+            Logger.instance().error(caller="DownloadQueue", msg=f"Error cancelling download: {e}")
     
     def on_dismiss_clicked(self, url):
         """Handle dismiss button click for error items."""
@@ -327,9 +328,9 @@ class DownloadQueue(QScrollArea):
             if url and isinstance(url, str):
                 self.download_manager.dismiss_error(url)
             else:
-                print(f"Error: Invalid URL for dismiss: {url}")
+                Logger.instance().error(caller="DownloadQueue", msg=f"Error: Invalid URL for dismiss: {url}")
         except Exception as e:
-            print(f"Error dismissing download: {e}")
+            Logger.instance().error(caller="DownloadQueue", msg=f"Error dismissing download: {e}")
     
     def clear_completed_downloads(self):
         """Clear all completed downloads from the queue."""
@@ -350,4 +351,4 @@ class DownloadQueue(QScrollArea):
         # QSettings typically syncs on destruction or periodically,
         # immediate sync is usually not required unless critical.
         # self.settings.sync()
-        print(f"[DownloadQueue] Max concurrent downloads saved: {value}") 
+        Logger.instance().debug(caller="DownloadQueue", msg=f"[DownloadQueue] Max concurrent downloads saved: {value}")

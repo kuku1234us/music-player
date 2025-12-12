@@ -1,4 +1,5 @@
 from typing import List, Optional, Any
+from qt_base_app.models.logger import Logger
 
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import pyqtSignal
@@ -30,7 +31,7 @@ class PlaylistTableView(BaseTableView):
         """
         objects_to_delete = self.get_selected_items_data()
         if objects_to_delete:
-            print(f"[PlaylistTableView] Delete requested for {len(objects_to_delete)} object(s). Emitting signal.")
+            Logger.instance().debug(caller="PlaylistTableView", msg=f"[PlaylistTableView] Delete requested for {len(objects_to_delete)} object(s). Emitting signal.")
             self.delete_requested_from_playlist.emit(objects_to_delete)
         # We do NOT call super()._on_delete_items() or model.remove_rows_by_objects() here.
         # The parent widget handles the actual model update after processing the signal. 

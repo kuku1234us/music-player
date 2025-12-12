@@ -2,6 +2,8 @@ import os
 import sys
 import sqlite3
 
+from qt_base_app.models.logger import Logger
+
 
 def main():
     target_iso = "2025-08-01T12:00:00"
@@ -15,16 +17,21 @@ def main():
         db_path = os.environ["MUSICPLAYER_DB_PATH"]
 
     if not db_path:
-        print("Error: Database path not provided.\n"
-              "Pass it as an argument or set MUSICPLAYER_DB_PATH env var.\n"
-              "Example: python scripts/set_yt_dlp_last_timestamp.py Z:/AAAAA01/MusicPlayerDirectory/playback_positions.db")
+        Logger.instance().error(
+            caller="set_yt_dlp_last_timestamp",
+            msg=(
+                "Database path not provided.\n"
+                "Pass it as an argument or set MUSICPLAYER_DB_PATH env var.\n"
+                "Example: python scripts/set_yt_dlp_last_timestamp.py Z:/AAAAA01/MusicPlayerDirectory/playback_positions.db"
+            ),
+        )
         sys.exit(1)
 
     if not os.path.exists(db_path):
-        print(f"Error: DB not found: {db_path}")
+        Logger.instance().error(caller="set_yt_dlp_last_timestamp", msg=f"DB not found: {db_path}")
         sys.exit(1)
 
-    print(f"Using DB: {db_path}")
+    Logger.instance().info(caller="set_yt_dlp_last_timestamp", msg=f"Using DB: {db_path}")
 
     conn = sqlite3.connect(db_path)
     try:
@@ -35,7 +42,10 @@ def main():
             SELECT name FROM sqlite_master WHERE type='table' AND name='yt_dlp_updates'
         """)
         if cur.fetchone() is None:
-            print("yt_dlp_updates table not found in this database. Nothing to update.")
+            Logger.instance().warning(
+                caller="set_yt_dlp_last_timestamp",
+                msg="yt_dlp_updates table not found in this database. Nothing to update.",
+            )
             return
 
         # Update both last_check_time and last_update_time so the 24h gate passes
@@ -50,7 +60,10 @@ def main():
         )
         affected = cur.rowcount
         conn.commit()
-        print(f"Updated timestamps on {affected} record(s) to {target_iso}")
+        Logger.instance().info(
+            caller="set_yt_dlp_last_timestamp",
+            msg=f"Updated timestamps on {affected} record(s) to {target_iso}",
+        )
 
     finally:
         conn.close()

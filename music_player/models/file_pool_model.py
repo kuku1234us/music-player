@@ -1,3 +1,4 @@
+from qt_base_app.models.logger import Logger
 # music_player/models/file_pool_model.py
 import os
 from typing import List, Optional, Any, Set
@@ -78,7 +79,6 @@ class FilePoolModel(BaseTableModel):
                 norm_path = self._get_path_from_obj(obj)
                 if norm_path and norm_path in self._allowed_paths:
                     self._filtered_indices_map.append(i)
-        # print(f"[FilePoolModel] Rebuilt filter map (size={len(self._filtered_indices_map)})")
 
     # --- Overridden Methods to sync _pool_paths AND handle filtering ---
 
@@ -215,25 +215,25 @@ class FilePoolModel(BaseTableModel):
         """Filters the model to only show items whose paths are in allowed_paths."""
         # Normalize the input paths immediately
         normalized_allowed = {os.path.normpath(p) for p in allowed_paths}
-        print(f"[FilePoolModel] Applying path filter with {len(normalized_allowed)} allowed paths.")
+        Logger.instance().debug(caller="FilePoolModel", msg=f"[FilePoolModel] Applying path filter with {len(normalized_allowed)} allowed paths.")
         self.beginResetModel()
         self._is_path_filtered = True
         self._allowed_paths = normalized_allowed
         self._rebuild_filter_map()
         self.endResetModel()
-        print(f"[FilePoolModel] Path filter applied. Filtered row count: {self.rowCount()}")
+        Logger.instance().debug(caller="FilePoolModel", msg=f"[FilePoolModel] Path filter applied. Filtered row count: {self.rowCount()}")
 
     def clear_path_filter(self):
         """Removes the path filter, showing all items."""
         if not self._is_path_filtered:
             return # Nothing to clear
-        print("[FilePoolModel] Clearing path filter.")
+        Logger.instance().debug(caller="FilePoolModel", msg="[FilePoolModel] Clearing path filter.")
         self.beginResetModel()
         self._is_path_filtered = False
         self._allowed_paths.clear()
         self._rebuild_filter_map() # Rebuilds to 1:1 map
         self.endResetModel()
-        print(f"[FilePoolModel] Path filter cleared. Row count: {self.rowCount()}")
+        Logger.instance().debug(caller="FilePoolModel", msg=f"[FilePoolModel] Path filter cleared. Row count: {self.rowCount()}")
 
     def is_path_filtered(self) -> bool:
         """Returns True if a path filter is currently active."""

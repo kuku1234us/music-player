@@ -5,6 +5,7 @@ Supports different video platforms like YouTube and Bilibili.
 import re
 from urllib.parse import urlparse
 from PyQt6.QtGui import QPixmap
+from qt_base_app.models.logger import Logger
 
 class SiteModel:
     """
@@ -70,7 +71,7 @@ class SiteModel:
             return SiteModel.SITE_UNKNOWN
             
         except Exception as e:
-            print(f"Error detecting site: {e}")
+            Logger.instance().error(caller="SiteModel", msg=f"Error detecting site: {e}")
             return SiteModel.SITE_UNKNOWN
     
     @staticmethod
@@ -223,7 +224,7 @@ class SiteModel:
             return None
             
         except Exception as e:
-            print(f"Error extracting Bilibili ID: {e}")
+            Logger.instance().error(caller="SiteModel", msg=f"Error extracting Bilibili ID: {e}")
             return None
     
     @staticmethod

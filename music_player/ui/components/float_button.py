@@ -172,7 +172,6 @@ class FloatButton(QWidget):
         """Handle mouse press to emit clicked signal (like QPushButton)."""
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
-        # print(f"FloatButton '{self.icon_name or self._text}' clicked!") # Keep for debug if needed
         super().mousePressEvent(event)
 
     def showEvent(self, event):

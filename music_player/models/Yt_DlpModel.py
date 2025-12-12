@@ -1,7 +1,7 @@
 """
 yt-dlp model Encapsulates logic that deals with yt-dlp
 """
-import sys
+from qt_base_app.models.logger import Logger
 
 class YtDlpModel:
     """
@@ -35,8 +35,6 @@ class YtDlpModel:
                 # No specific player client requirement
             }
         }
-        
-        # print(f"DEBUG: YtDlpModel.generate_format_string called with: resolution={resolution}, use_https={use_https}, use_m4a={use_m4a}, subtitle_lang={subtitle_lang}, use_cookies={use_cookies}, prefer_best_video={prefer_best_video}, prefer_avc={prefer_avc}")
         
         # NOTE: Cookie + JS-runtime handling is now enforced in the download pipeline (CLIDownloadWorker)
         # so we can:
@@ -79,11 +77,9 @@ class YtDlpModel:
                 seen = set()
                 expanded_langs = [x for x in expanded_langs if not (x in seen or seen.add(x))]
                 format_options['subtitleslangs'] = expanded_langs
-                # print(f"DEBUG: Multiple subtitle languages requested: {expanded_langs}")
             else:
                 expanded_langs = expand_subtitle_lang(subtitle_lang)
                 format_options['subtitleslangs'] = expanded_langs
-                # print(f"DEBUG: Subtitle language(s) requested: {expanded_langs}")
                 
             # Accept multiple subtitle formats in order of preference
             format_options['subtitlesformat'] = 'srt/vtt/ttml/best'
@@ -97,11 +93,9 @@ class YtDlpModel:
         if prefer_avc:
             # Prefer AVC codec (H.264) for better device compatibility
             codec_filter = "[vcodec^=avc]"
-            # print(f"DEBUG: Using AVC codec filter for better compatibility")
         elif not prefer_best_video:
             # If not using best video and not explicitly preferring AVC, exclude AV1 for compatibility
             codec_filter = "[vcodec!*=av01]"
-            # print(f"DEBUG: Excluding AV1 codec for better compatibility")
         
         # Prepare protocol and format constraints
         protocol_constraint = "[protocol=https]" if use_https else ""
@@ -288,11 +282,9 @@ class YtDlpModel:
                     {"key": "FFmpegEmbedSubtitle"}
                 ]
                 
-            # print(f"DEBUG: Resolution-specific format string: {format_str}")
                 
         elif prefer_best_video:
             # Best video format - no resolution limiting
-            # print(f"DEBUG: Generating best video format")
             format_str = f"bestvideo{codec_filter}{protocol_constraint}{video_format_constraint}"
             
             # Complete format string with audio and fallbacks
@@ -310,10 +302,8 @@ class YtDlpModel:
                     {"key": "FFmpegEmbedSubtitle"}
                 ]
                 
-            # print(f"DEBUG: Best video format string: {format_str}")
             
         else:
-            # print(f"DEBUG: Generating audio-only format")
             # Audio only format with robust fallbacks. Remove protocol constraint.
             # Prefer Opus/WebM first, then M4A/MP4, then any audio-only.
             if use_m4a:
@@ -340,7 +330,6 @@ class YtDlpModel:
             # Stream picking is done via a no-cookies probe, and downloads run with cookies+JS runtime.
             # Forcing a client can hide formats or become unsupported over time.
             
-            # print(f"DEBUG: Audio-only format string: {format_str}")
         
         # StreamPicker hint: Worker may probe formats *without cookies* and then override `--format`
         # with explicit IDs like "298+140" to avoid wrong-resolution/m3u8 selections.
@@ -352,7 +341,6 @@ class YtDlpModel:
             "prefer_m4a": bool(use_m4a),
             "prefer_avc": bool(prefer_avc),
         }
-        # print(f"DEBUG: Final format options: {format_options}")
         return format_options
     
     @staticmethod
@@ -396,7 +384,10 @@ class YtDlpModel:
                 prefer_avc=False   # Don't restrict codecs for best quality
             )
         else:
-            print(f"Warning: Unknown preset '{preset_name}'. Returning empty options.")
+            Logger.instance().warning(
+                caller="YtDlpModel",
+                msg=f"Unknown preset '{preset_name}'. Returning empty options.",
+            )
             return {}
     
     @staticmethod

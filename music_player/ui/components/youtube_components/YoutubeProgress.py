@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QProgressBar, QPushButton, QFrame, QSizePolicy
 )
+from qt_base_app.models.logger import Logger
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QPixmap, QFont, QColor, QPalette, QCursor
 
@@ -540,21 +541,21 @@ class YoutubeProgress(QWidget):
         if self.status == "Complete" and self.output_path and self.thumbnail.underMouse():
             if event.button() == Qt.MouseButton.LeftButton:
                 # Left click - navigate to the file in browser
-                print(f"Requesting navigation to file - path: {self.output_path}, filename: {self.downloaded_filename}")
+                Logger.instance().debug(caller="YoutubeProgress", msg=f"Requesting navigation to file - path: {self.output_path}, filename: {self.downloaded_filename}")
                 self.navigate_to_file_requested.emit(self.output_path, self.downloaded_filename or "")
             elif event.button() == Qt.MouseButton.RightButton:
                 # Right click - play the file
                 if self.downloaded_filename:
                     filepath = os.path.join(self.output_path, self.downloaded_filename)
                     if os.path.exists(filepath):
-                        print(f"Requesting to play file: {filepath}")
+                        Logger.instance().debug(caller="YoutubeProgress", msg=f"Requesting to play file: {filepath}")
                         self.play_file_requested.emit(filepath)
                     else:
-                        print(f"Cannot play file - file does not exist: {filepath}")
+                        Logger.instance().debug(caller="YoutubeProgress", msg=f"Cannot play file - file does not exist: {filepath}")
         elif self.status != "Complete" and self.thumbnail.underMouse():
-            print(f"Cannot handle click - download not complete. Status: {self.status}")
+            Logger.instance().debug(caller="YoutubeProgress", msg=f"Cannot handle click - download not complete. Status: {self.status}")
         elif not self.output_path and self.thumbnail.underMouse():
-            print(f"Cannot handle click - no output path set for: {self.url}")
+            Logger.instance().debug(caller="YoutubeProgress", msg=f"Cannot handle click - no output path set for: {self.url}")
         
         super().mouseReleaseEvent(event)
     
@@ -563,16 +564,16 @@ class YoutubeProgress(QWidget):
         if self.status == "Complete" and self.output_path:
             try:
                 # Log the full path information for debugging
-                print(f"Opening file location - URL: {self.url}")
-                print(f"Output path: {self.output_path}")
-                print(f"Filename: {self.downloaded_filename}")
+                Logger.instance().debug(caller="YoutubeProgress", msg=f"Opening file location - URL: {self.url}")
+                Logger.instance().debug(caller="YoutubeProgress", msg=f"Output path: {self.output_path}")
+                Logger.instance().debug(caller="YoutubeProgress", msg=f"Filename: {self.downloaded_filename}")
                 
                 if os.path.isdir(self.output_path):
                     # If we have a specific filename, select it in Explorer
                     if self.downloaded_filename and os.path.exists(os.path.join(self.output_path, self.downloaded_filename)):
                         # Normalize the path to ensure all slashes are consistent
                         filepath = os.path.normpath(os.path.join(self.output_path, self.downloaded_filename))
-                        print(f"Opening file with explorer: {filepath}")
+                        Logger.instance().debug(caller="YoutubeProgress", msg=f"Opening file with explorer: {filepath}")
                         
                         # Use explorer.exe with /select to highlight the file 
                         # Always use double quotes around the filepath to handle spaces and special characters
@@ -582,16 +583,16 @@ class YoutubeProgress(QWidget):
                         os.system(cmd)
                     else:
                         # Just open the directory if we don't have a filename
-                        print(f"Opening directory: {self.output_path}")
+                        Logger.instance().debug(caller="YoutubeProgress", msg=f"Opening directory: {self.output_path}")
                         dir_path = os.path.normpath(self.output_path)
                         os.startfile(dir_path)
                     return True
                 else:
-                    print(f"Error: Output path is not a directory: {self.output_path}")
+                    Logger.instance().error(caller="YoutubeProgress", msg=f"Error: Output path is not a directory: {self.output_path}")
             except Exception as e:
-                print(f"Error opening file location: {str(e)}")
+                Logger.instance().error(caller="YoutubeProgress", msg=f"Error opening file location: {str(e)}")
         elif self.status != "Complete":
-            print(f"Cannot open file location - download not complete. Status: {self.status}")
+            Logger.instance().debug(caller="YoutubeProgress", msg=f"Cannot open file location - download not complete. Status: {self.status}")
         elif not self.output_path:
-            print(f"Cannot open file location - no output path set for: {self.url}")
+            Logger.instance().debug(caller="YoutubeProgress", msg=f"Cannot open file location - no output path set for: {self.url}")
         return False 

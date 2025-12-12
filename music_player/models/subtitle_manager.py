@@ -3,6 +3,7 @@ Subtitle Manager for handling subtitle-related business logic.
 """
 import re
 from typing import Optional, List, Dict, Any
+from qt_base_app.models.logger import Logger
 
 
 class SubtitleManager:
@@ -42,7 +43,7 @@ class SubtitleManager:
                     track_name = track_name.decode('latin-1')
                 except Exception:
                     # If all decoding fails, return default
-                    print(f"[SubtitleManager] Warning: Could not decode subtitle track name: {track_name}")
+                    Logger.instance().warning(caller="SubtitleManager", msg=f"[SubtitleManager] Warning: Could not decode subtitle track name: {track_name}")
                     return "SUB"
         
         # If the track name is empty, return default value

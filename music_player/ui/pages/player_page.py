@@ -4,6 +4,7 @@ Player page for the music player application.
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSizePolicy, QMessageBox
 from PyQt6.QtCore import Qt, QSize, QTimer, QPoint, QRect
 from PyQt6.QtGui import QIcon, QCursor
+from qt_base_app.models.logger import Logger
 
 # Import QStackedWidget
 from PyQt6.QtWidgets import QStackedWidget
@@ -159,16 +160,16 @@ class PlayerPage(QWidget):
     def _on_oplayer_upload_clicked(self):
         """Handle OPlayer upload button click"""
         if not self.persistent_player:
-            print("[PlayerPage] Error: No persistent player available")
+            Logger.instance().error(caller="PlayerPage", msg="[PlayerPage] Error: No persistent player available")
             return
             
         # Get current media path - access through backend
         media_path = self.persistent_player.backend.get_current_media_path()
-        print(f"[PlayerPage] Current media path: {media_path}")
+        Logger.instance().debug(caller="PlayerPage", msg=f"[PlayerPage] Current media path: {media_path}")
         
         if not media_path:
             error_msg = "No media currently playing. Please select a file to upload."
-            print(f"[PlayerPage] Error: {error_msg}")
+            Logger.instance().error(caller="PlayerPage", msg=f"[PlayerPage] Error: {error_msg}")
             QMessageBox.warning(
                 self,
                 "Upload Error",
@@ -177,10 +178,10 @@ class PlayerPage(QWidget):
             return
             
         # Test connection before attempting upload
-        print("[PlayerPage] Testing connection to OPlayer device...")
+        Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Testing connection to OPlayer device...")
         if not self.oplayer_service.test_connection():
             error_msg = "Could not connect to OPlayer device. Please check your network connection and device status."
-            print(f"[PlayerPage] Error: {error_msg}")
+            Logger.instance().error(caller="PlayerPage", msg=f"[PlayerPage] Error: {error_msg}")
             QMessageBox.critical(
                 self,
                 "Connection Error",
@@ -189,28 +190,28 @@ class PlayerPage(QWidget):
             return
             
         # Start upload
-        print(f"[PlayerPage] Starting upload of: {media_path}")
+        Logger.instance().info(caller="PlayerPage", msg=f"[PlayerPage] Starting upload of: {media_path}")
         self.oplayer_service.upload_file(media_path)
         
     def _on_upload_started(self, filename):
         """Handle upload started signal"""
-        print(f"[PlayerPage] Upload started: {filename}")
+        Logger.instance().info(caller="PlayerPage", msg=f"[PlayerPage] Upload started: {filename}")
         self.upload_status.show_upload_started(filename)
         self._update_upload_status_position()
         
     def _on_upload_progress(self, percentage):
         """Handle upload progress signal"""
-        print(f"[PlayerPage] Upload progress: {percentage}%")
+        Logger.instance().debug(caller="PlayerPage", msg=f"[PlayerPage] Upload progress: {percentage}%")
         self.upload_status.show_upload_progress(percentage)
         
     def _on_upload_completed(self, filename):
         """Handle upload completed signal"""
-        print(f"[PlayerPage] Upload completed: {filename}")
+        Logger.instance().info(caller="PlayerPage", msg=f"[PlayerPage] Upload completed: {filename}")
         self.upload_status.show_upload_completed(filename)
         
     def _on_upload_failed(self, error_msg):
         """Handle upload failed signal"""
-        print(f"[PlayerPage] Upload failed: {error_msg}")
+        Logger.instance().error(caller="PlayerPage", msg=f"[PlayerPage] Upload failed: {error_msg}")
         self.upload_status.show_upload_failed(error_msg)
         
     def _update_track_info(self, metadata):
@@ -241,7 +242,6 @@ class PlayerPage(QWidget):
         Args:
             event: The show event
         """
-        # print("[PlayerPage STANDALONE TEST] showEvent triggered.")
         super().showEvent(event)
         
         # --- RESTORED: Persistent player logic ---
@@ -265,12 +265,11 @@ class PlayerPage(QWidget):
         # --- RESTORED: Original logic for passing handle to persistent player ---
         # if self.persistent_player and hasattr(self, 'video_widget'):
         #     # --- Pass video widget handle to player (original intent) ---
-        #     print("[PlayerPage] Passing video widget handle to MainPlayer in showEvent.")
         #     self.persistent_player.set_video_widget(self.video_widget)
         elif not self.persistent_player:
-             print("[PlayerPage] Error: Could not find persistent player in showEvent.")
+             Logger.instance().error(caller="PlayerPage", msg="[PlayerPage] Error: Could not find persistent player in showEvent.")
         else: # Player exists but no video_widget?
-             print("[PlayerPage] Warning: Persistent player found in showEvent, but no video_widget attribute.")
+             Logger.instance().warning(caller="PlayerPage", msg="[PlayerPage] Warning: Persistent player found in showEvent, but no video_widget attribute.")
         # ------------------------------------------------------------------------
     
     def keyPressEvent(self, event):
@@ -289,9 +288,7 @@ class PlayerPage(QWidget):
 
     def hideEvent(self, event):
         """Handle hide event."""
-        # print("[PlayerPage STANDALONE TEST] hideEvent triggered.")
         # if self._test_vlc_player:
-        #     print("[PlayerPage STANDALONE TEST] Stopping test VLC player.")
         #     self._test_vlc_player.stop()
         #     # Optional: Release resources if needed, might be handled by garbage collection
         #     # self._test_vlc_player = None
@@ -318,14 +315,12 @@ class PlayerPage(QWidget):
             # --- ADD HWND SETUP HERE --- 
             # Set the video widget handle in the player *immediately* when connected
             if hasattr(self.persistent_player, 'set_video_widget') and self.video_widget:
-                # print("[PlayerPage] Setting video widget in persistent player during connection.")
                 self.persistent_player.set_video_widget(self.video_widget)
             # ---------------------------
 
             # --- Pass HotkeyHandler to VideoWidget --- 
             if self.persistent_player and hasattr(self.persistent_player, 'hotkey_handler') \
                and self.video_widget and hasattr(self.video_widget, 'set_hotkey_handler'):
-                # print("[PlayerPage] Passing HotkeyHandler to VideoWidget.")
                 handler = self.persistent_player.hotkey_handler
                 self.video_widget.set_hotkey_handler(handler)
             # -----------------------------------------
@@ -426,25 +421,25 @@ class PlayerPage(QWidget):
 
     def _on_media_loaded(self, metadata: dict, is_video: bool):
         """Handle media loaded signal (incl. type) from MainPlayer."""
-        print(f"[PlayerPage] Media loaded: is_video={is_video}")
+        Logger.instance().debug(caller="PlayerPage", msg=f"[PlayerPage] Media loaded: is_video={is_video}")
         self.player_overlay.set_video_mode(is_video) # Inform overlay
 
         if is_video:
-            print("[PlayerPage] Switching display to Video Widget.")
+            Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Switching display to Video Widget.")
             self.media_display_stack.setCurrentIndex(1)
             self.video_widget.setVisible(True)
             self.album_art.setVisible(False)
             # --- Start mouse tracking timer --- 
-            print("[PlayerPage] Starting mouse tracking timer.")
+            Logger.instance().info(caller="PlayerPage", msg="[PlayerPage] Starting mouse tracking timer.")
             self.mouse_tracking_timer.start()
             # ----------------------------------
         else:
             # --- Stop mouse tracking timer --- 
             if self.mouse_tracking_timer.isActive():
-                print("[PlayerPage] Stopping mouse tracking timer.")
+                Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Stopping mouse tracking timer.")
                 self.mouse_tracking_timer.stop()
             # ---------------------------------
-            print("[PlayerPage] Switching display to Album Art.")
+            Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Switching display to Album Art.")
             self.media_display_stack.setCurrentIndex(0)
             self.album_art.setVisible(True)
             self.video_widget.setVisible(False)
@@ -483,12 +478,10 @@ class PlayerPage(QWidget):
         if overlay_global_rect.contains(global_mouse_pos):
             # Mouse is inside overlay bounds
             if not self.player_overlay.isVisible():
-                # print("[PlayerPage Timer Check] Mouse IN overlay - showing overlay") # Debug
                 self.player_overlay.show_overlay()
         else:
             # Mouse is outside overlay bounds
             if self.player_overlay.isVisible():
-                # print("[PlayerPage Timer Check] Mouse OUT overlay - hiding overlay") # Debug
                 self.player_overlay.hide_overlay()
     # +++++++++++++++++++++++++++++++++
 
@@ -497,12 +490,12 @@ class PlayerPage(QWidget):
     # --- Add methods to control media_display_stack visibility --- 
     def show_video_view(self):
         """Switches the PlayerPage to display the video widget."""
-        print("[PlayerPage] Showing video view.")
+        Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Showing video view.")
         
         # Ensure the VideoWidget is parented to the QStackedWidget.
         # This is necessary if it was previously detached (e.g., parent set to None).
         if self.video_widget.parentWidget() != self.media_display_stack:
-            print(f"[PlayerPage] VideoWidget current parent is {self.video_widget.parentWidget()}, reparenting to {self.media_display_stack}.")
+            Logger.instance().debug(caller="PlayerPage", msg=f"[PlayerPage] VideoWidget current parent is {self.video_widget.parentWidget()}, reparenting to {self.media_display_stack}.")
             # Ensure it's fully detached from any old parent before reparenting.
             # This is usually handled by setParent, but being explicit can avoid edge cases.
             if self.video_widget.parentWidget() is not None:
@@ -513,14 +506,14 @@ class PlayerPage(QWidget):
             # internal page list and layout management. Calling addWidget handles this.
             # QStackedWidget.addWidget is idempotent if the widget is already present in some form,
             # but it's essential here because reparenting effectively removes it from stack's layout.
-            print("[PlayerPage] Re-adding VideoWidget to media_display_stack via addWidget after reparenting.")
+            Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Re-adding VideoWidget to media_display_stack via addWidget after reparenting.")
             self.media_display_stack.addWidget(self.video_widget)
         else:
             # Even if parented correctly, it might have been 'deregistered' from the stack's view.
             # The "not contained in stack" warning is the primary indicator.
             # If indexOf returns -1, it means it's not in the stack's managed pages.
             if self.media_display_stack.indexOf(self.video_widget) == -1:
-                print("[PlayerPage] VideoWidget parented to stack, but not found by indexOf. Re-adding via addWidget.")
+                Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] VideoWidget parented to stack, but not found by indexOf. Re-adding via addWidget.")
                 self.media_display_stack.addWidget(self.video_widget)
         
         # Now, the widget should be correctly parented AND managed by the stack.
@@ -535,11 +528,11 @@ class PlayerPage(QWidget):
         # Also tell the stack widget itself to update its geometry, which might affect its children.
         self.media_display_stack.updateGeometry()
 
-        print(f"[PlayerPage] VideoWidget current in stack, visible: {self.video_widget.isVisible()}, geometry: {self.video_widget.geometry()}")
+        Logger.instance().debug(caller="PlayerPage", msg=f"[PlayerPage] VideoWidget current in stack, visible: {self.video_widget.isVisible()}, geometry: {self.video_widget.geometry()}")
 
     def show_album_art_view(self):
         """Switches the PlayerPage to display the album art."""
-        print("[PlayerPage] Showing album art view.")
+        Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Showing album art view.")
         self.media_display_stack.setCurrentWidget(self.album_art)
         self.album_art.setVisible(True) # Explicitly ensure visible
         # self.video_widget.setVisible(False)

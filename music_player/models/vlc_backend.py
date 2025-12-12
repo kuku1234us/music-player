@@ -5,6 +5,7 @@ import os
 import time
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 import vlc
+from qt_base_app.models.logger import Logger
 
 
 class VLCBackend(QObject):
@@ -36,12 +37,11 @@ class VLCBackend(QObject):
             "--file-caching=300",        # Set file caching (300ms)
             "--quiet"                    # Reduce verbose output
         ]
-        # print(f"[VLCBackend] Initializing VLC instance with hardware acceleration: {vlc_args}")
         
         try:
             self.vlc_instance = vlc.Instance(vlc_args)
             if self.vlc_instance is None:
-                print("[VLCBackend] Warning: Hardware acceleration setup failed, trying fallback")
+                Logger.instance().error(caller="VLCBackend", msg="[VLCBackend] Warning: Hardware acceleration setup failed, trying fallback")
                 # Fallback to basic hardware acceleration
                 fallback_args = [
                     "--no-video-title-show",
@@ -52,7 +52,7 @@ class VLCBackend(QObject):
                 self.vlc_instance = vlc.Instance(fallback_args)
                 
             if self.vlc_instance is None:
-                print("[VLCBackend] Warning: Fallback failed, trying minimal setup")
+                Logger.instance().error(caller="VLCBackend", msg="[VLCBackend] Warning: Fallback failed, trying minimal setup")
                 # Final fallback to minimal VLC instance
                 self.vlc_instance = vlc.Instance()
                 
@@ -63,18 +63,18 @@ class VLCBackend(QObject):
             if self.media_player is None:
                 raise RuntimeError("Failed to create VLC media player")
                 
-            print("[VLCBackend] VLC instance and media player created successfully")
+            Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] VLC instance and media player created successfully")
             
         except Exception as e:
-            print(f"[VLCBackend] Error initializing VLC: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error initializing VLC: {e}")
             # Try one more time with absolutely minimal setup
             try:
-                print("[VLCBackend] Attempting minimal VLC initialization...")
+                Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Attempting minimal VLC initialization...")
                 self.vlc_instance = vlc.Instance()
                 self.media_player = self.vlc_instance.media_player_new()
-                print("[VLCBackend] Minimal VLC initialization successful")
+                Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Minimal VLC initialization successful")
             except Exception as e2:
-                print(f"[VLCBackend] Fatal: Cannot initialize VLC at all: {e2}")
+                Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Fatal: Cannot initialize VLC at all: {e2}")
                 raise RuntimeError(f"VLC initialization failed: {e2}")
         
         # State tracking
@@ -103,23 +103,22 @@ class VLCBackend(QObject):
                 return False
 
             # 2. Stop the player
-            print("[VLCBackend] Stopping player for media change.")
+            Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Stopping player for media change.")
             self.media_player.stop()
 
             # --- Robust Reset (Using media_player) --- 
             # 1. Detach HWND first
             # if self._hwnd:
-            #     print("[VLCBackend] Detaching HWND before stopping.")
             #     self.media_player.set_hwnd(0)
 
             # 3. Release previous media object
             if self.current_media:
-                print("[VLCBackend] Releasing previous media object.")
+                Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Releasing previous media object.")
                 self.current_media.release()
                 self.current_media = None
             # ---------------------------------------
 
-            print(f"[VLCBackend] Creating new media for: {media_path}")
+            Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Creating new media for: {media_path}")
             new_media = self.vlc_instance.media_new(media_path)
             if not new_media:
                 self.error_occurred.emit(f"Failed to create media object for: {media_path}")
@@ -131,12 +130,11 @@ class VLCBackend(QObject):
             self.current_media = new_media
 
             # 5. Set media directly on media_player
-            print("[VLCBackend] Setting media on media_player.")
+            Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Setting media on media_player.")
             self.media_player.set_media(self.current_media)
 
             # 6. Re-attach HWND immediately
             # if self._hwnd:
-            #     print(f"[VLCBackend] Re-attaching HWND: {self._hwnd}")
             #     self.media_player.set_hwnd(self._hwnd)
 
             # 7. Register for parsing
@@ -144,7 +142,7 @@ class VLCBackend(QObject):
             event_manager.event_attach(vlc.EventType.MediaParsedChanged, self._on_media_parsed)
 
             # 8. Parse media
-            print("[VLCBackend] Starting media parse.")
+            Logger.instance().info(caller="VLCBackend", msg="[VLCBackend] Starting media parse.")
             self.current_media.parse_with_options(vlc.MediaParseFlag.local, -1)
 
             return True
@@ -161,9 +159,9 @@ class VLCBackend(QObject):
         # DEBUG: Log entry and current parsed status
         if self.current_media:
             current_parsed_status_for_log = self.current_media.get_parsed_status()
-            print(f"[VLCBackend DEBUG] _on_media_parsed entered. Current media parsed status: {current_parsed_status_for_log}, Event: {event}")
+            Logger.instance().debug(caller="vlc_backend", msg=f"[VLCBackend DEBUG] _on_media_parsed entered. Current media parsed status: {current_parsed_status_for_log}, Event: {event}")
         else:
-            print("[VLCBackend DEBUG] _on_media_parsed entered but self.current_media is None.")
+            Logger.instance().debug(caller="vlc_backend", msg="[VLCBackend DEBUG] _on_media_parsed entered but self.current_media is None.")
             return
 
         if not self.current_media:
@@ -173,14 +171,14 @@ class VLCBackend(QObject):
         status = self.current_media.get_parsed_status()
         
         if status == vlc.MediaParsedStatus.done:
-            print("[VLCBackend] Media parsing completed successfully")
+            Logger.instance().info(caller="VLCBackend", msg="[VLCBackend] Media parsing completed successfully")
         elif status == vlc.MediaParsedStatus.failed:
-            print("[VLCBackend] Media parsing failed, attempting to use available metadata")
+            Logger.instance().error(caller="VLCBackend", msg="[VLCBackend] Media parsing failed, attempting to use available metadata")
         elif status == vlc.MediaParsedStatus.timeout:
-            print("[VLCBackend] Media parsing timed out, using partial metadata")
+            Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Media parsing timed out, using partial metadata")
         else:
             # If parsing is not done, failed, or timed out, we don't have enough info to proceed.
-            print(f"[VLCBackend] Media parsing status: {status}. Not emitting media_loaded.")
+            Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Media parsing status: {status}. Not emitting media_loaded.")
             return
 
         # --- Streamlined Logic Start --- 
@@ -193,20 +191,20 @@ class VLCBackend(QObject):
                 # Check if track_count is a valid number (not None) and greater than 0
                 if track_count is not None and track_count > 0:
                     is_video = True
-                print(f"[VLCBackend] Media type detection: video_get_track_count() = {track_count}. Is Video: {is_video}")
+                Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Media type detection: video_get_track_count() = {track_count}. Is Video: {is_video}")
                 
                 # --- Check for subtitle tracks if it's a video ---
                 if is_video:
                     spu_count = self.media_player.video_get_spu_count()
-                    print(f"[VLCBackend] Subtitle tracks detected: {spu_count}")
+                    Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Subtitle tracks detected: {spu_count}")
                     if spu_count > 0:
                         # Auto-enable the first subtitle track (index 1, as 0 is often "Disable")
                         # We'll let MainPlayer handle when to actually call enable_subtitles
-                        print("[VLCBackend] Subtitles available for auto-enabling")
+                        Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Subtitles available for auto-enabling")
             else:
-                print("[VLCBackend] Warning: Backend media player not available for media type detection.")
+                Logger.instance().warning(caller="VLCBackend", msg="[VLCBackend] Warning: Backend media player not available for media type detection.")
         except Exception as e:
-            print(f"[VLCBackend] Error during video track count detection: {e}. Assuming audio.")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error during video track count detection: {e}. Assuming audio.")
             # is_video remains False
             
         # Get metadata
@@ -237,17 +235,17 @@ class VLCBackend(QObject):
                 if artwork_extracted:
                     metadata['artwork_path'] = artwork_extracted
         except Exception as e:
-            print(f"[VLCBackend] Error processing MRL for album art extraction: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error processing MRL for album art extraction: {e}")
         
         # Update duration internally and emit signal
         new_duration = metadata.get('duration', 0)
         if new_duration != self.current_duration:
             self.current_duration = new_duration
-            print(f"[VLCBackend] Duration changed. Emitting duration_changed with: {self.current_duration} ms") # DEBUG
+            Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Duration changed. Emitting duration_changed with: {self.current_duration} ms")
             self.duration_changed.emit(self.current_duration)
         
         # Emit media loaded signal with metadata and is_video flag
-        print(f"[VLCBackend] Emitting media_loaded signal. is_video: {is_video}")
+        Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Emitting media_loaded signal. is_video: {is_video}")
         self.media_loaded.emit(metadata, is_video)
         
         # Report hardware acceleration status if video
@@ -322,13 +320,13 @@ class VLCBackend(QObject):
                         return artwork_path
                         
             except ImportError:
-                print("Mutagen library not available for alternative artwork extraction")
+                Logger.instance().debug(caller="vlc_backend", msg="Mutagen library not available for alternative artwork extraction")
             except Exception as e:
-                print(f"Error in mutagen extraction: {e}")
+                Logger.instance().error(caller="vlc_backend", msg=f"Error in mutagen extraction: {e}")
                 
             return None
         except Exception as e:
-            print(f"Error in _extract_album_art: {e}")
+            Logger.instance().error(caller="vlc_backend", msg=f"Error in _extract_album_art: {e}")
             return None
         
     def _update_position(self):
@@ -381,7 +379,7 @@ class VLCBackend(QObject):
 
         play_result = self.media_player.play()
         if play_result == -1:
-             print("[VLCBackend] Error starting playback.")
+             Logger.instance().error(caller="VLCBackend", msg="[VLCBackend] Error starting playback.")
              self.is_playing = False
              self.state_changed.emit("error")
              return False
@@ -403,9 +401,9 @@ class VLCBackend(QObject):
         
     def stop(self):
         """Stop playback"""
-        print("[VLCBackend] Stop command received via stop method.")
+        Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Stop command received via stop method.")
         stop_result = self.media_player.stop()
-        print(f"[VLCBackend] media_player.stop() returned: {stop_result}")
+        Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] media_player.stop() returned: {stop_result}")
 
         self.is_playing = False
         self.state_changed.emit("stopped")
@@ -420,20 +418,20 @@ class VLCBackend(QObject):
             position_ms (int): Position in milliseconds
         """
         if not self.current_media:
-            print("[VLCBackend] No media loaded, cannot seek")
+            Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] No media loaded, cannot seek")
             return False
             
         try:
             # Get current state
             current_state = self.media_player.get_state()
-            print(f"[VLCBackend] Verification-based seeking to {position_ms}ms, current state: {current_state}")
+            Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Verification-based seeking to {position_ms}ms, current state: {current_state}")
             
             # Store the original playing state
             was_playing = (current_state == vlc.State.Playing)
             
             # Handle problematic states first
             if current_state == vlc.State.Ended:
-                print("[VLCBackend] Ended state detected, resetting for seek")
+                Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Ended state detected, resetting for seek")
                 self.media_player.stop()
                 self.media_player.play()
                 self.media_player.pause()
@@ -442,7 +440,7 @@ class VLCBackend(QObject):
                 current_state = vlc.State.Paused
                 was_playing = False
             elif current_state == vlc.State.Error:
-                print("[VLCBackend] Error state detected, attempting recovery")
+                Logger.instance().error(caller="VLCBackend", msg="[VLCBackend] Error state detected, attempting recovery")
                 self.media_player.stop()
                 self.media_player.play()
                 self.media_player.pause()
@@ -461,7 +459,7 @@ class VLCBackend(QObject):
             successful_seek = False
             
             for attempt in range(max_attempts):
-                print(f"[VLCBackend] Seek attempt {attempt + 1}/{max_attempts}")
+                Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Seek attempt {attempt + 1}/{max_attempts}")
                 
                 # For paused state, briefly start playback to ensure frame decode/display
                 if current_state == vlc.State.Paused:
@@ -477,10 +475,10 @@ class VLCBackend(QObject):
                         relative_position = position_ms / self.current_duration
                         relative_position = max(0.0, min(1.0, relative_position))
                         seek_result = self.media_player.set_position(relative_position)
-                        print(f"[VLCBackend] Using position-based seek: {relative_position:.3f}")
+                        Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Using position-based seek: {relative_position:.3f}")
                 
                 if seek_result == -1:
-                    print(f"[VLCBackend] Seek command failed on attempt {attempt + 1}")
+                    Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Seek command failed on attempt {attempt + 1}")
                     continue
                 
                 # Wait for seek to be processed and frame to be decoded
@@ -491,18 +489,18 @@ class VLCBackend(QObject):
                 actual_position = self.media_player.get_time()
                 if actual_position != -1:
                     position_error = abs(actual_position - position_ms)
-                    print(f"[VLCBackend] Target: {position_ms}ms, Actual: {actual_position}ms, Error: {position_error}ms")
+                    Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Target: {position_ms}ms, Actual: {actual_position}ms, Error: {position_error}ms")
                     
                     if position_error <= tolerance_ms:
-                        print(f"[VLCBackend] Seek accurate within tolerance ({position_error}ms <= {tolerance_ms}ms)")
+                        Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Seek accurate within tolerance ({position_error}ms <= {tolerance_ms}ms)")
                         successful_seek = True
                         # Update our position tracking with the actual position
                         self.current_position = actual_position
                         break
                     else:
-                        print(f"[VLCBackend] Seek not accurate enough (error: {position_error}ms), retrying...")
+                        Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Seek not accurate enough (error: {position_error}ms), retrying...")
                 else:
-                    print(f"[VLCBackend] Could not verify position, retrying...")
+                    Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Could not verify position, retrying...")
                 
                 # Brief pause before retry
                 time.sleep(0.01)  # Reduced from 0.02s - 10ms between retries
@@ -513,25 +511,25 @@ class VLCBackend(QObject):
                 # Wait for pause to take effect
                 import time
                 time.sleep(0.02)  # Reduced from 0.05s - 20ms for pause effect
-                print("[VLCBackend] Restored paused state after verification-based seek")
+                Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Restored paused state after verification-based seek")
             
             if successful_seek:
-                print(f"[VLCBackend] Verification-based seek completed successfully")
+                Logger.instance().info(caller="VLCBackend", msg=f"[VLCBackend] Verification-based seek completed successfully")
                 return True
             else:
-                print(f"[VLCBackend] Failed to achieve accurate seek after {max_attempts} attempts")
+                Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Failed to achieve accurate seek after {max_attempts} attempts")
                 # Update position tracking even if not perfectly accurate
                 final_position = self.media_player.get_time()
                 if final_position != -1:
                     self.current_position = final_position
-                    print(f"[VLCBackend] Using final position: {final_position}ms")
+                    Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Using final position: {final_position}ms")
                 else:
                     self.current_position = position_ms  # Fallback to requested position
-                    print(f"[VLCBackend] Using requested position as fallback: {position_ms}ms")
+                    Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Using requested position as fallback: {position_ms}ms")
                 return False
             
         except Exception as e:
-            print(f"[VLCBackend] Error during verification-based seek operation: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error during verification-based seek operation: {e}")
             return False
         
     def set_volume(self, volume):
@@ -591,15 +589,15 @@ class VLCBackend(QObject):
     def cleanup(self):
         """Clean up resources"""
         self.update_timer.stop()
-        print("[VLCBackend Cleanup] Stopping media player.")
+        Logger.instance().debug(caller="vlc_backend", msg="[VLCBackend Cleanup] Stopping media player.")
         self.stop()
 
         # Release resources
-        print("[VLCBackend Cleanup] Releasing media player.")
+        Logger.instance().debug(caller="vlc_backend", msg="[VLCBackend Cleanup] Releasing media player.")
         self.media_player.release()
-        print("[VLCBackend Cleanup] Releasing VLC instance.")
+        Logger.instance().debug(caller="vlc_backend", msg="[VLCBackend Cleanup] Releasing VLC instance.")
         self.vlc_instance.release()
-        print("[VLCBackend Cleanup] Cleanup finished.")
+        Logger.instance().info(caller="vlc_backend", msg="[VLCBackend Cleanup] Cleanup finished.")
         
     def __del__(self):
         """Destructor to ensure cleanup"""
@@ -636,11 +634,11 @@ class VLCBackend(QObject):
                     
                     return normalized_path
                 except Exception as norm_error:
-                    print(f"[VLCBackend] Warning: Failed to normalize path {file_path}: {norm_error}")
+                    Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Warning: Failed to normalize path {file_path}: {norm_error}")
                     return file_path  # Return original if normalization fails
                     
         except Exception as e:
-            print(f"[VLCBackend] Error getting media path: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error getting media path: {e}")
             
         return None
 
@@ -684,7 +682,7 @@ class VLCBackend(QObject):
                                 relative_path = path[3:]  # Remove "Z:\"
                                 unc_path = os.path.join(unc_root, relative_path).replace('\\', '/')
                                 unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
-                                print(f"[VLCBackend] Resolved mapped drive: {path} -> {unc_path}")
+                                Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Resolved mapped drive: {path} -> {unc_path}")
                                 return unc_path
                         
                         # Alternative parsing for different NET USE output formats
@@ -698,13 +696,13 @@ class VLCBackend(QObject):
                                     relative_path = path[3:]  # Remove "Z:\"
                                     unc_path = os.path.join(unc_part, relative_path).replace('\\', '/')
                                     unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
-                                    print(f"[VLCBackend] Resolved mapped drive: {path} -> {unc_path}")
+                                    Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Resolved mapped drive: {path} -> {unc_path}")
                                     return unc_path
                                     
             except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
-                print(f"[VLCBackend] Could not resolve network drive {drive_letter}: {e}")
+                Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Could not resolve network drive {drive_letter}: {e}")
             except Exception as e:
-                print(f"[VLCBackend] Unexpected error resolving network drive {drive_letter}: {e}")
+                Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Unexpected error resolving network drive {drive_letter}: {e}")
         
         # Return original path if not a mapped drive or resolution failed
         return path
@@ -722,17 +720,16 @@ class VLCBackend(QObject):
                 self.media_player.video_set_key_input(False)
                 # -----------------------------------------
             except Exception as e:
-                print(f"[VLCBackend] Warning: Failed to set mouse/key input to False - {e}")
+                Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Warning: Failed to set mouse/key input to False - {e}")
             # --------------------------------------
         else:
             # If hwnd is None, detach output (might not be strictly needed but good practice)
             self.media_player.set_hwnd(0)
-            print("[VLCBackend] HWND detached.")
+            Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] HWND detached.")
             # Optional: Re-enable mouse input if detaching?
             # try:
             #     self.media_player.video_set_mouse_input(True) 
             # except Exception as e:
-            #     print(f"[VLCBackend] Warning: Failed to set mouse input to True on detach - {e}")
     # ------------------------------------- 
 
     # --- Add methods for audio track handling ---
@@ -743,7 +740,7 @@ class VLCBackend(QObject):
         try:
             return self.media_player.audio_get_track_count() > 1
         except Exception as e:
-            print(f"[VLCBackend] Error checking audio track count: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error checking audio track count: {e}")
             return False
 
     def get_audio_tracks(self) -> list:
@@ -755,7 +752,7 @@ class VLCBackend(QObject):
         """
         tracks = []
         if not self.media_player:
-            print("[VLCBackend] No media player available for getting audio tracks")
+            Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] No media player available for getting audio tracks")
             return tracks
             
         try:
@@ -767,7 +764,7 @@ class VLCBackend(QObject):
                     
             return tracks
         except Exception as e:
-            print(f"[VLCBackend] Error getting audio tracks: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error getting audio tracks: {e}")
             return tracks
 
     def get_current_audio_track(self) -> int:
@@ -777,7 +774,7 @@ class VLCBackend(QObject):
         try:
             return self.media_player.audio_get_track()
         except Exception as e:
-            print(f"[VLCBackend] Error getting current audio track: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error getting current audio track: {e}")
             return -1
 
     def set_audio_track(self, track_id: int) -> bool:
@@ -796,13 +793,13 @@ class VLCBackend(QObject):
         try:
             result = self.media_player.audio_set_track(track_id)
             if result == 0:
-                print(f"[VLCBackend] Set audio track to {track_id}")
+                Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Set audio track to {track_id}")
                 return True
             else:
-                print(f"[VLCBackend] Failed to set audio track to {track_id}")
+                Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Failed to set audio track to {track_id}")
                 return False
         except Exception as e:
-            print(f"[VLCBackend] Error setting audio track: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error setting audio track: {e}")
             return False
     # ----------------------------------------
 
@@ -815,7 +812,7 @@ class VLCBackend(QObject):
             track_count = self.media_player.video_get_spu_count()
             return track_count > 0
         except Exception as e:
-            print(f"[VLCBackend] Error checking subtitle tracks: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error checking subtitle tracks: {e}")
             return False
     
     def enable_subtitles(self, track_id=0):
@@ -833,7 +830,7 @@ class VLCBackend(QObject):
             # Check if we have any subtitle tracks
             track_count = self.media_player.video_get_spu_count()
             if track_count <= 0:
-                print("[VLCBackend] No subtitle tracks available")
+                Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] No subtitle tracks available")
                 return False
                 
             # Get current track (to avoid setting the same track again)
@@ -841,20 +838,20 @@ class VLCBackend(QObject):
             
             # If track_id is already active, no need to change
             if current_track == track_id:
-                print(f"[VLCBackend] Subtitle track {track_id} already active")
+                Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Subtitle track {track_id} already active")
                 return True
                 
             # Set the specified subtitle track
             result = self.media_player.video_set_spu(track_id)
             if result == 0:  # VLC returns 0 on success
-                print(f"[VLCBackend] Enabled subtitle track {track_id}")
+                Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Enabled subtitle track {track_id}")
                 return True
             else:
-                print(f"[VLCBackend] Failed to enable subtitle track {track_id}")
+                Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Failed to enable subtitle track {track_id}")
                 return False
                 
         except Exception as e:
-            print(f"[VLCBackend] Error enabling subtitles: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error enabling subtitles: {e}")
             return False
     
     def disable_subtitles(self):
@@ -871,13 +868,13 @@ class VLCBackend(QObject):
             # -1 disables subtitles in VLC
             result = self.media_player.video_set_spu(-1)
             if result == 0:  # VLC returns 0 on success
-                print("[VLCBackend] Disabled subtitles")
+                Logger.instance().debug(caller="VLCBackend", msg="[VLCBackend] Disabled subtitles")
                 return True
             else:
-                print("[VLCBackend] Failed to disable subtitles")
+                Logger.instance().error(caller="VLCBackend", msg="[VLCBackend] Failed to disable subtitles")
                 return False
         except Exception as e:
-            print(f"[VLCBackend] Error disabling subtitles: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error disabling subtitles: {e}")
             return False
     
     def get_subtitle_tracks(self):
@@ -910,7 +907,7 @@ class VLCBackend(QObject):
                             except Exception:
                                 # Keep the bytes object if decoding fails
                                 name_for_display = f"Track {track_id}"
-                                print(f"[VLCBackend] Warning: Could not decode subtitle track name: {track_name}")
+                                Logger.instance().warning(caller="VLCBackend", msg=f"[VLCBackend] Warning: Could not decode subtitle track name: {track_name}")
                     
                     # Try to get additional metadata if available
                     track_info = {
@@ -928,13 +925,13 @@ class VLCBackend(QObject):
                             if language:
                                 track_info['language'] = language
                     except Exception as e:
-                        print(f"[VLCBackend] Could not get subtitle language directly: {e}")
+                        Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Could not get subtitle language directly: {e}")
                     
                     # Add the track info to our list
                     tracks.append(track_info)
             return tracks
         except Exception as e:
-            print(f"[VLCBackend] Error getting subtitle tracks: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error getting subtitle tracks: {e}")
             return tracks
     # -----------------------------------
 
@@ -948,8 +945,8 @@ class VLCBackend(QObject):
                 # Get video track information
                 video_track_count = self.media_player.video_get_track_count()
                 if video_track_count > 0:
-                    print(f"[VLCBackend] Hardware Acceleration Status:")
-                    print(f"[VLCBackend] - Video tracks detected: {video_track_count}")
+                    Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] Hardware Acceleration Status:")
+                    Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] - Video tracks detected: {video_track_count}")
                     
                     # Try to get current video track description
                     try:
@@ -963,15 +960,15 @@ class VLCBackend(QObject):
                                         track_name = track_name.decode('utf-8', errors='ignore')
                                     except:
                                         track_name = str(track_name)
-                                print(f"[VLCBackend] - Video track {track_id}: {track_name}")
+                                Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] - Video track {track_id}: {track_name}")
                     except Exception as e:
-                        print(f"[VLCBackend] - Could not get video track details: {e}")
+                        Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] - Could not get video track details: {e}")
                     
                     # Report that hardware acceleration is attempted
-                    print(f"[VLCBackend] - Hardware acceleration: ENABLED (auto-detect)")
-                    print(f"[VLCBackend] - Video output method: DirectDraw (hardware accelerated)")
+                    Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] - Hardware acceleration: ENABLED (auto-detect)")
+                    Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] - Video output method: DirectDraw (hardware accelerated)")
                     
                 else:
-                    print(f"[VLCBackend] No video tracks found for hardware acceleration report")
+                    Logger.instance().debug(caller="VLCBackend", msg=f"[VLCBackend] No video tracks found for hardware acceleration report")
         except Exception as e:
-            print(f"[VLCBackend] Error reporting hardware acceleration status: {e}")
+            Logger.instance().error(caller="VLCBackend", msg=f"[VLCBackend] Error reporting hardware acceleration status: {e}")

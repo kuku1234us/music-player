@@ -1,3 +1,4 @@
+from qt_base_app.models.logger import Logger
 # music_player/models/recently_played.py
 
 import json
@@ -47,7 +48,7 @@ class RecentlyPlayedModel:
             self._recently_played.extend(validated_items) # Add validated items
         else:
             # Handle potential data corruption or unexpected type
-            print(f"[RecentlyPlayedModel] Warning: Corrupted or invalid recently played data in settings. Resetting.")
+            Logger.instance().warning(caller="RecentlyPlayedModel", msg=f"[RecentlyPlayedModel] Warning: Corrupted or invalid recently played data in settings. Resetting.")
             self._recently_played.clear()
             self._save() # Save the empty list
 
@@ -58,10 +59,10 @@ class RecentlyPlayedModel:
         required_keys = {'type': str, 'name': str, 'path': str}
         for key, expected_type in required_keys.items():
             if key not in item or not isinstance(item[key], expected_type):
-                print(f"[RecentlyPlayedModel] Validation failed for item: {item}. Missing or invalid key: {key}")
+                Logger.instance().error(caller="RecentlyPlayedModel", msg=f"[RecentlyPlayedModel] Validation failed for item: {item}. Missing or invalid key: {key}")
                 return False
         if item.get('type') not in ['file', 'playlist']:
-            print(f"[RecentlyPlayedModel] Validation failed for item: {item}. Invalid type: {item.get('type')}")
+            Logger.instance().error(caller="RecentlyPlayedModel", msg=f"[RecentlyPlayedModel] Validation failed for item: {item}. Invalid type: {item.get('type')}")
             return False
         # Optionally, check if path exists? Might be too slow/unreliable here.
         return True
@@ -84,11 +85,11 @@ class RecentlyPlayedModel:
             path: Full path to the file or playlist file (string or Path object).
         """
         if item_type not in ['file', 'playlist']:
-            print(f"[RecentlyPlayedModel] Warning: Invalid item type '{item_type}' provided.")
+            Logger.instance().warning(caller="RecentlyPlayedModel", msg=f"[RecentlyPlayedModel] Warning: Invalid item type '{item_type}' provided.")
             return
 
         if not name or not path:
-            print(f"[RecentlyPlayedModel] Warning: Missing name or path for recently played item.")
+            Logger.instance().warning(caller="RecentlyPlayedModel", msg=f"[RecentlyPlayedModel] Warning: Missing name or path for recently played item.")
             return
 
         # Ensure path is a resolved absolute path string
@@ -117,7 +118,7 @@ class RecentlyPlayedModel:
 
         # Save changes
         self._save()
-        print(f"[RecentlyPlayedModel] Added/Updated '{name}' ({item_type}) to recently played.")
+        Logger.instance().debug(caller="RecentlyPlayedModel", msg=f"[RecentlyPlayedModel] Added/Updated '{name}' ({item_type}) to recently played.")
 
     def get_items(self) -> List[Dict]:
         """Return the list of recently played items."""

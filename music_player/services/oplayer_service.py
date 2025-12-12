@@ -6,6 +6,7 @@ import ftplib
 from PyQt6.QtCore import QObject, pyqtSignal, QThread, pyqtSlot
 import re
 import mimetypes
+from qt_base_app.models.logger import Logger
 
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 
@@ -29,14 +30,14 @@ class FTPUploadThread(QThread):
         """Execute the FTP upload in a separate thread"""
         try:
             # Set up the FTP client
-            print(f"[FTPUploadThread] Connecting to FTP server at {self.host}:{self.port}")
+            Logger.instance().debug(caller="FTPUploadThread", msg=f"[FTPUploadThread] Connecting to FTP server at {self.host}:{self.port}")
             ftp = ftplib.FTP()
             ftp.connect(self.host, self.port)
             ftp.login()  # Anonymous login, no username or password needed
             
             # Change to the appropriate directory if needed
             # For OPlayer, we'll upload to the root directory
-            print(f"[FTPUploadThread] Connected to FTP server successfully")
+            Logger.instance().debug(caller="FTPUploadThread", msg=f"[FTPUploadThread] Connected to FTP server successfully")
             
             # Define callback function to track upload progress
             bytes_transferred = 0
@@ -50,19 +51,19 @@ class FTPUploadThread(QThread):
             # Open the file for binary reading
             with open(self.file_path, 'rb') as file:
                 # Start the upload with progress tracking
-                print(f"[FTPUploadThread] Uploading {self.filename}...")
+                Logger.instance().debug(caller="FTPUploadThread", msg=f"[FTPUploadThread] Uploading {self.filename}...")
                 ftp.storbinary(f'STOR {self.filename}', file, 8192, callback)
             
             # Close the FTP connection
             ftp.quit()
             
             # Emit completion signal
-            print(f"[FTPUploadThread] Upload completed successfully: {self.filename}")
+            Logger.instance().info(caller="FTPUploadThread", msg=f"[FTPUploadThread] Upload completed successfully: {self.filename}")
             self.upload_completed.emit(self.filename)
             
         except Exception as e:
             error_msg = f"Upload failed: {str(e)}"
-            print(f"[FTPUploadThread] Error: {error_msg}")
+            Logger.instance().error(caller="FTPUploadThread", msg=f"[FTPUploadThread] Error: {error_msg}")
             self.upload_failed.emit(error_msg)
             
 class OPlayerService(QObject):
@@ -126,7 +127,7 @@ class OPlayerService(QObject):
             
         if updated:
             self.settings.sync()
-            print(f"[OPlayerService] Updated connection settings: {self.host}:{self.ftp_port}")
+            Logger.instance().debug(caller="OPlayerService", msg=f"[OPlayerService] Updated connection settings: {self.host}:{self.ftp_port}")
             
         return updated
         
@@ -148,7 +149,7 @@ class OPlayerService(QObject):
             elif ext == '.wav':
                 mime_type = 'audio/wav'
         
-        print(f"[OPlayerService] File MIME type: {mime_type}")
+        Logger.instance().debug(caller="OPlayerService", msg=f"[OPlayerService] File MIME type: {mime_type}")
         return mime_type
         
     def upload_file(self, file_path):
@@ -161,11 +162,11 @@ class OPlayerService(QObject):
         Returns:
             bool: True if upload started successfully, False otherwise
         """
-        print(f"[OPlayerService] Attempting to upload file: {file_path}")
+        Logger.instance().debug(caller="OPlayerService", msg=f"[OPlayerService] Attempting to upload file: {file_path}")
         
         if not os.path.exists(file_path):
             error_msg = f"File not found: {file_path}"
-            print(f"[OPlayerService] Error: {error_msg}")
+            Logger.instance().error(caller="OPlayerService", msg=f"[OPlayerService] Error: {error_msg}")
             self.upload_failed.emit(error_msg)
             return False
             
@@ -173,8 +174,8 @@ class OPlayerService(QObject):
             # Get file size and info
             file_size = os.path.getsize(file_path)
             filename = os.path.basename(file_path)
-            print(f"[OPlayerService] File size: {file_size} bytes")
-            print(f"[OPlayerService] Starting upload of: {filename} via FTP")
+            Logger.instance().debug(caller="OPlayerService", msg=f"[OPlayerService] File size: {file_size} bytes")
+            Logger.instance().info(caller="OPlayerService", msg=f"[OPlayerService] Starting upload of: {filename} via FTP")
             
             # Emit upload started signal
             self.upload_started.emit(filename)
@@ -190,7 +191,7 @@ class OPlayerService(QObject):
             
         except Exception as e:
             error_msg = f"Upload failed: {str(e)}"
-            print(f"[OPlayerService] Error: {error_msg}")
+            Logger.instance().error(caller="OPlayerService", msg=f"[OPlayerService] Error: {error_msg}")
             self.upload_failed.emit(error_msg)
             return False
             
@@ -216,7 +217,7 @@ class OPlayerService(QObject):
         Returns:
             bool: True if connection successful, False otherwise
         """
-        print(f"[OPlayerService] Testing connection to FTP server at {self.host}:{self.ftp_port}")
+        Logger.instance().debug(caller="OPlayerService", msg=f"[OPlayerService] Testing connection to FTP server at {self.host}:{self.ftp_port}")
         try:
             # Try to connect to the FTP server
             ftp = ftplib.FTP()
@@ -225,12 +226,12 @@ class OPlayerService(QObject):
             
             # List files to verify connection works
             files = ftp.nlst()
-            print(f"[OPlayerService] Connection test successful. Found {len(files)} files.")
+            Logger.instance().debug(caller="OPlayerService", msg=f"[OPlayerService] Connection test successful. Found {len(files)} files.")
             
             # Close the connection
             ftp.quit()
             return True
             
         except Exception as e:
-            print(f"[OPlayerService] Connection test failed with error: {str(e)}")
+            Logger.instance().error(caller="OPlayerService", msg=f"[OPlayerService] Connection test failed with error: {str(e)}")
             return False 

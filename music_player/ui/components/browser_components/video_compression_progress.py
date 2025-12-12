@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QProgressBar, QStyleOp
 from PyQt6.QtCore import Qt, QTimer
 from typing import Optional
 from PyQt6.QtGui import QPainter, QColor
+from qt_base_app.models.logger import Logger
 
 from qt_base_app.theme.theme_manager import ThemeManager
 
@@ -119,10 +120,10 @@ class VideoCompressionProgress(QWidget):
         self.details_label.setText("Please wait...")
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("Waiting...")
-        print(f"[VideoCompressionProgress DEBUG] show_compression_started: About to show. Current size: {self.size()}, isVisible before show: {self.isVisible()}")
+        Logger.instance().info(caller="video_compression_progress", msg=f"[VideoCompressionProgress DEBUG] show_compression_started: About to show. Current size: {self.size()}, isVisible before show: {self.isVisible()}")
         self.show()
         self.adjustSize()
-        print(f"[VideoCompressionProgress DEBUG] show_compression_started: Shown. New size: {self.size()}, isVisible after show: {self.isVisible()}")
+        Logger.instance().info(caller="video_compression_progress", msg=f"[VideoCompressionProgress DEBUG] show_compression_started: Shown. New size: {self.size()}, isVisible after show: {self.isVisible()}")
 
     # --- Reuse for Rotation Batch ---
     def show_rotation_started(self, total_files: int):
@@ -174,7 +175,7 @@ class VideoCompressionProgress(QWidget):
 
     def show_file_progress(self, task_id: str, filename: str, current_file_index: int, total_files: int, percentage: float):
         """Called when a new file starts or its progress updates for the first time."""
-        print(f"[VideoCompressionProgress DEBUG] show_file_progress: task_id={task_id}, filename={filename}, current_task_id={self._current_task_id}")
+        Logger.instance().debug(caller="video_compression_progress", msg=f"[VideoCompressionProgress DEBUG] show_file_progress: task_id={task_id}, filename={filename}, current_task_id={self._current_task_id}")
         self._current_task_id = task_id
         self._reset_progress_bar_style() # Reset style in case previous was an error
         
@@ -193,7 +194,7 @@ class VideoCompressionProgress(QWidget):
             self.progress_bar.setFormat(f"{int(percentage * 100)}%")
             # self.adjustSize() # Usually not needed for just progress value change
         else:
-            print(f"[VideoCompressionProgress DEBUG] Ignoring progress update for task_id={task_id}, current_task_id={self._current_task_id}")
+            Logger.instance().debug(caller="video_compression_progress", msg=f"[VideoCompressionProgress DEBUG] Ignoring progress update for task_id={task_id}, current_task_id={self._current_task_id}")
         # else: task_id does not match, this progress update is for a different (or old) task.
 
     def show_file_completed(self, original_filename: str, compressed_filename: str):
