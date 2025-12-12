@@ -14,7 +14,7 @@ from qt_base_app.theme.theme_manager import ThemeManager
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
 from music_player.models.settings_defs import (
     YT_ACTIVE_RESOLUTION_KEY, YT_HTTPS_ENABLED_KEY, YT_M4A_ENABLED_KEY,
-    YT_SUBTITLES_ENABLED_KEY, YT_SUBTITLES_LANG_KEY, YT_COOKIES_ENABLED_KEY
+    YT_SUBTITLES_ENABLED_KEY, YT_SUBTITLES_LANG_KEY
 )
 
 class ToggleButton(QPushButton):
@@ -175,8 +175,6 @@ class VideoInput(QWidget):
         format_layout.addWidget(self.btn_https)
         self.btn_m4a = ToggleButton("M4A", setting_key=YT_M4A_ENABLED_KEY)
         format_layout.addWidget(self.btn_m4a)
-        self.btn_cookies = ToggleButton("Cookies", setting_key=YT_COOKIES_ENABLED_KEY)
-        format_layout.addWidget(self.btn_cookies)
         self.btn_subtitles = ToggleButton("Subtitles", setting_key=YT_SUBTITLES_ENABLED_KEY)
         format_layout.addWidget(self.btn_subtitles)
 
@@ -227,7 +225,6 @@ class VideoInput(QWidget):
 
         self.btn_https.toggled.connect(self.update_format)
         self.btn_m4a.toggled.connect(self.update_format)
-        self.btn_cookies.toggled.connect(self.update_format)
         self.btn_subtitles.toggled.connect(self.update_format)
 
         self.layout.addLayout(format_layout)
@@ -324,7 +321,6 @@ class VideoInput(QWidget):
             resolution = None
         
         subtitle_enabled = self.btn_subtitles.isChecked()
-        cookies_enabled = self.btn_cookies.isChecked()
         use_https = self.btn_https.isChecked()
         use_m4a = self.btn_m4a.isChecked()
         
@@ -337,7 +333,7 @@ class VideoInput(QWidget):
                 if subtitle_lang == 'zh': subtitle_lang = ['zh-CN', 'zh-TW', 'zh-HK']
             else: subtitle_lang = self.subtitle_lang_combo.currentText().strip()
         
-        # print(f"DEBUG: Generating format options with resolution={resolution}, prefer_best_video={prefer_best_video}, https={use_https}, m4a={use_m4a}, subtitle_lang={subtitle_lang}, cookies={cookies_enabled}")
+        # print(f"DEBUG: Generating format options with resolution={resolution}, prefer_best_video={prefer_best_video}, https={use_https}, m4a={use_m4a}, subtitle_lang={subtitle_lang}")
         
         # Direct call to YtDlpModel since we know the signature matches
         options = YtDlpModel.generate_format_string(
@@ -345,7 +341,6 @@ class VideoInput(QWidget):
             use_https=use_https,
             use_m4a=use_m4a,
             subtitle_lang=subtitle_lang,
-            use_cookies=cookies_enabled,
             prefer_best_video=prefer_best_video,
             prefer_avc=(resolution is not None and not prefer_best_video)  # Use AVC only for specific resolutions
         )

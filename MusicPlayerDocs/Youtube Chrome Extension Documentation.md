@@ -105,20 +105,37 @@ Each format type corresponds to specific download presets defined in `Yt_DlpMode
    * Audio-only format
    * Uses HTTPS protocol
    * M4A container format
-   * Uses browser cookies for authentication when needed
+   * **Stream selection** is determined by StreamPicker (no-cookies probe), and the **actual download**
+     runs with Firefox cookies + JS runtime for reliability on modern YouTube.
 
 2. **Video Preset (`video_720p_default`)**:
    * 720p resolution
    * Uses HTTPS protocol
    * MP4 container format
    * Prefers AVC codec for better device compatibility
-   * Uses browser cookies when needed
+   * **StreamPicker prevents “drift”** (e.g., downloading 1080p when 720p was requested) by selecting
+     explicit format IDs (e.g., `298+140`) before the download starts.
 
 3. **Best Quality Preset (`best_video_default`)**:
    * No resolution limitation - gets the highest quality available
    * Uses HTTPS protocol
    * No codec restrictions to ensure best possible quality
-   * Uses browser cookies when needed
+   * Still uses StreamPicker to choose explicit IDs, but with no resolution limit.
+
+### Important Note: Why We Always Use Firefox Cookies + a JS Runtime for YouTube Downloads
+
+In real-world tests, we observed that YouTube is often less strict during “listing” (`-F`) than during
+the actual media download. When we attempt to download without cookies, yt-dlp frequently receives
+HTTP 403 responses from `googlevideo.com` even if formats were listed.
+
+For that reason, our application intentionally downloads YouTube media using:
+
+1. `--cookies-from-browser firefox` (Firefox is typically not running on the user's machine, so cookie
+   extraction is more reliable than Chrome, which often keeps its cookie DB locked while running), and
+2. `--js-runtimes node:<path>` (or deno) so yt-dlp can solve the modern JS challenges during extraction.
+
+This is why you no longer see a “Cookies” toggle in the YouTube downloader UI: for YouTube, cookies are
+not an optional optimization; they are part of the default reliability strategy.
 
 ## Summary Flow
 

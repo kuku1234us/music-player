@@ -20,7 +20,7 @@ class YtDlpModel:
             use_https (bool): Whether to prefer HTTPS protocol
             use_m4a (bool): Whether to prefer M4A/MP4 formats
             subtitle_lang (str, optional): Language code for subtitles (e.g., 'en', 'es', etc.) or None to disable
-            use_cookies (bool): Whether to use Firefox cookies to bypass YouTube bot verification
+            use_cookies (bool): Deprecated/ignored. Cookies are now enforced in the download pipeline.
             prefer_best_video (bool): If True, prefer best video quality regardless of resolution
             prefer_avc (bool): If True, prefer AVC codec (H.264) for better device compatibility
             
@@ -38,11 +38,12 @@ class YtDlpModel:
         
         # print(f"DEBUG: YtDlpModel.generate_format_string called with: resolution={resolution}, use_https={use_https}, use_m4a={use_m4a}, subtitle_lang={subtitle_lang}, use_cookies={use_cookies}, prefer_best_video={prefer_best_video}, prefer_avc={prefer_avc}")
         
-        # Add browser cookies option if enabled
-        if use_cookies:
-            # Use standard firefox cookie extraction
-            format_options['cookies_from_browser'] = 'firefox'
-            # print("DEBUG: Using firefox cookie extraction")
+        # NOTE: Cookie + JS-runtime handling is now enforced in the download pipeline (CLIDownloadWorker)
+        # so we can:
+        # - Probe formats WITHOUT cookies (for deterministic StreamPicker selection)
+        # - Download WITH cookies + JS runtime (for reliability)
+        # `use_cookies` is kept for backward-compatibility but intentionally ignored here.
+        _ = use_cookies
         
         # Add more flexible subtitle format handling, only for video downloads
         is_video_download = resolution is not None or prefer_best_video
@@ -335,18 +336,22 @@ class YtDlpModel:
             # Note: For audio-only selections, we do NOT force merge_output_format here.
             # The worker already skips merge-output-format for pure audio selections.
             
-            # Hint yt-dlp to use a non-web client to avoid SABR and expose HLS audio
-            try:
-                if 'youtube' in format_options.get('extractor_args', {}):
-                    format_options['extractor_args']['youtube']['player_client'] = 'android-sdkless'
-                else:
-                    format_options.setdefault('extractor_args', {}).setdefault('youtube', {})['player_client'] = 'android-sdkless'
-                # print("DEBUG: Using youtube:player_client=android-sdkless for audio-only to avoid SABR and PO token")
-            except Exception:
-                pass
+            # NOTE: We no longer force a YouTube `player_client` here.
+            # Stream picking is done via a no-cookies probe, and downloads run with cookies+JS runtime.
+            # Forcing a client can hide formats or become unsupported over time.
             
             # print(f"DEBUG: Audio-only format string: {format_str}")
         
+        # StreamPicker hint: Worker may probe formats *without cookies* and then override `--format`
+        # with explicit IDs like "298+140" to avoid wrong-resolution/m3u8 selections.
+        format_options["stream_picker"] = {
+            "target_height": (int(resolution) if resolution is not None else None),
+            "target_width": (int(resolution) if resolution is not None else None),
+            "prefer_best_video": bool(prefer_best_video),
+            "prefer_protocol": ("https" if use_https else "any"),
+            "prefer_m4a": bool(use_m4a),
+            "prefer_avc": bool(prefer_avc),
+        }
         # print(f"DEBUG: Final format options: {format_options}")
         return format_options
     
@@ -376,7 +381,7 @@ class YtDlpModel:
                 use_https=True,
                 use_m4a=True,
                 subtitle_lang=['en', 'zh'],  # Include English and Chinese subtitles
-                use_cookies=True,
+                use_cookies=False,
                 prefer_avc=True  # Specifically prefer AVC codec for better device compatibility
             )
         elif preset_name == "best_video_default":
@@ -386,7 +391,7 @@ class YtDlpModel:
                 use_https=True,
                 use_m4a=False,
                 subtitle_lang=['en', 'zh'],  # Include English and Chinese subtitles
-                use_cookies=True,
+                use_cookies=False,
                 prefer_best_video=True,  # Indicates we want best video
                 prefer_avc=False   # Don't restrict codecs for best quality
             )

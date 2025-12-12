@@ -6,6 +6,35 @@ This document outlines a comprehensive plan for refactoring how our application 
 
 The goal of this refactoring is to centralize all download option generation logic in one place, specifically in the `YtDlpModel` class, following the principle of separation of concerns. This will make our code more maintainable, easier to understand, and more flexible for future enhancements.
 
+## 2025-12 Update: StreamPicker and the Two-Phase YouTube Download Pipeline
+
+During real-world testing, we discovered that YouTube behaves differently depending on what we ask yt-dlp to do. A **format listing** (`yt-dlp -F` or `--dump-single-json`) can show “nice” HTTPS/DASH formats at the correct resolution, but the **actual media download** can fail (403) unless we provide additional signals (cookies + a JS runtime for challenge solving).
+
+This produced a common bug: **the app “works”, but chooses the wrong stream** (e.g., drifting to 1080p, or falling back to slow m3u8). The fix is not a longer format selector string; the fix is a clearer separation of responsibilities:
+
+1. **Pick formats deterministically (no cookies)**: Probe formats with no cookies (same intent as `-F`), then choose explicit format IDs like `298+140`.
+2. **Download reliably (cookies + JS runtime)**: Use those explicit IDs while downloading with:
+   - `--cookies-from-browser firefox`
+   - `--js-runtimes node:<path>` (or deno if available)
+
+Think of this like “selecting a product from a catalog” versus “actually paying for it”. Browsing might be easy, but checkout requires more authentication steps. We model that explicitly in code.
+
+```
+┌──────────────────────────┐
+│ YtDlpModel (UI / Preset) │  (resolution/https/m4a/subtitles)
+└─────────────┬────────────┘
+              v
+┌──────────────────────────┐
+│ StreamPicker (no cookies)│  yt-dlp --dump-single-json (no cookies)
+│ chooses explicit IDs     │  e.g. "298+140-drc"
+└─────────────┬────────────┘
+              v
+┌──────────────────────────┐
+│ CLIDownloadWorker         │  yt-dlp download with:
+│ cookies + JS runtime      │  --cookies-from-browser firefox
+│                            │  --js-runtimes node:<path>
+└──────────────────────────┘
+
 ## Current Implementation Analysis
 
 ### Two Separate Paths
@@ -118,7 +147,7 @@ def get_preset_options(preset_name):
             use_https=True,
             use_m4a=True,
             subtitle_lang=None,
-            use_cookies=True
+            use_cookies=False  # Deprecated/ignored; download pipeline enforces cookies+JS runtime for YouTube
         )
     elif preset_name == "video_720p_default":
         return YtDlpModel.generate_format_string(
@@ -126,7 +155,7 @@ def get_preset_options(preset_name):
             use_https=True,
             use_m4a=True,
             subtitle_lang=None,
-            use_cookies=True,
+            use_cookies=False,  # Deprecated/ignored
             prefer_avc=True  # Specifically prefer AVC codec for better device compatibility
         )
     elif preset_name == "best_video_default":
@@ -136,7 +165,7 @@ def get_preset_options(preset_name):
             use_https=True,
             use_m4a=True,
             subtitle_lang=None,
-            use_cookies=True,
+            use_cookies=False,  # Deprecated/ignored
             prefer_best_video=True,  # Indicates we want best video
             prefer_avc=False   # Don't restrict codecs for best quality
         )
@@ -160,7 +189,7 @@ def generate_format_string(resolution=None, use_https=True, use_m4a=True,
         use_https (bool): Whether to prefer HTTPS protocol
         use_m4a (bool): Whether to prefer M4A/MP4 formats
         subtitle_lang (str, optional): Language code for subtitles (e.g., 'en', 'es', etc.) or None to disable
-        use_cookies (bool): Whether to use Firefox cookies to bypass YouTube bot verification
+        use_cookies (bool): Deprecated/ignored. Cookies are enforced in the download pipeline.
         prefer_best_video (bool): If True, prefer best video quality regardless of resolution
         prefer_avc (bool): If True, prefer AVC codec (H.264) for better device compatibility
         
@@ -170,6 +199,24 @@ def generate_format_string(resolution=None, use_https=True, use_m4a=True,
     format_options = {}
     
     # ... existing code ...
+
+    # Important note for new developers:
+    #
+    # The `format` field we build here is a selector string. It describes our intent
+    # (resolution / protocol / container), but yt-dlp may still “choose differently”
+    # depending on which URLs are actually downloadable in this session.
+    #
+    # For YouTube, we therefore attach a small "stream_picker" hint object. The
+    # download worker can probe formats WITHOUT cookies and replace the selector
+    # with explicit format IDs (e.g. "298+140") before starting the actual download.
+    format_options["stream_picker"] = {
+        "target_height": resolution,
+        "target_width": resolution,  # used for portrait matching
+        "prefer_best_video": prefer_best_video,
+        "prefer_protocol": "https" if use_https else "any",
+        "prefer_m4a": use_m4a,
+        "prefer_avc": prefer_avc,
+    }
     
     # Determine codec filtering based on parameters
     codec_filter = ""

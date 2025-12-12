@@ -196,7 +196,5 @@ class YoutubePage(QWidget):
     def showEvent(self, event):
         """Handle event when the page is shown."""
         super().showEvent(event)
-        # REMOVED Load output directory setting when page is shown
-        # Use logger
-        self.logger.info(self.__class__.__name__, "Shown.")
+
 

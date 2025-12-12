@@ -10,6 +10,7 @@ import shlex
 import sys
 import tempfile
 import platform
+import shutil
 from pathlib import Path
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from qt_base_app.models.logger import Logger
@@ -22,6 +23,9 @@ try:
     YTDLP_PATH_MANAGER_AVAILABLE = True
 except ImportError:
     YTDLP_PATH_MANAGER_AVAILABLE = False
+
+# Stream picking (no-cookies probe -> explicit IDs)
+from .StreamPicker import SelectionPolicy as StreamSelectionPolicy, pick_for_url as stream_pick_for_url
 
 # --- Define Subtitle Extensions --- 
 # Used to filter out subtitle files when determining the final media file
@@ -570,14 +574,72 @@ class CLIDownloadWorker(QObject):
         # Get the correct yt-dlp executable path
         ytdlp_path = self._get_ytdlp_executable_path()
         cmd = [ytdlp_path]
+
+        def _is_youtube_url(url: str) -> bool:
+            u = (url or "").lower()
+            return ("youtube.com" in u) or ("youtu.be" in u)
+
+        is_youtube = _is_youtube_url(self.url)
+
+        # For YouTube downloads, enforce JS runtime + Firefox cookies (validated by probe).
+        # Note: format probing for StreamPicker happens separately WITHOUT cookies.
+        if is_youtube:
+            node_path = shutil.which("node")
+            deno_path = shutil.which("deno")
+            if node_path:
+                cmd.extend(["--js-runtimes", f"node:{node_path}"])
+            elif deno_path:
+                cmd.extend(["--js-runtimes", f"deno:{deno_path}"])
+            else:
+                self.logger.warning(caller="CLIDownloadWorker", msg="No JS runtime (node/deno) found on PATH; YouTube downloads may fail.")
+            cmd.extend(["--cookies-from-browser", "firefox"])
         
-        # Add the format option
-        if isinstance(self.format_options, dict) and 'format' in self.format_options:
-            cmd.extend(["--format", self.format_options['format']])
+        # Resolve the format option.
+        # - Default to existing selector string (legacy)
+        # - If StreamPicker hint exists, override with explicit IDs (e.g. 298+140)
+        format_spec = "best"
+        if isinstance(self.format_options, dict) and "format" in self.format_options:
+            format_spec = str(self.format_options["format"])
         elif isinstance(self.format_options, str):
-            cmd.extend(["--format", self.format_options])
-        else:
-            cmd.extend(["--format", "best"])
+            format_spec = self.format_options
+
+        if is_youtube and isinstance(self.format_options, dict) and self.format_options.get("stream_picker"):
+            try:
+                sp = self.format_options.get("stream_picker") or {}
+                prefer_best_video = bool(sp.get("prefer_best_video", False))
+                target_height = sp.get("target_height", None)
+                target_width = sp.get("target_width", None)
+                prefer_m4a = bool(sp.get("prefer_m4a", True))
+                prefer_avc = bool(sp.get("prefer_avc", False))
+
+                if prefer_best_video:
+                    target_height = None
+                    target_width = None
+
+                policy = StreamSelectionPolicy(
+                    target_height=(int(target_height) if target_height is not None else None),
+                    target_width=(int(target_width) if target_width is not None else None),
+                    prefer_protocol="https",
+                    avoid_protocol_prefixes=("m3u8",),
+                    prefer_video_exts=("mp4",) if prefer_m4a else ("mp4", "webm"),
+                    prefer_audio_exts=("m4a",) if prefer_m4a else ("m4a", "webm"),
+                    prefer_vcodec_prefixes=("avc", "h264") if prefer_avc else (),
+                    prefer_protocol_over_resolution=False,
+                )
+                pick = stream_pick_for_url(
+                    ytdlp_path=ytdlp_path,
+                    url=self.url,
+                    policy=policy,
+                    timeout_s=120,
+                )
+                format_spec = pick.format_spec
+                self.format_options["picked_format"] = format_spec
+                self.format_options["picked_format_kind"] = pick.chosen_kind
+                self.logger.info(caller="CLIDownloadWorker", msg=f"StreamPicker chose format: {format_spec} ({pick.chosen_kind})")
+            except Exception as e:
+                self.logger.warning(caller="CLIDownloadWorker", msg=f"StreamPicker failed; falling back to legacy selector. Error: {e}")
+
+        cmd.extend(["--format", format_spec])
         
         # Set output template
         output_template = os.path.join(self.output_dir, '%(title)s.%(ext)s')
@@ -684,24 +746,21 @@ class CLIDownloadWorker(QObject):
             
         # --- End Simplified Subtitle Logic ---
         
-        # Handle cookies option
-        # For CLI mode, always use --cookies-from-browser firefox when cookies are enabled
-        cookies_enabled = False
-        if isinstance(self.format_options, dict):
-            # Check if cookies are enabled directly
-            if self.format_options.get('cookies') or self.format_options.get('cookies_from_browser'):
-                cookies_enabled = True
-            # Or if this is set from the Cookies toggle in the UI
-            elif 'use_cookies' in self.format_options and self.format_options['use_cookies']:
-                cookies_enabled = True
-                
-        if cookies_enabled:
-            cmd.extend(["--cookies-from-browser", "firefox"])
-            self.logger.info(caller="CLIDownloadWorker", msg="Using cookies from Firefox browser")
-            # Important note about browser usage
-            self.logger.info(caller="CLIDownloadWorker", msg="Note: Firefox must be closed. You must be logged into the target site in Firefox.")
-            # Also print to debug terminal
-            # print("DEBUG: Using cookies from Firefox browser")
+        # Cookies:
+        # - YouTube: already enforced above (firefox)
+        # - Non-YouTube: keep legacy optional behavior
+        if not is_youtube:
+            cookies_enabled = False
+            if isinstance(self.format_options, dict):
+                if self.format_options.get('cookies') or self.format_options.get('cookies_from_browser'):
+                    cookies_enabled = True
+                elif 'use_cookies' in self.format_options and self.format_options['use_cookies']:
+                    cookies_enabled = True
+                    
+            if cookies_enabled:
+                cmd.extend(["--cookies-from-browser", "firefox"])
+                self.logger.info(caller="CLIDownloadWorker", msg="Using cookies from Firefox browser")
+                self.logger.info(caller="CLIDownloadWorker", msg="Note: Firefox must be closed. You must be logged into the target site in Firefox.")
         
         # Add network timeout options
         cmd.extend([

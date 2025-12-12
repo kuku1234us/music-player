@@ -375,7 +375,16 @@ An interesting interaction occurs when the user selects "Audio" mode—the M4A t
 
 ##### Format String Generation
 
-The state of these toggle buttons is translated into yt-dlp compatible format strings through the `get_format_options()` method:
+The state of these toggle buttons is translated into a yt-dlp “selector” format string through the `get_format_options()` method.
+
+However, it is important to understand a subtle but critical design change: **the selector string is no longer the final authority for YouTube stream selection**. Modern YouTube sessions can make a selector string behave unpredictably (for example: falling back to a higher resolution than requested, or switching to slow m3u8 formats).
+
+To keep behavior deterministic, the application now uses a two-phase pipeline:
+
+1. **StreamPicker (no cookies) picks explicit format IDs** (e.g. `298+140-drc`) using a clean probe step.
+2. The download worker **downloads using the explicit IDs** while enabling reliability options for modern YouTube checks (Firefox cookies + a JS runtime).
+
+In other words: the selector string describes “intent”, while StreamPicker produces the “exact IDs we will download”.
 
 ```python
 def get_format_options(self):
@@ -406,9 +415,15 @@ def get_format_options(self):
     return format_options
 ```
 
-This method generates complex format strings like:
+This method can generate complex selector strings like:
 ```
 bestvideo[height<=1080][protocol=https]+bestaudio[protocol=https]/best[height<=1080][protocol=https]
+```
+
+But just before downloading, the worker may replace the selector with explicit IDs:
+
+```
+298+140-drc
 ```
 
 ##### Benefits of Toggle Button Approach
@@ -500,9 +515,10 @@ The entire download process follows a well-defined sequence of operations:
 2. **Queue Management**: The URL is added to the download queue with an initial status of "Queued". The overlay displays "Waiting in queue...".
 3. **Quick Metadata Fetch**: A non-blocking thread fetches basic metadata from the YouTube API to display the thumbnail and title quickly.
 4. **Job Activation**: When a slot becomes available (based on max concurrent downloads), the job moves from "Queued" to "Starting" with "Initializing..." in the overlay.
-5. **Download Preparation**: Just before yt-dlp begins its work, the overlay updates to "Processing started...".
-6. **Download Progress**: As yt-dlp downloads the video, progress updates flow to the UI showing percentage, speed, and ETA.
-7. **Completion**: When the download finishes, the status changes to "Complete" and the overlay shows "Download completed".
+5. **StreamPicker Selection (YouTube)**: If this is a YouTube download, the worker probes formats without cookies and picks explicit format IDs (for example, selecting 720p HTTPS video + M4A audio) to prevent wrong-resolution or m3u8 drift.
+6. **Download Preparation**: Just before yt-dlp begins its work, the overlay updates to "Processing started...". For YouTube, yt-dlp is executed with Firefox cookies + a JS runtime so extraction and media downloads pass YouTube’s stricter checks.
+7. **Download Progress**: As yt-dlp downloads the media, progress updates flow to the UI showing percentage, speed, and ETA.
+8. **Completion**: When the download finishes, the status changes to "Complete" and the overlay shows "Download completed".
 
 ```
 ┌───────────┐  Add URL  ┌───────────┐  Slot    ┌───────────┐  yt-dlp  ┌───────────┐  Download  ┌───────────┐
