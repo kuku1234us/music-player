@@ -4,6 +4,7 @@ Simplified version assuming FFmpeg is available via system PATH.
 """
 import subprocess
 import re
+import os
 from typing import Optional, Tuple
 from pathlib import Path
 
@@ -22,7 +23,8 @@ def validate_ffmpeg_path(ffmpeg_path: str = "ffmpeg") -> Tuple[bool, str]:
             [ffmpeg_path, "-version"], 
             capture_output=True, 
             text=True, 
-            timeout=10
+            timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         
         if result.returncode != 0:
@@ -64,7 +66,8 @@ def get_ffmpeg_version(ffmpeg_path: str = "ffmpeg") -> Optional[str]:
             [ffmpeg_path, "-version"], 
             capture_output=True, 
             text=True, 
-            timeout=5
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         
         if result.returncode == 0:
@@ -105,7 +108,8 @@ def get_video_resolution(input_path: str, ffmpeg_path: str = "ffmpeg") -> Option
             text=True,
             timeout=15,
             encoding='utf-8',
-            errors='replace'
+            errors='replace',
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         if result.returncode == 0 and result.stdout.strip():
             width, height = map(int, result.stdout.strip().split('x'))
@@ -176,7 +180,8 @@ def get_video_duration(input_path: str, ffmpeg_path: str = "ffmpeg") -> Optional
                 text=True, 
                 timeout=15,  # Reduced timeout for ffprobe
                 encoding='utf-8', 
-                errors='replace'  # Handle encoding issues gracefully
+                errors='replace',  # Handle encoding issues gracefully
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
             
             if result.returncode == 0 and result.stdout.strip():
@@ -194,7 +199,8 @@ def get_video_duration(input_path: str, ffmpeg_path: str = "ffmpeg") -> Optional
             text=True, 
             timeout=60,  # Increased timeout for complex Unicode filenames
             encoding='utf-8', 
-            errors='replace'  # Handle encoding issues gracefully
+            errors='replace',  # Handle encoding issues gracefully
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         
         # Parse duration from FFmpeg output (it goes to stderr)

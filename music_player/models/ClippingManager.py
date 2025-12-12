@@ -188,7 +188,7 @@ class ClippingManager(QObject):
                 video_path
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             data = json.loads(result.stdout)
             
             if 'streams' in data and len(data['streams']) > 0:
@@ -240,7 +240,7 @@ class ClippingManager(QObject):
                 video_path
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             data = json.loads(result.stdout)
             
             if 'frames' in data:
@@ -612,7 +612,7 @@ class ClippingManager(QObject):
         try:
             # Check available encoders
             cmd = ['ffmpeg', '-encoders']
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             
             codec_name = codec_info['codec_name'].lower()
             
@@ -723,7 +723,7 @@ class ClippingManager(QObject):
                 media_path
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             data = json.loads(result.stdout)
             
             if 'streams' in data:
@@ -767,7 +767,7 @@ class ClippingManager(QObject):
                 audio_path
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             data = json.loads(result.stdout)
             
             if 'streams' in data and len(data['streams']) > 0:
@@ -805,7 +805,7 @@ class ClippingManager(QObject):
         try:
             # Check available encoders
             cmd = ['ffmpeg', '-encoders']
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             
             codec_name = codec_info.get('codec_name', '').lower()
             

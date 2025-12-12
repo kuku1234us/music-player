@@ -548,10 +548,10 @@ class DouyinProcessor(QObject):
     def _probe_signature(self, filepath: str):
         try:
             cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', '-select_streams', 'v:0', filepath]
-            p = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            p = subprocess.run(cmd, capture_output=True, text=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             v = json.loads(p.stdout)['streams'][0]
             acmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', '-select_streams', 'a:0', filepath]
-            ap = subprocess.run(acmd, capture_output=True, text=True)
+            ap = subprocess.run(acmd, capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             a = None
             if ap.returncode == 0:
                 data = json.loads(ap.stdout)

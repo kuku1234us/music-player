@@ -108,102 +108,170 @@ class YtDlpModel:
         audio_format_constraint = "[ext=m4a]" if use_m4a else ""
         
         # Prepare audio part of format string
-        audio_str = "bestaudio"
-        if use_https:
-            audio_str += protocol_constraint
-        if use_m4a:
-            audio_str += audio_format_constraint
+        # Relax audio constraints to ensure we get *some* audio if specific types fail
+        # For the primary selectors, we'll use a more permissive audio selector to avoid
+        # failing the whole HTTPS match just because the specific audio format/protocol wasn't found.
+        audio_str_permissive = "bestaudio" 
         
+        audio_str_strict = "bestaudio"
+        if use_https:
+            audio_str_strict += protocol_constraint
+        if use_m4a:
+            audio_str_strict += audio_format_constraint
+        
+        # Use permissive audio string for main selectors to prioritize video protocol
+        audio_str = audio_str_permissive
+        
+        # Add fallback for audio if the specific one fails
+        audio_fallback = "/bestaudio"
+
         if resolution and not prefer_best_video:
             # Resolution-specific format with improved handling for portrait/landscape videos
-            # print(f"DEBUG: Generating video format with target resolution: {resolution}p")
+            # Strategy: Prioritize HTTPS for the target resolution, then fallback to ANY protocol for that resolution
+            # This avoids slow m3u8 downloads unless necessary, while still enforcing resolution.
             
             # Build video format string parts with codec filter applied to each option separately
             if resolution == 720:
                 # For 720p - try exact height=720 (landscape) or width=720 (portrait) or height<=720
                 video_parts = []
                 
-                # Option 1: Exact height match (landscape) WITH AUDIO
-                part1 = f"bestvideo[height=720]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                video_parts.append(part1)
+                # --- TIER 1: HTTPS PREFERRED (Fast) ---
+                # Use PERMISSIVE audio here to ensure we grab the HTTPS video even if audio isn't perfectly matched
+                # Option 1: Exact height match (landscape) - HTTPS
+                video_parts.append(f"bestvideo[height=720]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                # Option 2: Exact width match (portrait) - HTTPS
+                video_parts.append(f"bestvideo[width=720]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
                 
-                # Option 2: Exact width match (portrait) WITH AUDIO
-                part2 = f"bestvideo[width=720]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                video_parts.append(part2)
+                # --- TIER 2: ANY PROTOCOL (Fallback if HTTPS missing, e.g. only m3u8 available) ---
+                # Option 1b: Exact height match (landscape) - ANY PROTOCOL
+                video_parts.append(f"bestvideo[height=720]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
+                # Option 2b: Exact width match (portrait) - ANY PROTOCOL
+                video_parts.append(f"bestvideo[width=720]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
                 
-                # Option 3: Height <= resolution (fallback) WITH AUDIO
-                part3 = f"bestvideo[height<=720]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                video_parts.append(part3)
+                # --- TIER 3: LOOSE RESOLUTION MATCH (HTTPS Preferred) ---
+                # Option 3: Height <= resolution (fallback) - HTTPS
+                video_parts.append(f"bestvideo[height<=720]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                
+                # --- TIER 4: LOOSE RESOLUTION MATCH (Any Protocol) ---
+                # Option 3b: Height <= resolution (fallback) - ANY PROTOCOL
+                video_parts.append(f"bestvideo[height<=720]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
                 
                 # Join all video+audio options with "/"
+                # Append fallback audio options to each part
+                video_parts = [f"{p}{audio_fallback}" for p in video_parts]
                 format_str = "/".join(video_parts)
                 
             elif resolution == 1080:
                 # For 1080p
                 video_parts = []
-                part1 = f"bestvideo[height=1080]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                part2 = f"bestvideo[width=1080]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                part3 = f"bestvideo[height<=1080]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                video_parts.extend([part1, part2, part3])
+                # Tier 1: HTTPS
+                video_parts.append(f"bestvideo[height=1080]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                video_parts.append(f"bestvideo[width=1080]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                # Tier 2: Any Protocol
+                video_parts.append(f"bestvideo[height=1080]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
+                video_parts.append(f"bestvideo[width=1080]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
+                # Tier 3: Loose HTTPS
+                video_parts.append(f"bestvideo[height<=1080]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                # Tier 4: Loose Any
+                video_parts.append(f"bestvideo[height<=1080]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
+                
+                video_parts = [f"{p}{audio_fallback}" for p in video_parts]
                 format_str = "/".join(video_parts)
                 
             elif resolution == 1440:
                 # For 1440p
                 video_parts = []
-                part1 = f"bestvideo[height=1440]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                part2 = f"bestvideo[width=1440]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                part3 = f"bestvideo[height<=1440]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                video_parts.extend([part1, part2, part3])
+                # Tier 1: HTTPS
+                video_parts.append(f"bestvideo[height=1440]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                video_parts.append(f"bestvideo[width=1440]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                # Tier 2: Any Protocol
+                video_parts.append(f"bestvideo[height=1440]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
+                video_parts.append(f"bestvideo[width=1440]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
+                # Tier 3: Loose HTTPS
+                video_parts.append(f"bestvideo[height<=1440]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                # Tier 4: Loose Any
+                video_parts.append(f"bestvideo[height<=1440]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
+                
+                video_parts = [f"{p}{audio_fallback}" for p in video_parts]
                 format_str = "/".join(video_parts)
                 
             elif resolution == 2160:
                 # For 4K
                 video_parts = []
-                part1 = f"bestvideo[height=2160]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                part2 = f"bestvideo[width=2160]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                part3 = f"bestvideo[height<=2160]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
-                video_parts.extend([part1, part2, part3])
+                # Tier 1: HTTPS
+                video_parts.append(f"bestvideo[height=2160]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                video_parts.append(f"bestvideo[width=2160]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                # Tier 2: Any Protocol
+                video_parts.append(f"bestvideo[height=2160]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
+                video_parts.append(f"bestvideo[width=2160]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
+                # Tier 3: Loose HTTPS
+                video_parts.append(f"bestvideo[height<=2160]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}")
+                # Tier 4: Loose Any
+                video_parts.append(f"bestvideo[height<=2160]{codec_filter}{video_format_constraint}+{audio_str_permissive}")
+                
+                video_parts = [f"{p}{audio_fallback}" for p in video_parts]
                 format_str = "/".join(video_parts)
                 
             else:
                 # For other resolutions
-                format_str = f"bestvideo[height<={resolution}]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str}"
+                # Prefer HTTPS, then fallback to any
+                format_str = f"bestvideo[height<={resolution}]{codec_filter}{protocol_constraint}{video_format_constraint}+{audio_str_permissive}{audio_fallback}/"
+                format_str += f"bestvideo[height<={resolution}]{codec_filter}{video_format_constraint}+{audio_str_permissive}{audio_fallback}"
             
-            # Build fallback options with codec filter applied to each option separately
+            # Build fallback options (best effort)
+            # Use strict audio here if we've fallen this far, or keep permissive? Let's use strict for fallbacks to try and get m4a if possible
+            # Actually, permissive is safer.
             if resolution == 720:
                 fallback_parts = []
-                part1 = f"best[height=720]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                part2 = f"best[width=720]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                part3 = f"best[height<=720]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                fallback_parts.extend([part1, part2, part3])
+                # HTTPS fallbacks
+                fallback_parts.append(f"best[height=720]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                fallback_parts.append(f"best[width=720]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                fallback_parts.append(f"best[height<=720]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                # Any protocol fallbacks
+                fallback_parts.append(f"best[height=720]{codec_filter}{video_format_constraint}")
+                fallback_parts.append(f"best[width=720]{codec_filter}{video_format_constraint}")
+                fallback_parts.append(f"best[height<=720]{codec_filter}{video_format_constraint}")
                 fallback = "/".join(fallback_parts)
                 
             elif resolution == 1080:
                 fallback_parts = []
-                part1 = f"best[height=1080]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                part2 = f"best[width=1080]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                part3 = f"best[height<=1080]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                fallback_parts.extend([part1, part2, part3])
+                # HTTPS
+                fallback_parts.append(f"best[height=1080]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                fallback_parts.append(f"best[width=1080]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                fallback_parts.append(f"best[height<=1080]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                # Any
+                fallback_parts.append(f"best[height=1080]{codec_filter}{video_format_constraint}")
+                fallback_parts.append(f"best[width=1080]{codec_filter}{video_format_constraint}")
+                fallback_parts.append(f"best[height<=1080]{codec_filter}{video_format_constraint}")
                 fallback = "/".join(fallback_parts)
                 
             elif resolution == 1440:
                 fallback_parts = []
-                part1 = f"best[height=1440]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                part2 = f"best[width=1440]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                part3 = f"best[height<=1440]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                fallback_parts.extend([part1, part2, part3])
+                # HTTPS
+                fallback_parts.append(f"best[height=1440]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                fallback_parts.append(f"best[width=1440]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                fallback_parts.append(f"best[height<=1440]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                # Any
+                fallback_parts.append(f"best[height=1440]{codec_filter}{video_format_constraint}")
+                fallback_parts.append(f"best[width=1440]{codec_filter}{video_format_constraint}")
+                fallback_parts.append(f"best[height<=1440]{codec_filter}{video_format_constraint}")
                 fallback = "/".join(fallback_parts)
                 
             elif resolution == 2160:
                 fallback_parts = []
-                part1 = f"best[height=2160]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                part2 = f"best[width=2160]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                part3 = f"best[height<=2160]{codec_filter}{protocol_constraint}{video_format_constraint}"
-                fallback_parts.extend([part1, part2, part3])
+                # HTTPS
+                fallback_parts.append(f"best[height=2160]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                fallback_parts.append(f"best[width=2160]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                fallback_parts.append(f"best[height<=2160]{codec_filter}{protocol_constraint}{video_format_constraint}")
+                # Any
+                fallback_parts.append(f"best[height=2160]{codec_filter}{video_format_constraint}")
+                fallback_parts.append(f"best[width=2160]{codec_filter}{video_format_constraint}")
+                fallback_parts.append(f"best[height<=2160]{codec_filter}{video_format_constraint}")
                 fallback = "/".join(fallback_parts)
                 
             else:
-                fallback = f"best[height<={resolution}]{codec_filter}{protocol_constraint}{video_format_constraint}"
+                fallback = f"best[height<={resolution}]{codec_filter}{protocol_constraint}{video_format_constraint}/"
+                fallback += f"best[height<={resolution}]{codec_filter}{video_format_constraint}"
             
             # Complete format string with proper audio merging
             format_str = f"{format_str}/{fallback}/best"
