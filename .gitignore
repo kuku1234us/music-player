@@ -51,7 +51,7 @@ Thumbs.db
 *.ogg
 *.flac 
 *.log
-Music Player.log
+/Music Player.log
 
 # Temporary files
 temp/

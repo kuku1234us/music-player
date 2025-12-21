@@ -26,13 +26,13 @@ class YoutubeModel:
     @staticmethod
     def extract_video_id(url):
         """Extract video ID from a YouTube URL."""
-        # Handle protocol URLs from Chrome extension
-        if url and url.startswith('youtubemaster://'):
-            # Extract the actual YouTube URL from the protocol URL
-            protocol_path = url.replace('youtubemaster://', '')
-            
+        # Handle protocol URLs from Chrome extension / custom protocol invocations
+        # (Legacy: youtubemaster://, Current: musicplayerdl://)
+        if url and url.startswith(('musicplayerdl://', 'youtubemaster://')):
+            protocol_path = url.split('://', 1)[1]
+
             # Check if it's the format with format type
-            if '/' in protocol_path and protocol_path.split('/', 1)[0] in ['video', 'audio']:
+            if '/' in protocol_path and protocol_path.split('/', 1)[0] in ['video', 'audio', 'best']:
                 _, protocol_url = protocol_path.split('/', 1)
                 url = protocol_url  # Use the actual YouTube URL for extraction
             else:
@@ -148,9 +148,9 @@ class YoutubeModel:
         """Get both title and thumbnail for a YouTube video."""
         # Clean the URL if it has a protocol prefix
         original_url = url
-        if url and url.startswith('youtubemaster://'):
-            protocol_path = url.replace('youtubemaster://', '')
-            if '/' in protocol_path and protocol_path.split('/', 1)[0] in ['video', 'audio']:
+        if url and url.startswith(('musicplayerdl://', 'youtubemaster://')):
+            protocol_path = url.split('://', 1)[1]
+            if '/' in protocol_path and protocol_path.split('/', 1)[0] in ['video', 'audio', 'best']:
                 _, url = protocol_path.split('/', 1)
             else:
                 url = protocol_path

@@ -6,6 +6,7 @@ Handles download, installation, backup, and rollback operations.
 import os
 import sys
 import hashlib
+import subprocess
 import tempfile
 import shutil
 import stat
@@ -18,6 +19,31 @@ from urllib.parse import urlparse
 
 from qt_base_app.models.logger import Logger
 from qt_base_app.models.settings_manager import SettingsManager, SettingType
+
+
+def _windows_no_window_kwargs() -> dict:
+    """
+    Return subprocess kwargs that suppress console windows on Windows.
+
+    Used by yt-dlp updater verification/version checks to prevent brief
+    console flashes (e.g. a window titled 'C:\\yt-dlp\\yt-dlp.exe').
+    """
+    if os.name != "nt":
+        return {}
+
+    kwargs: dict = {
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000),
+    }
+
+    try:
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= getattr(subprocess, "STARTF_USESHOWWINDOW", 0x00000001)
+        si.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
+        kwargs["startupinfo"] = si
+    except Exception:
+        pass
+
+    return kwargs
 
 
 class DownloadProgress(NamedTuple):
@@ -223,13 +249,13 @@ class PathManager:
             return None
             
         try:
-            import subprocess
             result = subprocess.run(
                 [file_path, '--version'],
                 capture_output=True,
                 text=True,
                 timeout=10,
-                check=False
+                check=False,
+                **_windows_no_window_kwargs(),
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -715,13 +741,13 @@ class FileInstaller:
             
             # Try to execute --version to verify it's working
             try:
-                import subprocess
                 result = subprocess.run(
                     [install_path, '--version'],
                     capture_output=True,
                     text=True,
                     timeout=5,
-                    check=False
+                    check=False,
+                    **_windows_no_window_kwargs(),
                 )
                 
                 # If we get a version output, consider it successful

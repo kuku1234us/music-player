@@ -1,15 +1,21 @@
 Windows Registry Editor Version 5.00
 
-[HKEY_CLASSES_ROOT\youtubemaster]
-@="URL:YouTubeMaster Protocol"
+; NOTE: This file is a TEMPLATE. Prefer running setup.bat (which calls register_protocol.ps1)
+; so you don't have to hardcode paths.
+;
+; If you do use this .reg directly, replace the executable path below with the actual path
+; to MusicPlayer.exe on your system.
+
+[HKEY_CURRENT_USER\Software\Classes\musicplayerdl]
+@="URL:MusicPlayerDL Protocol"
 "URL Protocol"=""
 
-[HKEY_CLASSES_ROOT\youtubemaster\DefaultIcon]
-@="D:\\projects\\youtube-master\\dist\\YouTubeMaster.exe"
+[HKEY_CURRENT_USER\Software\Classes\musicplayerdl\DefaultIcon]
+@="C:\\Path\\To\\MusicPlayer.exe,0"
 
-[HKEY_CLASSES_ROOT\youtubemaster\shell]
+[HKEY_CURRENT_USER\Software\Classes\musicplayerdl\shell]
 
-[HKEY_CLASSES_ROOT\youtubemaster\shell\open]
+[HKEY_CURRENT_USER\Software\Classes\musicplayerdl\shell\open]
 
-[HKEY_CLASSES_ROOT\youtubemaster\shell\open\command]
-@="\"D:\\projects\\youtube-master\\dist\\YouTubeMaster.exe\" \"%1\"" 
+[HKEY_CURRENT_USER\Software\Classes\musicplayerdl\shell\open\command]
+@="\"C:\\Path\\To\\MusicPlayer.exe\" \"%1\""

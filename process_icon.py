@@ -8,8 +8,9 @@ def resize_icons():
     """
     Loads the microphone.png icon and creates resized versions (16, 48, 128).
     """
-    source_folder = "youtube-master-audio"
-    source_icon_name = "microphone.png"
+    source_folder = "musicplayerdl-audio"
+    # Use the existing largest icon as the source of truth.
+    source_icon_name = "microphone_128.png"
     source_icon_path = os.path.join(source_folder, source_icon_name)
 
     output_sizes = [16, 48, 128]

@@ -1,1 +1,1 @@
-"""UI components for the YouTubeMaster application.""" 
+"""UI components for the MusicPlayer YouTube downloader feature."""

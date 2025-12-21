@@ -613,6 +613,11 @@ class CLIDownloadWorker(QObject):
                     target_height = None
                     target_width = None
 
+                # Infer audio-only intent from the legacy format selector
+                # (e.g. "bestaudio[ext=m4a]/...") to prevent StreamPicker from selecting video+audio.
+                fmt_str = str(format_spec or "").strip()
+                audio_only = bool(fmt_str.startswith("bestaudio") and "+" not in fmt_str)
+
                 policy = StreamSelectionPolicy(
                     target_height=(int(target_height) if target_height is not None else None),
                     target_width=(int(target_width) if target_width is not None else None),
@@ -621,6 +626,7 @@ class CLIDownloadWorker(QObject):
                     prefer_video_exts=("mp4",) if prefer_m4a else ("mp4", "webm"),
                     prefer_audio_exts=("m4a",) if prefer_m4a else ("m4a", "webm"),
                     prefer_vcodec_prefixes=("avc", "h264") if prefer_avc else (),
+                    audio_only=audio_only,
                     prefer_protocol_over_resolution=False,
                 )
                 pick = stream_pick_for_url(

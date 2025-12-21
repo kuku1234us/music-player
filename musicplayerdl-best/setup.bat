@@ -39,7 +39,7 @@ echo.
 echo Chrome Extension Installation Instructions:
 echo 1. Open Chrome and go to chrome://extensions/
 echo 2. Enable "Developer mode" (toggle in the top-right)
-echo 3. Click "Load unpacked" and select the musicplayerdl-video folder
-echo 4. Right-click on YouTube videos to access "Video MusicPlayerDL" / "Audio MusicPlayerDL" / "Best Quality MusicPlayerDL" options
+echo 3. Click "Load unpacked" and select the musicplayerdl-best folder
 echo.
-pause 
+pause
+

@@ -15,6 +15,34 @@ import urllib.parse
 from qt_base_app.models.logger import Logger
 
 
+def _windows_no_window_kwargs() -> dict:
+    """
+    Return subprocess kwargs that suppress console windows on Windows.
+
+    This is important when our GUI app launches helper console programs
+    (like yt-dlp.exe). Without these flags, Windows may briefly flash a
+    console window (often titled with the executable path).
+    """
+    if os.name != "nt":
+        return {}
+
+    kwargs: dict = {
+        # Use the constant if available; fallback is the documented value.
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000),
+    }
+
+    # Best-effort: also request hidden show window via STARTUPINFO.
+    try:
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= getattr(subprocess, "STARTF_USESHOWWINDOW", 0x00000001)
+        si.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
+        kwargs["startupinfo"] = si
+    except Exception:
+        pass
+
+    return kwargs
+
+
 class VersionManager:
     """
     Manager for yt-dlp version operations.
@@ -185,7 +213,8 @@ class VersionManager:
                 capture_output=True,
                 text=True,
                 timeout=10,
-                check=False
+                check=False,
+                **_windows_no_window_kwargs(),
             )
             
             if result.returncode == 0:
@@ -303,7 +332,8 @@ class VersionManager:
                 capture_output=True,
                 text=True,
                 timeout=5,
-                check=False
+                check=False,
+                **_windows_no_window_kwargs(),
             )
             
             if result.returncode == 0:

@@ -3,9 +3,10 @@ import subprocess
 import json
 import logging
 import threading
+import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
-from PyQt6.QtCore import QObject, pyqtSignal, QRunnable, QThreadPool, QSize, QRect
+from PyQt6.QtCore import QObject, pyqtSignal, QRunnable, QThreadPool, QSize, QRect, QStandardPaths
 
 from music_player.models.vid_proc_model import VidProcItem
 
@@ -239,7 +240,13 @@ class VidProcManager(QObject):
         self._preview_versions: Dict[Path, int] = {}
         self._active_workers = [] # Track active workers for cancellation
         
-        self.temp_dir = Path(os.getcwd()) / "temp" / "vidproc"
+        # IMPORTANT: do NOT base temp paths on os.getcwd(). When the app is launched
+        # via a Windows protocol handler (e.g. from Chrome), the working directory
+        # may be C:\Windows\System32, which is not writable for normal users.
+        #
+        # Use an OS-provided, user-writable temp directory instead.
+        temp_root = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.TempLocation) or tempfile.gettempdir()
+        self.temp_dir = Path(temp_root) / "MusicPlayer" / "vidproc"
         self.temp_dir.mkdir(parents=True, exist_ok=True)
 
     def scan_folder(self, folder_path: Path):

@@ -1,4 +1,4 @@
-// Content script for YouTube Master Audio Chrome Extension
+// Content script for MusicPlayerDL Audio Chrome Extension
 
 // Listen for message from the context menu
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -40,7 +40,7 @@ document.addEventListener(
     // Add a data attribute to help identify video elements
     const videoElement = event.target.closest("video");
     if (videoElement) {
-      videoElement.setAttribute("data-youtubemaster-target", "true");
+      videoElement.setAttribute("data-musicplayerdl-target", "true");
     }
   },
   true

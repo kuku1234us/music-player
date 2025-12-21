@@ -39,7 +39,7 @@ function enhanceYouTubePlayer() {
       const downloadButton = document.createElement("button");
       downloadButton.id = "ytm-download-button";
       downloadButton.className = "ytp-button";
-      downloadButton.title = "Download with YouTubeMaster";
+      downloadButton.title = "Download with MusicPlayerDL";
       downloadButton.innerHTML = "↓"; // Simple download icon
 
       // Style the button
@@ -100,7 +100,7 @@ document.addEventListener(
     // Add a data attribute to help identify video elements
     const videoElement = event.target.closest("video");
     if (videoElement) {
-      videoElement.setAttribute("data-youtubemaster-target", "true");
+      videoElement.setAttribute("data-musicplayerdl-target", "true");
     }
   },
   true

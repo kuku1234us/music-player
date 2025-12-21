@@ -1,11 +1,26 @@
-# PowerShell Script to Register MusicPlayer Protocol Handler for Current User
+# PowerShell Script to Register MusicPlayerDL Protocol Handler for Current User
 
-# --- Configuration ---
-$ProtocolName = "musicplayerdl"
-# IMPORTANT: Use the absolute path to where MusicPlayer.exe will be located
-# Ensure this path reflects the final build location within the 'dist' subfolder.
-$ExecutablePath = "D:\projects\musicplayer\dist\MusicPlayer.exe" # Using double backslashes in PS string
-$ProtocolDescription = "URL:MusicPlayer Protocol"
+param(
+    # Path to MusicPlayer.exe. Can be absolute or relative to this script's folder.
+    [string]$ExecutablePath = (Join-Path $PSScriptRoot "dist\MusicPlayer.exe"),
+    # Protocol name to register
+    [string]$ProtocolName = "musicplayerdl",
+    # Friendly description shown in registry exports / some shells
+    [string]$ProtocolDescription = "URL:MusicPlayerDL Protocol"
+)
+
+# Normalize executable path
+if (-not [System.IO.Path]::IsPathRooted($ExecutablePath)) {
+    $ExecutablePath = Join-Path $PSScriptRoot $ExecutablePath
+}
+try {
+    $resolved = Resolve-Path -LiteralPath $ExecutablePath -ErrorAction Stop
+    if ($resolved -and $resolved.Path) {
+        $ExecutablePath = $resolved.Path
+    }
+} catch {
+    # Keep the original string if Resolve-Path fails (e.g., file not built yet)
+}
 
 # --- Registry Paths ---
 $BaseRegPath = "HKCU:\Software\Classes\$ProtocolName" # Using HKCU for current user, no admin needed

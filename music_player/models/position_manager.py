@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 
 from music_player.models.database import BaseDatabaseManager, DatabaseUtils
+from .windows_path_utils import resolve_mapped_drive_to_unc
 
 
 class PlaybackPositionManager(BaseDatabaseManager):
@@ -188,52 +189,8 @@ class PlaybackPositionManager(BaseDatabaseManager):
         if not path or len(path) < 3:
             return path
             
-        # Check if it's a drive letter path (e.g., Z:\...)
-        if path[1:3] == ':\\':
-            drive_letter = path[0].upper()
-            
-            try:
-                import subprocess
-                # Use Windows NET USE command to get UNC path for the drive
-                result = subprocess.run(
-                    ['net', 'use', f'{drive_letter}:'],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
-                
-                if result.returncode == 0:
-                    # Parse the output to find the remote path
-                    output_lines = result.stdout.strip().split('\n')
-                    for line in output_lines:
-                        if 'Remote name' in line or 'remote name' in line:
-                            # Extract UNC path from "Remote name \\server\share"
-                            parts = line.split()
-                            if len(parts) >= 3 and parts[-1].startswith('\\\\'):
-                                unc_root = parts[-1]
-                                # Replace drive portion with UNC root
-                                relative_path = path[3:]  # Remove "Z:\"
-                                unc_path = os.path.join(unc_root, relative_path).replace('\\', '/')
-                                unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
-                                return unc_path
-                        
-                        # Alternative parsing for different NET USE output formats
-                        if '\\\\' in line and drive_letter in line:
-                            # Find UNC path in the line
-                            unc_start = line.find('\\\\')
-                            if unc_start >= 0:
-                                # Extract everything from \\ onwards, but stop at whitespace
-                                unc_part = line[unc_start:].split()[0]
-                                if unc_part.count('\\') >= 3:  # Valid UNC path \\server\share
-                                    relative_path = path[3:]  # Remove "Z:\"
-                                    unc_path = os.path.join(unc_part, relative_path).replace('\\', '/')
-                                    unc_path = unc_path.replace('/', '\\')  # Ensure Windows separators
-                                    return unc_path
-                                    
-            except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
-                self.logger.warning(self.__class__.__name__, f"Could not resolve network drive {drive_letter}: {e}")
-            except Exception as e:
-                self.logger.warning(self.__class__.__name__, f"Unexpected error resolving network drive {drive_letter}: {e}")
+        # Resolve mapped drives WITHOUT spawning a subprocess (prevents console flashes in GUI exe)
+        return resolve_mapped_drive_to_unc(path)
         
         # Return original path if not a mapped drive or resolution failed
         return path
