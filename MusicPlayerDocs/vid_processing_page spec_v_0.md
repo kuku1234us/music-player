@@ -74,11 +74,15 @@ class VidProcItem(TypedDict):
     codec_a: str | None
 
     # User controls
-    split: int            # e.g., 3 (required)
-    tile_index: int       # 0-based index of selected tile (e.g., 1 for middle of 3)
+    split: int            # e.g. 3 (required)
+    tile_index: int       # 0-based index of selected tile (e.g. 1 for middle of 3)
     x_offset: int         # pixels relative to selected tile's left (can be negative)
     width_delta: int      # pixels added to the tile width (can be negative)
     preview_time: float   # timestamp for preview generation (seconds)
+
+    # Clipping (Optional)
+    clip_start: float | None # Start timestamp (seconds)
+    clip_end: float | None   # End timestamp (seconds)
 
     # Derived
     crop_rect: QRect      # computed from split/tile_index/x/width_delta
@@ -157,10 +161,12 @@ ffmpeg -y -ss {ts} -i "{in}" -frames:v 1 -q:v 2 "{tmp}/in_full_{id}.jpg"
 
 ```bash
 # Example for fixed height (e.g. 1920)
-ffmpeg -y -i "{in}" -vf "crop={w}:{h}:{x}:{y},scale=-2:1920:force_original_aspect_ratio=decrease,pad=-1:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p" \
+ffmpeg -y -ss {clip_start} -to {clip_end} -i "{in}" -vf "crop={w}:{h}:{x}:{y},scale=-2:1920:force_original_aspect_ratio=decrease,pad=-1:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p" \
        -r 30 -c:v libx264 -preset veryfast -crf 20 -c:a aac -b:a 128k -ar 48000 -ac 2 \
        "{out}.mp4"
 ```
+
+_Note: `-ss` and `-to` are optional. If used, they provide frame-accurate cutting because re-encoding is active._
 
 **Merge**
 
@@ -185,6 +191,11 @@ ffmpeg -f concat -safe 0 -i list.txt -c copy "{merged}.mp4"
 - **Controls**: Spinboxes have labels **stacked above** them (0 spacing).
   - **Idx Control**: Range `0` to `Split-1`. Updates intelligently when Split changes.
 - **Thumbnails**: Clicking either thumbnail opens an **ImagePopup**.
+
+### 8.1.1 Merge Output & Cleanup Singles
+
+- **Merge Output**: If checked, processes all files then runs a concat pass.
+- **Cleanup Singles**: If checked (only available when Merge is checked), deletes the individual processed `.mp4` files after the merge succeeds, keeping only the final combined video.
 
 ## 8.2 Image Popup
 
@@ -246,12 +257,30 @@ Order right→left:
 
 ---
 
-# 12) Deliverables (Completed)
+# 13) Proposed Feature: Start/End Clipping
 
-- [x] **Page Structure**: Sidebar integration, basic layout.
-- [x] **Data Model**: `VidProcItem` with support for Split, Idx, Offsets, and Preview Time.
-- [x] **Complex Delegates**: Stacked control labels, Timeline scrubbing, Thumbnail popups.
-- [x] **Pipeline**: Probing, Cropping, Scaling (720p/1080p), Padding, Encoding.
-- [x] **Merging**: Optional concatenation of outputs with "Cleanup Singles" option.
-- [x] **High-Res Previews**: On-demand extraction for quality verification.
-- [x] **UX Polish**: Race-condition handling (versioning), Toggle buttons (Process/Stop), Auto-dismiss overlays, Persistent settings.
+## 13.1 Intent
+
+Allow users to trim the beginning and end of each video to remove unwanted intros or outros before processing.
+
+## 13.2 User Interaction
+
+- **Selection**: The user selects a row in the table.
+- **Hotkeys**:
+  - Press **'b'**: Marks the current `preview_time` as the **Start Point** (Beginning).
+  - Press **'e'**: Marks the current `preview_time` as the **End Point**.
+- **Visual Feedback**: The `VideoTimeline` shows markers or a highlighted "active" region indicating the clip range. The inactive parts (before 'b' and after 'e') are dimmed.
+
+## 13.3 Technical Implementation Plan
+
+- **Data Model**: Update `VidProcItem` to include `clip_start` (float) and `clip_end` (float).
+- **UI Logic**:
+  - `VidProcessingPage` overrides `keyPressEvent`.
+  - On 'b'/'e' press: Fetch current `preview_time` of the selected row.
+  - Update Model: Set `clip_start`/`clip_end`. Ensure logic: `start < end`.
+- **Component**: Update `VideoTimeline` (in `music_player/ui/components/video_timeline.py`) to support rendering a clip range (start/end markers).
+- **FFmpeg**:
+  - `VidProcManager` injects `-ss {start}` and `-to {end}` into the main encoding command.
+  - **Keyframes vs Exact**: Since we are re-encoding (`libx264`), we can use **frame-accurate cutting**. We do _not_ need to snap to keyframes. FFmpeg handles this automatically when decoding and re-encoding.
+  - `Start Time`: If set, passed as `-ss {clip_start}` **before** input `-i` (fast seek) OR combined with `-to` logic carefully to ensure frame accuracy. (Note: `-ss` before `-i` in modern FFmpeg with transcoding is accurate).
+  - `End Time`: Passed as `-to {clip_end}`.

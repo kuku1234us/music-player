@@ -22,6 +22,10 @@ class VidProcItem(TypedDict):
     width_delta: int      # pixels added to the tile width
     preview_time: float   # timestamp for preview generation (seconds)
     
+    # Clipping (Optional)
+    clip_start: Optional[float] # Start timestamp (seconds)
+    clip_end: Optional[float]   # End timestamp (seconds)
+    
     # Derived
     crop_rect: QRect      # computed from split/tile_index/x/width_delta
     out_size: QSize       # final portrait size
@@ -241,6 +245,9 @@ class VidProcTableModel(BaseTableModel):
                     if k == 'preview_time':
                         # If preview_time changes, we must trigger regeneration.
                         # We reuse RoleControls to signal "input parameters changed".
+                        roles.append(self.RoleControls)
+                    
+                    if k in ['clip_start', 'clip_end']:
                         roles.append(self.RoleControls)
 
                     # Map keys to roles for optimization (optional but good)

@@ -110,13 +110,36 @@ class EncodeWorker(QRunnable):
 
             vf = f"{crop_filter}{scale_filter}{pad_filter},setsar=1,format=yuv420p"
             
+            # Clipping logic
+            clip_start = self.item.get('clip_start')
+            clip_end = self.item.get('clip_end')
+            
+            # Start time (-ss before input for fast seek)
+            start_args = []
+            start_sec = 0.0
+            if clip_start is not None and clip_start > 0:
+                start_args = ["-ss", str(clip_start)]
+                start_sec = clip_start
+            
+            # Duration/End args (after input)
+            duration_args = []
+            if clip_end is not None:
+                if clip_start is not None and clip_start > 0:
+                     # Calculate duration
+                     duration = clip_end - clip_start
+                     if duration > 0:
+                         duration_args = ["-t", str(duration)]
+                else:
+                     # Start is 0, so just stop at end
+                     duration_args = ["-to", str(clip_end)]
+            
             cmd = [
-                "ffmpeg", "-y", 
+                "ffmpeg", "-y"] + start_args + [
                 "-i", str(file_path),
                 "-vf", vf,
                 "-r", "30",
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-                "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2",
+                "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2"] + duration_args + [
                 str(out_path)
             ]
             

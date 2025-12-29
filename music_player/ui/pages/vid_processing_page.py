@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, 
     QHeaderView, QMessageBox, QProgressBar, QCheckBox, QComboBox
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSlot, QRect, QTimer
+from PyQt6.QtCore import Qt, QSize, pyqtSlot, QRect, QTimer, QEvent
 from PyQt6.QtGui import QImage
 
 from music_player.ui.components.base_table import BaseTableView
@@ -150,6 +150,9 @@ class VidProcessingPage(QWidget):
         self.table.setItemDelegateForColumn(3, ControlGroupDelegate(self.table))
         self.table.setItemDelegateForColumn(4, ThumbDelegate(VidProcTableModel.RoleThumbOut, self.table, manager=self.manager)) # Pass manager
         
+        # Install event filter for hotkeys
+        self.table.installEventFilter(self)
+        
         # Open persistent editors
         self.model.rowsInserted.connect(self._on_rows_inserted)
 
@@ -234,6 +237,49 @@ class VidProcessingPage(QWidget):
                 self._current_directory = path
                 self.model.clear()
                 self.manager.scan_folder(path)
+
+    def eventFilter(self, source, event):
+        if source == self.table and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_B:
+                self._handle_clip_key('start')
+                return True
+            elif event.key() == Qt.Key.Key_E:
+                self._handle_clip_key('end')
+                return True
+        return super().eventFilter(source, event)
+
+    def _handle_clip_key(self, which: str):
+        # Get selection
+        selection = self.table.selectionModel()
+        if not selection.hasSelection():
+            return
+            
+        # Get unique rows from selection
+        rows = sorted(list(set(idx.row() for idx in selection.selectedIndexes())))
+        
+        for row in rows:
+            item = self.model.get_item(row)
+            if not item: continue
+            
+            ts = item.get('preview_time', 0.0)
+            
+            if which == 'start':
+                # Rule: start < end
+                end = item.get('clip_end')
+                if end is not None and ts >= end:
+                    # New start is after existing end -> Clear end
+                    self.model.update_item(row, clip_start=ts, clip_end=None)
+                else:
+                    self.model.update_item(row, clip_start=ts)
+                    
+            elif which == 'end':
+                # Rule: end > start
+                start = item.get('clip_start')
+                if start is not None and ts <= start:
+                    # New end is before existing start -> Clear start
+                    self.model.update_item(row, clip_end=ts, clip_start=None)
+                else:
+                    self.model.update_item(row, clip_end=ts)
 
     def _update_overlay_positions(self):
         # Position Progress Overlay (Centered)
@@ -422,11 +468,9 @@ class VidProcessingPage(QWidget):
         first_path = included[0]['path']
         default_out = first_path.parent / "processed"
         
-        saved_out = self.settings.get('vidproc.out_dir')
-        if saved_out:
-            out_dir = Path(saved_out)
-        else:
-            out_dir = default_out
+        # Always default to {input_dir}/processed for this workflow
+        # We don't want to use a stale 'vidproc.out_dir' from a different project folder.
+        out_dir = default_out
             
         if not out_dir.exists():
             try:
@@ -434,8 +478,12 @@ class VidProcessingPage(QWidget):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not create output directory:\n{e}")
                 return
-                
+        
+        # Save it so "Open Out" button knows where to look
         self.settings.set('vidproc.out_dir', str(out_dir))
+        
+        from qt_base_app.models.logger import Logger
+        Logger.instance().info("VidProcessingPage", f"Processing output to: {out_dir}")
         
         # Determine target height based on combo selection
         res_text = self.combo_res.currentText()

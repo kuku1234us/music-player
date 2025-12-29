@@ -329,6 +329,7 @@ class ControlGroupDelegate(QStyledItemDelegate):
 
 class TitleInfoWidget(QWidget):
     previewTimeChanged = pyqtSignal(float)
+    clipCleared = pyqtSignal(str) # "start" or "end"
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -354,17 +355,20 @@ class TitleInfoWidget(QWidget):
         self.timeline = VideoTimeline()
         self.timeline.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed) # Ensure timeline expands
         self.timeline.position_changed.connect(self.previewTimeChanged)
+        self.timeline.marker_cleared.connect(self.clipCleared)
         
         layout.addWidget(self.lbl_title)
         layout.addWidget(self.lbl_info)
         layout.addWidget(self.timeline)
         # -------------------------------------------------------
         
-    def set_data(self, title, info_text, duration, preview_time):
+    def set_data(self, title, info_text, duration, preview_time, clip_start=None, clip_end=None):
         self.lbl_title.setText(title)
         self.lbl_info.setText(info_text)
         self.timeline.set_duration(duration)
         self.timeline.set_position(preview_time)
+        self.timeline.set_clip_start(clip_start)
+        self.timeline.set_clip_end(clip_end)
 
 class TitleInfoDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
@@ -374,6 +378,7 @@ class TitleInfoDelegate(QStyledItemDelegate):
         editor = TitleInfoWidget(parent)
         p_index = QPersistentModelIndex(index)
         editor.previewTimeChanged.connect(lambda t: self._on_time_changed(p_index, t))
+        editor.clipCleared.connect(lambda which: self._on_clip_cleared(p_index, which))
         return editor
 
     def _on_time_changed(self, p_index, time):
@@ -381,12 +386,28 @@ class TitleInfoDelegate(QStyledItemDelegate):
             model = p_index.model()
             if hasattr(model, 'update_item'):
                 model.update_item(p_index.row(), preview_time=time)
+    
+    def _on_clip_cleared(self, p_index, which):
+        if p_index.isValid():
+            model = p_index.model()
+            if hasattr(model, 'update_item'):
+                if which == 'start':
+                    model.update_item(p_index.row(), clip_start=None)
+                elif which == 'end':
+                    model.update_item(p_index.row(), clip_end=None)
 
     def setEditorData(self, editor, index):
         item = index.data(VidProcTableModel.RoleControls) # Use RoleControls to get full item
         if item and isinstance(editor, TitleInfoWidget):
             info_text = f"{item['size_in'].width()}x{item['size_in'].height()} • {item['fps']:.2f} fps"
-            editor.set_data(item['title'], info_text, item['duration'], item.get('preview_time', 0.0))
+            editor.set_data(
+                item['title'], 
+                info_text, 
+                item['duration'], 
+                item.get('preview_time', 0.0),
+                item.get('clip_start'),
+                item.get('clip_end')
+            )
 
     def setModelData(self, editor, model, index):
         pass
