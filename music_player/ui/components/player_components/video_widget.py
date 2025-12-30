@@ -29,6 +29,17 @@ class VideoWidget(QWidget):
         super().__init__(parent)
         # Enable background styling - Still potentially useful for styling borders etc.
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        # IMPORTANT (Windows/VLC embedding):
+        # Ensure this widget is backed by a real native window handle (HWND).
+        # If VLC does not receive a valid HWND, it may open its own popup window.
+        self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
+        try:
+            # Force creation of the native handle early
+            _ = self.winId()
+        except Exception:
+            pass
         
         # --- Set focus policy --- 
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)

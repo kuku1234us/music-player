@@ -68,14 +68,12 @@ class PlayerPage(QWidget):
         self._connect_oplayer_signals()
         
         # Find the persistent player from the dashboard
-        self.persistent_player = None # Keep this maybe? Or comment out?
-        # We'll connect to it later (comment out for now)
+        self.persistent_player = None 
+        self._hotkey_handler = None
 
-        # --- REVERTED: Variables for Standalone VLC Test ---
-        # self._test_vlc_instance: Optional[vlc.Instance] = None
-        # self._test_vlc_player: Optional[vlc.MediaPlayer] = None
-        # --------------------------------------------------
-
+        # Track all created video surfaces by HWND so we can delete them safely later
+        self._surface_by_hwnd: dict[int, VideoWidget] = {}
+        
         # --- Add Mouse Tracking Timer ---
         self.mouse_tracking_timer = QTimer(self)
         self.mouse_tracking_timer.setInterval(100) # Check every 100ms
@@ -103,33 +101,29 @@ class PlayerPage(QWidget):
         self.album_art.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.album_art.setMinimumSize(300, 300) # Keep a minimum size
 
-        # --- NEW: Create Video Widget and Stack --- 
-        # Create the video widget instance
-        self.video_widget = VideoWidget(self)
-        self.video_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        # --- Remove Event Filter --- 
-        # self.video_widget.installEventFilter(self) # Filter events for video_widget
-        # --------------------------
+        # Video output surfaces:
+        # Instead of reusing a fixed set of 2 widgets, we create a fresh VideoWidget per switch.
+        # This matches `vlc_test_ab.py` and prevents libVLC from fighting over a reused HWND while
+        # an old instance is still tearing down in the background (a common cause of VLC popups).
+        self.video_stack = QStackedWidget(self)
+        self._current_video_widget = self._create_and_activate_video_surface()
 
-        # Create the QStackedWidget to hold album art and video
+        # Create the QStackedWidget to hold album art and video stack
         self.media_display_stack = QStackedWidget(self)
         self.media_display_stack.addWidget(self.album_art) # Index 0: Album Art
-        self.media_display_stack.addWidget(self.video_widget) # Index 1: Video Widget
+        self.media_display_stack.addWidget(self.video_stack) # Index 1: Video Stack (Double Buffered)
 
         # Add the stack to the main layout instead of just the album art
         self.main_layout.addWidget(self.media_display_stack, 1) # Add stack with stretch factor
 
         # Set initial display to album art
         self.media_display_stack.setCurrentIndex(0)
-        # -----------------------------------------
         
         # --- Define relative positions --- 
         margin = 20
-        # button_spacing = 10 # No longer needed for individual button spacing
-        # Define position for the overlay panel
         overlay_pos = QPoint(margin, margin)
         
-        # --- Create PlayerOverlay --- Added
+        # --- Create PlayerOverlay --- 
         self.player_overlay = PlayerOverlay(
             parent=self # Set direct parent
         )
@@ -145,12 +139,63 @@ class PlayerPage(QWidget):
         self.speed_overlay = SpeedOverlay(self)
         self.speed_overlay.hide()  # Initially hidden
         
-        # Initial positioning will be done in resizeEvent
-        
         # Connect album art click to toggle play/pause
-        # Note: Clicking the video widget area won't do this yet.
         self.album_art.clicked.connect(self._toggle_play_pause)
         
+    def swap_video_surface(self) -> int:
+        """
+        Allocates a NEW video surface and returns its winId (HWND).
+        We avoid reusing old surfaces because background VLC teardown can take seconds.
+        """
+        self._current_video_widget = self._create_and_activate_video_surface()
+        hwnd = int(self._current_video_widget.winId())
+        Logger.instance().debug(caller="PlayerPage", msg=f"[PlayerPage] Allocated new video surface hwnd={hwnd}")
+        self._current_video_widget.setVisible(True)
+        self._current_video_widget.setFocus()
+        return hwnd
+
+    def _create_and_activate_video_surface(self) -> VideoWidget:
+        """Create a new VideoWidget surface, add it to the stack, and make it current."""
+        w = VideoWidget(self)
+        w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        if self._hotkey_handler and hasattr(w, "set_hotkey_handler"):
+            w.set_hotkey_handler(self._hotkey_handler)
+
+        self.video_stack.addWidget(w)
+        self.video_stack.setCurrentWidget(w)
+
+        hwnd = int(w.winId())
+        self._surface_by_hwnd[hwnd] = w
+        return w
+
+    def release_video_surface(self, hwnd: int):
+        """
+        Remove and delete an old video surface after its VLC worker has fully finished.
+        """
+        try:
+            hwnd_int = int(hwnd)
+        except Exception:
+            return
+
+        w = self._surface_by_hwnd.pop(hwnd_int, None)
+        if not w:
+            return
+
+        # Never delete the currently active surface
+        if w is self._current_video_widget:
+            self._surface_by_hwnd[hwnd_int] = w
+            return
+
+        try:
+            self.video_stack.removeWidget(w)
+        except Exception:
+            pass
+        w.deleteLater()
+
+    def get_current_video_widget(self):
+        """Returns the currently active video widget."""
+        return self._current_video_widget
+
     def _on_open_file_clicked(self):
         """Handle open file button click by delegating to the persistent player"""
         if self.persistent_player:
@@ -220,37 +265,20 @@ class PlayerPage(QWidget):
         
         if artwork_path:
             self.album_art.set_image(artwork_path)
-            
-            # Force the album art display to be visible and update
-            # self.album_art.setVisible(True) # Visibility now controlled by stack
             self.album_art.update()
         else:
             # Set placeholder for no artwork
             self.album_art._set_placeholder()
         
-        # --- Ensure Album Art is shown if stack is currently on index 0 --- 
-        # Commented out as the _on_media_type_determined slot should handle this visibility now
-        # if self.media_display_stack.currentIndex() == 0:
-        #     self.album_art.setVisible(True)
-        #     self.video_widget.setVisible(False)
-        # -------------------------------------------------------------------
-        
     def showEvent(self, event):
         """
         Override show event to connect to the persistent player.
-        
-        Args:
-            event: The show event
         """
         super().showEvent(event)
         
-        # --- RESTORED: Persistent player logic ---
         # Set a larger minimum size for the album art when shown
         window_size = self.size()
         min_dimension = min(window_size.width(), window_size.height()) - 100
-        # self.album_art.setMinimumSize(min_dimension, min_dimension)
-        # Set minimum size on the stack instead if desired
-        # self.media_display_stack.setMinimumSize(min_dimension, min_dimension)
         
         # Find the persistent player if we haven't already
         if not self.persistent_player:
@@ -260,24 +288,13 @@ class PlayerPage(QWidget):
                 parent = parent.parent()
             if parent and hasattr(parent, 'player'):
                 self.set_persistent_player(parent.player) # Call setup method
-        # ---------------------------------------------
 
-        # --- RESTORED: Original logic for passing handle to persistent player ---
-        # if self.persistent_player and hasattr(self, 'video_widget'):
-        #     # --- Pass video widget handle to player (original intent) ---
-        #     self.persistent_player.set_video_widget(self.video_widget)
-        elif not self.persistent_player:
+        if not self.persistent_player:
              Logger.instance().error(caller="PlayerPage", msg="[PlayerPage] Error: Could not find persistent player in showEvent.")
-        else: # Player exists but no video_widget?
-             Logger.instance().warning(caller="PlayerPage", msg="[PlayerPage] Warning: Persistent player found in showEvent, but no video_widget attribute.")
-        # ------------------------------------------------------------------------
     
     def keyPressEvent(self, event):
         """
         Handle key events at the page level.
-        
-        Args:
-            event: The key event
         """
         # Forward key events to the persistent player
         if self.persistent_player:
@@ -288,68 +305,44 @@ class PlayerPage(QWidget):
 
     def hideEvent(self, event):
         """Handle hide event."""
-        # if self._test_vlc_player:
-        #     self._test_vlc_player.stop()
-        #     # Optional: Release resources if needed, might be handled by garbage collection
-        #     # self._test_vlc_player = None
-        #     # self._test_vlc_instance = None
         super().hideEvent(event)
 
     def set_persistent_player(self, player: 'MainPlayer'):
         """ Sets the persistent player instance and connects signals. """
         self.persistent_player = player
         
-        # --- Connect player signals --- 
         if self.persistent_player:
-            # --- REMOVE OLD CONNECTION ---
-            # if hasattr(self.persistent_player, 'video_media_detected'):
-            #     self.persistent_player.video_media_detected.connect(self._on_media_type_determined)
-            # ---------------------------
-
-            # --- CORRECTED CONNECTION --- 
-            # Connect media_changed (which now includes is_video) to the updated slot
-            if hasattr(self.persistent_player, 'media_changed'): # <-- Corrected signal name
+            # Connect media_changed
+            if hasattr(self.persistent_player, 'media_changed'): 
                 self.persistent_player.media_changed.connect(self._on_media_loaded) 
-            # ------------------------
             
-            # --- ADD HWND SETUP HERE --- 
-            # Set the video widget handle in the player *immediately* when connected
-            if hasattr(self.persistent_player, 'set_video_widget') and self.video_widget:
-                self.persistent_player.set_video_widget(self.video_widget)
-            # ---------------------------
-
-            # --- Pass HotkeyHandler to VideoWidget --- 
-            if self.persistent_player and hasattr(self.persistent_player, 'hotkey_handler') \
-               and self.video_widget and hasattr(self.video_widget, 'set_hotkey_handler'):
+            # --- Pass HotkeyHandler to BOTH VideoWidgets --- 
+            if hasattr(self.persistent_player, 'hotkey_handler'):
                 handler = self.persistent_player.hotkey_handler
-                self.video_widget.set_hotkey_handler(handler)
-            # -----------------------------------------
-            
-            # --- Pass HotkeyHandler to AlbumArtDisplay --- 
-            if self.persistent_player and hasattr(self.persistent_player, 'hotkey_handler') \
-               and self.album_art and hasattr(self.album_art, 'set_hotkey_handler'):
-                handler = self.persistent_player.hotkey_handler
-                self.album_art.set_hotkey_handler(handler)
-            # -------------------------------------------
+                self._hotkey_handler = handler
+                # Apply to all existing surfaces
+                for w in list(self._surface_by_hwnd.values()):
+                    if hasattr(w, 'set_hotkey_handler'):
+                        w.set_hotkey_handler(handler)
+                if hasattr(self.album_art, 'set_hotkey_handler'):
+                    self.album_art.set_hotkey_handler(handler)
+            # -----------------------------------------------
 
             # Update UI immediately with current player state/media if available
-            # Get current media info
-        current_metadata = self.persistent_player.get_current_track_metadata()
-        if current_metadata:
-            self._update_track_info(current_metadata)
+            current_metadata = self.persistent_player.get_current_track_metadata()
+            if current_metadata:
+                self._update_track_info(current_metadata)
         
-        # Direct access to artwork path as fallback
-        if hasattr(self.persistent_player, 'get_current_artwork_path'):
-            artwork_path = self.persistent_player.get_current_artwork_path()
-            if artwork_path:
-                self.album_art.set_image(artwork_path)
-                    # self.album_art.setVisible(True) # Visibility now controlled by stack
-                self.album_art.update()
+            # Direct access to artwork path as fallback
+            if hasattr(self.persistent_player, 'get_current_artwork_path'):
+                artwork_path = self.persistent_player.get_current_artwork_path()
+                if artwork_path:
+                    self.album_art.set_image(artwork_path)
+                    self.album_art.update()
 
-            # --- Call MainPlayer's register_player_page method --- # MOVED HERE
+            # Register with MainPlayer so it can callback for surface swaps
             if hasattr(self.persistent_player, 'register_player_page'):
                 self.persistent_player.register_player_page(self)
-            # -----------------------------------------------------
                 
         # Force an update
         self.update()
@@ -362,16 +355,11 @@ class PlayerPage(QWidget):
         page_rect = self.rect()
 
         # --- Position Media Stack ---
-        # Make the stack fill the entire page
         self.media_display_stack.setGeometry(page_rect)
         
         # --- Position Player Overlay ---
         overlay_margin = 20
-        overlay_size = self.player_overlay.sizeHint() # Get preferred size
-        # Position at top-left
         self.player_overlay.move(overlay_margin, overlay_margin)
-        # Or use setGeometry if specific size needed:
-        # self.player_overlay.setGeometry(overlay_margin, overlay_margin, overlay_size.width(), overlay_size.height())
 
         # --- Position Speed Overlay ---
         speed_overlay_size = self.speed_overlay.sizeHint()
@@ -391,11 +379,9 @@ class PlayerPage(QWidget):
         )
 
         # --- Raise Overlays ---
-        # Raise player overlay above the media stack
         self.player_overlay.raise_()
-        # Raise other overlays as needed (they are siblings, order matters if they overlap)
         self.upload_status.raise_()
-        self.speed_overlay.raise_() # Speed overlay potentially highest
+        self.speed_overlay.raise_() 
 
     def _on_rate_changed(self, rate):
         """Handle rate change from player"""
@@ -427,113 +413,58 @@ class PlayerPage(QWidget):
         if is_video:
             Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Switching display to Video Widget.")
             self.media_display_stack.setCurrentIndex(1)
-            self.video_widget.setVisible(True)
+            # Ensure current video widget is visible (it should be, but be safe)
+            self._current_video_widget.setVisible(True) 
             self.album_art.setVisible(False)
+            
             # --- Start mouse tracking timer --- 
-            Logger.instance().info(caller="PlayerPage", msg="[PlayerPage] Starting mouse tracking timer.")
             self.mouse_tracking_timer.start()
-            # ----------------------------------
         else:
             # --- Stop mouse tracking timer --- 
             if self.mouse_tracking_timer.isActive():
-                Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Stopping mouse tracking timer.")
                 self.mouse_tracking_timer.stop()
-            # ---------------------------------
+            
             Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Switching display to Album Art.")
             self.media_display_stack.setCurrentIndex(0)
             self.album_art.setVisible(True)
-            self.video_widget.setVisible(False)
+            self.video_stack.setVisible(False) # Hide the whole video stack
+            
             # Ensure overlay is visible when not in video mode
             self.player_overlay.show_overlay() 
-            # Ensure album art is updated if needed (metadata might have changed)
+            
             if self.persistent_player:
-                # Use the metadata received directly from the signal
                 self._update_track_info(metadata) 
-                # current_metadata = self.persistent_player.get_current_track_metadata()
-                # if current_metadata:
-                #     self._update_track_info(current_metadata) 
 
-    # +++ Add Timer Callback Method +++
     def _check_mouse_over_video(self):
         """Called by timer to check mouse position relative to the overlay widget."""
-        if not self.video_widget.isVisible() or not self.player_overlay._video_mode_active:
+        # Use _current_video_widget
+        if not self._current_video_widget.isVisible() or not self.player_overlay._video_mode_active:
             if self.mouse_tracking_timer.isActive() and not self.player_overlay._video_mode_active:
                 self.mouse_tracking_timer.stop()
-            # Ensure overlay is hidden if timer stops unexpectedly while video mode is active
             if self.player_overlay._video_mode_active:
                 self.player_overlay.hide_overlay()
             return
 
         global_mouse_pos = QCursor.pos()
-        
-        # --- Get Overlay Global Geometry --- 
-        # video_global_top_left = self.video_widget.mapToGlobal(QPoint(0, 0))
-        # video_global_rect = QRect(video_global_top_left, self.video_widget.size())
         overlay_global_top_left = self.player_overlay.mapToGlobal(QPoint(0, 0))
         overlay_global_rect = QRect(overlay_global_top_left, self.player_overlay.size())
-        # ----------------------------------
 
-        # --- Check against Overlay Bounds --- 
-        # if video_global_rect.contains(global_mouse_pos):
         if overlay_global_rect.contains(global_mouse_pos):
-            # Mouse is inside overlay bounds
             if not self.player_overlay.isVisible():
                 self.player_overlay.show_overlay()
         else:
-            # Mouse is outside overlay bounds
             if self.player_overlay.isVisible():
                 self.player_overlay.hide_overlay()
-    # +++++++++++++++++++++++++++++++++
 
-    # --- Add Event Filter Method +++
-
-    # --- Add methods to control media_display_stack visibility --- 
     def show_video_view(self):
         """Switches the PlayerPage to display the video widget."""
-        Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Showing video view.")
-        
-        # Ensure the VideoWidget is parented to the QStackedWidget.
-        # This is necessary if it was previously detached (e.g., parent set to None).
-        if self.video_widget.parentWidget() != self.media_display_stack:
-            Logger.instance().debug(caller="PlayerPage", msg=f"[PlayerPage] VideoWidget current parent is {self.video_widget.parentWidget()}, reparenting to {self.media_display_stack}.")
-            # Ensure it's fully detached from any old parent before reparenting.
-            # This is usually handled by setParent, but being explicit can avoid edge cases.
-            if self.video_widget.parentWidget() is not None:
-                self.video_widget.setParent(None)
-            self.video_widget.setParent(self.media_display_stack)
-            
-            # CRUCIAL: After reparenting, the widget must be re-added to the QStackedWidget's
-            # internal page list and layout management. Calling addWidget handles this.
-            # QStackedWidget.addWidget is idempotent if the widget is already present in some form,
-            # but it's essential here because reparenting effectively removes it from stack's layout.
-            Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Re-adding VideoWidget to media_display_stack via addWidget after reparenting.")
-            self.media_display_stack.addWidget(self.video_widget)
-        else:
-            # Even if parented correctly, it might have been 'deregistered' from the stack's view.
-            # The "not contained in stack" warning is the primary indicator.
-            # If indexOf returns -1, it means it's not in the stack's managed pages.
-            if self.media_display_stack.indexOf(self.video_widget) == -1:
-                Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] VideoWidget parented to stack, but not found by indexOf. Re-adding via addWidget.")
-                self.media_display_stack.addWidget(self.video_widget)
-        
-        # Now, the widget should be correctly parented AND managed by the stack.
-        self.media_display_stack.setCurrentWidget(self.video_widget)
-        
-        self.video_widget.setVisible(True) # Ensure it's visible
-        
-        # These updates help ensure the layout recalculates and applies the correct geometry.
-        self.video_widget.update() 
-        self.video_widget.updateGeometry() 
-        
-        # Also tell the stack widget itself to update its geometry, which might affect its children.
-        self.media_display_stack.updateGeometry()
-
-        Logger.instance().debug(caller="PlayerPage", msg=f"[PlayerPage] VideoWidget current in stack, visible: {self.video_widget.isVisible()}, geometry: {self.video_widget.geometry()}")
+        self.media_display_stack.setCurrentIndex(1)
+        self.video_stack.setVisible(True)
+        self._current_video_widget.setVisible(True)
+        self.setFocus()
+        self._current_video_widget.setFocus()
 
     def show_album_art_view(self):
         """Switches the PlayerPage to display the album art."""
-        Logger.instance().debug(caller="PlayerPage", msg="[PlayerPage] Showing album art view.")
-        self.media_display_stack.setCurrentWidget(self.album_art)
-        self.album_art.setVisible(True) # Explicitly ensure visible
-        # self.video_widget.setVisible(False)
-    # ----------------------------------------------------------
+        self.media_display_stack.setCurrentIndex(0)
+        self.album_art.setVisible(True)

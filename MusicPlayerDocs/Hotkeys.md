@@ -28,6 +28,21 @@ This document lists all available keyboard shortcuts for the Music Player applic
 
 > **Note:** The seek interval for all arrow-based navigation can be configured in Preferences. Frame navigation (A/F keys) always moves by one frame regardless of this setting.
 
+### Context-Aware Navigation
+
+These hotkeys behave differently depending on where playback was started (e.g., from a Playlist, the File Browser, or a Single File).
+
+| Key         | Function       | Behavior by Context                                                                                                                                                          |
+| :---------- | :------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Page Up`   | Previous Media | **Playlist Mode:** Plays the previous track in the active playlist.<br>**Browser Mode:** Plays the previous media file in the current folder.<br>**Single Mode:** No action. |
+| `Page Down` | Next Media     | **Playlist Mode:** Plays the next track in the active playlist.<br>**Browser Mode:** Plays the next media file in the current folder.<br>**Single Mode:** No action.         |
+
+## File Management
+
+| Key      | Function    | Description                                                                                                                        |
+| :------- | :---------- | :--------------------------------------------------------------------------------------------------------------------------------- |
+| `Delete` | Delete File | **Browser Mode Only:** Initiates the deletion workflow for the _currently playing_ file. A silent confirmation dialog will appear. |
+
 ## Volume Controls
 
 | Key          | Function    | Description           |

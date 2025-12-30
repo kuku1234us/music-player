@@ -12,7 +12,8 @@ from qt_base_app.models.logger import Logger
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QFileDialog, QLabel,
-    QSizePolicy, QMessageBox, QHBoxLayout, QLineEdit, QSpinBox, QPushButton
+    QSizePolicy, QMessageBox, QHBoxLayout, QLineEdit, QSpinBox, QPushButton,
+    QDialog, QDialogButtonBox # Added QDialog components
 )
 from PyQt6.QtCore import (
     Qt, QSize, pyqtSlot, QTimer, pyqtSignal, QSortFilterProxyModel, 
@@ -160,12 +161,25 @@ class DirectoryWorker(QRunnable):
         """Flag the worker to stop processing"""
         self.is_cancelled = True
 
+class SilentConfirmDialog(QDialog):
+    """A dialog that does not emit system sound on show."""
+    def __init__(self, parent, filename):
+        super().__init__(parent)
+        self.setWindowTitle("Confirm Deletion")
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"Are you sure you want to delete:\n{filename}?"))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Yes | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
 class BrowserPage(QWidget):
     """
     Page that allows browsing a selected directory and viewing its contents.
     """
     # Signal to request playing a single file
     play_single_file_requested = pyqtSignal(str) # Emits filepath
+    request_stop_playback = pyqtSignal() # Request stop playback
     
     # Define a custom role for storing the is_dir flag
     IS_DIR_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -194,6 +208,7 @@ class BrowserPage(QWidget):
         self.sort_down_icon = qta.icon('fa5s.sort-down', color=self.theme.get_color('text', 'secondary'))
 
         self._current_directory = None
+        self.persistent_player = None # Will be set via dashboard/parent
         
         # Flag to track if we're in the middle of programmatic navigation
         self._navigation_in_progress = False
@@ -219,12 +234,6 @@ class BrowserPage(QWidget):
         self.douyin_progress_overlay = DouyinProgress(self)
         
         # Configure concurrent encoding limit based on system capabilities
-        # Recommended values:
-        # - Intel i3/i5: 1-2
-        # - Intel i7/i9: 2-4  
-        # - AMD Ryzen 5: 2-3
-        # - AMD Ryzen 7/9: 3-5
-        # Default: 3 (good for most Intel i7 systems)
         DouyinProcessor.set_max_concurrent_encoding(3)
         # --- END NEW --- #
 
@@ -250,6 +259,7 @@ class BrowserPage(QWidget):
         self._connect_signals()
         self._update_empty_message() # Show initial message
 
+    # ... [Keep existing methods unchanged until _connect_signals] ...
     def _setup_ui(self):
         # Main layout
         self.main_layout = QVBoxLayout(self)
@@ -271,16 +281,7 @@ class BrowserPage(QWidget):
             padding: 4px 6px; 
             font-size: 9pt; 
         """
-        # Style for the button
-        button_style = f"""
-            background-color: {self.theme.get_color('background', 'tertiary')};
-            color: {self.theme.get_color('text', 'primary')};
-            border-radius: 4px;
-            padding: 5px 10px; 
-            font-size: 9pt;
-            font-weight: bold;
-        """
-
+        
         # Host Label and Input
         self.ftp_host_label = QLabel("OPlayer FTP:")
         self.ftp_host_label.setStyleSheet(f"color: {self.theme.get_color('text', 'secondary')}; font-size: 9pt;")
@@ -380,7 +381,7 @@ class BrowserPage(QWidget):
         # --- NEW: MP3 Conversion Button --- #
         self.mp3_convert_button = RoundButton(
             parent=self,
-            text="MP3", # Changed from MP to MP3 for clarity
+            text="MP3", 
             diameter=48,
             bg_opacity=0.5
         )
@@ -390,7 +391,7 @@ class BrowserPage(QWidget):
         # --- NEW: Video Compression Button --- #
         self.video_compress_button = RoundButton(
             parent=self,
-            icon_name="fa5s.video",  # Video icon
+            icon_name="fa5s.video",  
             diameter=48,
             icon_size=20,
             bg_opacity=0.5
@@ -411,25 +412,25 @@ class BrowserPage(QWidget):
         # --- NEW: Cancel Conversion Button --- #
         self.cancel_conversion_button = RoundButton(
             parent=self,
-            icon_name="fa5s.times-circle", # Using a times-circle icon
+            icon_name="fa5s.times-circle", 
             diameter=48,
             icon_size=24,
             bg_opacity=0.5
         )
         self.cancel_conversion_button.setToolTip("Cancel Ongoing Conversions")
-        self.cancel_conversion_button.hide() # Initially hidden
+        self.cancel_conversion_button.hide() 
         # --- END NEW --- #
 
         # --- NEW: Cancel Video Compression Button --- #
         self.cancel_video_compression_button = RoundButton(
             parent=self,
-            icon_name="fa5s.stop-circle", # Using a stop-circle icon
+            icon_name="fa5s.stop-circle", 
             diameter=48,
             icon_size=24,
             bg_opacity=0.5
         )
         self.cancel_video_compression_button.setToolTip("Cancel Ongoing Video Compressions")
-        self.cancel_video_compression_button.hide() # Initially hidden
+        self.cancel_video_compression_button.hide() 
         # --- END NEW --- #
 
         # --- NEW: Bottom Button Bar --- #
@@ -438,7 +439,7 @@ class BrowserPage(QWidget):
         self.bottom_button_layout = QHBoxLayout(self.bottom_button_bar)
         self.bottom_button_layout.setContentsMargins(0, 0, 0, 0)
         self.bottom_button_layout.setSpacing(10)
-        self.bottom_button_layout.addStretch(1)  # Push buttons to the right
+        self.bottom_button_layout.addStretch(1)  
 
         # Add buttons to layout in desired order (left to right)
         self.bottom_button_layout.addWidget(self.cancel_video_compression_button)
@@ -497,7 +498,7 @@ class BrowserPage(QWidget):
         self.douyin_processor.trim_file_completed.connect(self._on_douyin_file_completed)
         self.douyin_processor.trim_file_failed.connect(self._on_douyin_file_failed)
         self.douyin_processor.trim_batch_finished.connect(self._on_douyin_batch_finished)
-        # Normalization signals (merge-only mode)
+        # Normalization signals
         self.douyin_processor.normalize_started.connect(lambda total: (self.douyin_progress_overlay.show_normalization_started(total), self._update_douyin_progress_position()))
         self.douyin_processor.normalize_file_started.connect(lambda task_id, filename, idx, total: (self.douyin_progress_overlay.show_file_progress(task_id, os.path.basename(filename), idx, total, 0.0), self._update_douyin_progress_position()))
         self.douyin_processor.normalize_file_progress.connect(lambda task_id, percent: self.douyin_progress_overlay.update_current_file_progress(task_id, percent))
@@ -518,45 +519,109 @@ class BrowserPage(QWidget):
         self.douyin_button.clicked.connect(self._on_douyin_process_clicked)
         # --- END NEW --- #
 
+    # ... [Keep navigation/display logic, add new methods below] ...
+    
+    # --- New Methods for Navigation and Deletion ---
+    def _get_adjacent_file(self, current_path, direction='next') -> str | None:
+        """Finds the next or previous file in the sorted view."""
+        if not current_path: return None
+        
+        model = self.file_table.model()
+        if not model: return None
+        
+        target_row = -1
+        current_row = -1
+        
+        # Find current row
+        for row in range(model.rowCount()):
+            idx = model.index(row, 0)
+            item_data = model.data(idx, Qt.ItemDataRole.UserRole)
+            if isinstance(item_data, dict) and item_data.get('path') == current_path:
+                current_row = row
+                break
+                
+        if current_row == -1: return None
+        
+        if direction == 'next':
+            target_row = current_row + 1
+        elif direction == 'prev':
+            target_row = current_row - 1
+            
+        if 0 <= target_row < model.rowCount():
+            idx = model.index(target_row, 0)
+            item_data = model.data(idx, Qt.ItemDataRole.UserRole)
+            if isinstance(item_data, dict):
+                return item_data.get('path')
+        
+        return None
+
+    @pyqtSlot(str)
+    def handle_browser_nav_request(self, direction):
+        """Handles navigation requests from MainPlayer (hotkeys)."""
+        if not self.persistent_player: return
+        
+        current_path = self.persistent_player.get_current_media_path()
+        next_file = self._get_adjacent_file(current_path, direction)
+        
+        if next_file:
+            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Hotkey Nav: Playing {next_file}")
+            self.play_single_file_requested.emit(next_file)
+            filename = os.path.basename(next_file)
+            self._select_file_by_name(filename)
+
+    @pyqtSlot(str)
+    def handle_browser_delete_request(self, file_path):
+        """Handles delete request from MainPlayer (hotkey)."""
+        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Delete requested for: {file_path}")
+        
+        # 1. Identify next file to play
+        next_file = self._get_adjacent_file(file_path, 'next')
+        if not next_file:
+             next_file = self._get_adjacent_file(file_path, 'prev')
+
+        # 2. Confirm
+        dialog = SilentConfirmDialog(self, os.path.basename(file_path))
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # 3. Stop Playback to release lock
+            self.request_stop_playback.emit()
+            
+            # Delay to ensure lock release
+            QTimer.singleShot(200, lambda: self._execute_delete(file_path, next_file))
+
+    def _execute_delete(self, file_path, next_file_to_play):
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Deleted file: {file_path}")
+                
+                # Setup pending selection for the refresh
+                if next_file_to_play:
+                    self._pending_selection_dir = self._current_directory
+                    self._pending_selection_filename = os.path.basename(next_file_to_play)
+                
+                self._refresh_view()
+                
+                if next_file_to_play and os.path.exists(next_file_to_play):
+                     self.play_single_file_requested.emit(next_file_to_play)
+            else:
+                Logger.instance().warning(caller="BrowserPage", msg="[BrowserPage] File not found for deletion.")
+        except Exception as e:
+            Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Delete failed: {e}")
+            QMessageBox.critical(self, "Delete Failed", f"Could not delete file:\n{e}")
+
+    # ... [Rest of existing methods: _browse_folder, _navigate_to_directory, _refresh_view, etc.] ...
     def _browse_folder(self):
-        """Opens a directory dialog and populates the table."""
         last_dir = self.settings.get('browser/last_browse_dir', str(Path.home()), SettingType.PATH)
-        
-        directory = QFileDialog.getExistingDirectory(
-            self,
-            "Select Folder to Browse",
-            str(last_dir),
-            QFileDialog.Option.ShowDirsOnly
-        )
-        
-        if directory:
-            # Use the shared navigation method instead of duplicating code
-            self._navigate_to_directory(Path(directory))
-        else:
-             # User cancelled - keep existing view or message
-             self._update_empty_message() # Ensure message reflects state
+        directory = QFileDialog.getExistingDirectory(self, "Select Folder to Browse", str(last_dir), QFileDialog.Option.ShowDirsOnly)
+        if directory: self._navigate_to_directory(Path(directory))
+        else: self._update_empty_message()
              
     def _navigate_to_directory(self, directory_path):
-        """
-        Core method for navigating to a directory.
-        This centralized method is used by both manual browsing and programmatic navigation.
-        
-        Args:
-            directory_path (Path): Path object pointing to the directory to navigate to
-            
-        Returns:
-            bool: True if navigation was successful, False otherwise
-        """
-        # Validate the directory exists
         if not directory_path or not directory_path.is_dir():
             Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Cannot navigate: Invalid directory path: {directory_path}")
             return False
-            
-        # Always save to settings
         self.settings.set('browser/last_browse_dir', str(directory_path), SettingType.PATH)
         self.settings.sync()
-            
-        # Update current directory and populate the table
         if self._current_directory != directory_path:
             self._current_directory = directory_path
             self._populate_table(self._current_directory)
@@ -566,104 +631,65 @@ class BrowserPage(QWidget):
             return True
 
     def _refresh_view(self):
-        """Refreshes the table view for the current directory."""
         if self._current_directory and self._current_directory.is_dir():
             Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Refreshing view for: {self._current_directory}")
             self._populate_table(self._current_directory)
         else:
             Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] Cannot refresh: No valid directory selected.")
-            # Optionally show a message if needed
 
     def _populate_table(self, directory_path: Path):
-        """Clears and fills the table with contents of the directory using a worker thread."""
-        # Cancel any ongoing directory loading
-        if self.current_directory_worker:
-            self.current_directory_worker.cancel()
-            
-        # Show loading indicator
+        if self.current_directory_worker: self.current_directory_worker.cancel()
         self.empty_label.setText(f"Loading {directory_path.name}...")
         self.empty_label.show()
         self.file_table.hide()
         self.loading_animation_step = 0
         self.loading_timer.start()
-        
-        # Create and start a new worker
         worker = DirectoryWorker(directory_path)
         worker.signals.progress.connect(self._on_directory_loading_progress)
         worker.signals.finished.connect(lambda files_data: self._on_directory_loading_finished(files_data, directory_path))
         worker.signals.error.connect(self._on_directory_loading_error)
-        
         self.current_directory_worker = worker
         self.thread_pool.start(worker)
 
     def _on_directory_loading_progress(self, current, total):
-        """Handle directory loading progress signal"""
         if total > 0:
             percent = (current / total) * 100
             self.empty_label.setText(f"Loading {self._current_directory.name}... {current}/{total} ({percent:.0f}%)")
     
     def _on_directory_loading_finished(self, files_data, directory_path):
-        """Handle directory loading finished signal"""
-        # Stop the loading animation
         self.loading_timer.stop()
-        
-        # Clear reference to worker
         self.current_directory_worker = None
-        
-        # Check if this is for the current directory (could have changed during loading)
-        if self._current_directory != directory_path:
-            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Ignoring loading results for outdated directory: {directory_path}")
-            return
-            
+        if self._current_directory != directory_path: return
         if not files_data:
             self._update_empty_message(is_empty=True)
             return
-        
-        # We have files, show table and hide message
         self.empty_label.hide()
         self.file_table.show()
-        
-        # Set up model and proxy
         self.model = BaseTableModel(source_objects=files_data, column_definitions=browser_col_defs)
         self.proxy_model = QSortFilterProxyModel()
         self.proxy_model.setSourceModel(self.model)
         self.file_table.setModel(self.proxy_model)
-
         self.file_table.resizeRowsToContents()
-        
-        # --- Handle Pending Selection ---
         if directory_path == self._pending_selection_dir and self._pending_selection_filename:
-            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Executing pending selection for: {self._pending_selection_filename}")
             self._select_file_by_name(self._pending_selection_filename)
-        # Clear pending state regardless of whether selection happened (avoid stale requests)
         self._pending_selection_dir = None
         self._pending_selection_filename = None
-        # ------------------------------
 
     def _on_directory_loading_error(self, error_msg):
-        """Handle directory loading error signal"""
-        # Stop the loading animation
         self.loading_timer.stop()
-        
-        # Clear reference to worker
         self.current_directory_worker = None
-        
         Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Directory loading error: {error_msg}")
         self.empty_label.setText(f"Error: {error_msg}")
         self.empty_label.show()
         self.file_table.hide()
         
     def _update_loading_animation(self):
-        """Update the loading animation character in the empty label"""
-        if not self._current_directory:
-            return
-            
+        if not self._current_directory: return
         char = self.loading_animation_chars[self.loading_animation_step % len(self.loading_animation_chars)]
         self.empty_label.setText(f"Loading {self._current_directory.name}... {char}")
         self.loading_animation_step += 1
 
     def _update_empty_message(self, is_empty: bool = False):
-        """Shows or hides the empty message based on directory state."""
         if self._current_directory and is_empty:
             self.empty_label.setText(f"Directory is empty: {self._current_directory.name}")
             self.file_table.hide()
@@ -673,720 +699,403 @@ class BrowserPage(QWidget):
             self.file_table.hide()
             self.empty_label.show()
         else:
-            # We have a directory and it's not empty (or not checked yet)
             self.empty_label.hide()
-            self.file_table.show() # Show the table directly
+            self.file_table.show()
 
     def _on_file_double_clicked(self, filepath):
         self.play_single_file_requested.emit(filepath)
 
     def _on_directory_double_clicked(self, dirpath):
         if dirpath and os.path.isdir(dirpath):
-            # Use the centralized navigation method
             self._navigate_to_directory(Path(dirpath))
 
     def _on_items_deleted_from_disk(self, deleted_count, error_messages):
         if deleted_count > 0:
             message = f"Deleted {deleted_count} item(s)."
-            if error_messages:
-                message += f"\n({len(error_messages)} errors occurred)"
+            if error_messages: message += f"\n({len(error_messages)} errors occurred)"
             self._show_temporary_message(message)
         elif error_messages:
             message = f"Failed to delete selected items.\n{error_messages[0]}"
-            if len(error_messages) > 1:
-                message += " (and others)"
+            if len(error_messages) > 1: message += " (and others)"
             self._show_temporary_message(message, is_error=True)
 
     def _on_oplayer_upload_selected_clicked(self):
-        """Handles click on the OPlayer upload button for selected files."""
         selected_objects = self.file_table.get_selected_items_data()
         self._files_to_upload = []
-        
         if not selected_objects:
             QMessageBox.warning(self, "No Selection", "Please select one or more files to upload.")
             return
-
-        # Get paths of selected *files* only
         for obj in selected_objects:
             path = obj.get('path')
             is_dir = obj.get('is_dir', False)
             if path and not is_dir and os.path.exists(path):
-                if path not in self._files_to_upload: # Avoid duplicates from multi-column selection
+                if path not in self._files_to_upload:
                     self._files_to_upload.append(path)
-        
         if not self._files_to_upload:
             QMessageBox.warning(self, "No Files Selected", "The current selection contains only directories or invalid files.")
             return
-
-        # Test connection first
-        Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] Testing connection to OPlayer device...")
         if not self.oplayer_service.test_connection():
-            error_msg = "Could not connect to OPlayer device. Check connection and device status."
-            Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Error: {error_msg}")
-            QMessageBox.critical(self, "Connection Error", error_msg)
+            QMessageBox.critical(self, "Connection Error", "Could not connect to OPlayer device.")
             return
-
-        # Reset state and start the first upload
         self._current_upload_index = 0
         self._total_files_to_upload = len(self._files_to_upload)
-        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Starting upload of {self._total_files_to_upload} files.")
         self._start_next_upload()
         
     def _start_next_upload(self):
-        """Initiates the upload for the next file in the queue."""
         if self._current_upload_index < self._total_files_to_upload:
             file_path = self._files_to_upload[self._current_upload_index]
-            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Uploading file {self._current_upload_index + 1}/{self._total_files_to_upload}: {file_path}")
-            # Start the upload via the service
             if not self.oplayer_service.upload_file(file_path):
-                 # Handle immediate failure from service (e.g., file vanished)
                  self._on_upload_failed(f"Could not start upload for {os.path.basename(file_path)}")
-                 # No need to call _start_next_upload here, _on_upload_failed will do it.
-        else:
-            Logger.instance().info(caller="BrowserPage", msg="[BrowserPage] All file uploads finished or attempted.")
-            # Optionally show a final summary message or just hide the overlay after a delay
-            # self.upload_status.show_upload_completed(f"Finished uploading {self._total_files_to_upload} files.")
-            # For now, let the last completion/failure message linger
 
     @pyqtSlot(str)
     def _on_upload_started(self, filename):
-        """Handle upload started signal"""
         status_text = f"Uploading {self._current_upload_index + 1}/{self._total_files_to_upload}: {filename}"
-        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] {status_text}")
         self.upload_status.show_upload_started(status_text)
         self._update_upload_status_position()
         
     @pyqtSlot(int)
     def _on_upload_progress(self, percentage):
-        """Handle upload progress signal"""
         self.upload_status.show_upload_progress(percentage)
         
     @pyqtSlot(str)
     def _on_upload_completed(self, filename):
-        """Handle upload completed signal"""
         status_text = f"Completed {self._current_upload_index + 1}/{self._total_files_to_upload}: {filename}"
-        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] {status_text}")
-        self.upload_status.show_upload_completed(status_text) # Show completion briefly
-        
-        # Move to the next file
+        self.upload_status.show_upload_completed(status_text) 
         self._current_upload_index += 1
-        # Use QTimer to start next upload slightly later, allowing completion message to be seen
         QTimer.singleShot(1000, self._start_next_upload) 
 
     @pyqtSlot(str)
     def _on_upload_failed(self, error_msg):
-        """Handle upload failed signal"""
         filename = "Unknown File"
         if self._current_upload_index < self._total_files_to_upload:
              filename = os.path.basename(self._files_to_upload[self._current_upload_index])
-             
         status_text = f"Failed {self._current_upload_index + 1}/{self._total_files_to_upload}: {filename}"
-        Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Upload Failed: {status_text} - Error: {error_msg}")
-        self.upload_status.show_upload_failed(f"{status_text}\n{error_msg}") # Show failure
-        
-        # Move to the next file even if one failed
+        self.upload_status.show_upload_failed(f"{status_text}\n{error_msg}") 
         self._current_upload_index += 1
-        # Use QTimer to start next upload slightly later, allowing failure message to be seen
-        QTimer.singleShot(2500, self._start_next_upload) # Longer delay for errors 
+        QTimer.singleShot(2500, self._start_next_upload) 
 
     def resizeEvent(self, event):
-        """Handle resize event to reposition overlay button."""
         super().resizeEvent(event)
-
-        # --- Position BrowserPage Overlays ---
         margin = 20
-        button_y = self.height() - self.browse_button.height() - margin  # Assuming all buttons have same height
+        button_y = self.height() - self.browse_button.height() - margin  
         current_x = self.width() - margin
-
-        # List of buttons in desired order (from right to left)
         self.overlay_buttons = [
-            self.browse_button,
-            self.oplayer_button,
-            self.refresh_button,
-            self.mp3_convert_button,
-            self.video_compress_button,
-            self.douyin_button,
-            self.cancel_conversion_button,
-            self.cancel_video_compression_button
+            self.browse_button, self.oplayer_button, self.refresh_button,
+            self.mp3_convert_button, self.video_compress_button, self.douyin_button,
+            self.cancel_conversion_button, self.cancel_video_compression_button
         ]
-
-        for button in reversed(self.overlay_buttons):  # Reverse to position from right to left
+        for button in reversed(self.overlay_buttons):  
             if button.isVisible():
                 button.move(current_x - button.width(), button_y)
                 button.raise_()
                 current_x -= button.width() + 10
-
-        # Position the upload status overlay (relative to BrowserPage)
         self._update_upload_status_position()
-
-        # Position the temporary message label (relative to BrowserPage)
         self._update_temp_message_position()
-        
-        # --- NEW: Position Conversion Progress Overlay --- #
         self._update_conversion_progress_position()
-        # --- END NEW --- #
-
-        # --- NEW: Position Video Compression Progress Overlay --- #
         self._update_video_compression_progress_position()
-        # --- END NEW --- #
-
-        # --- NEW: Position Douyin Progress Overlay --- #
         self._update_douyin_progress_position()
-        # --- END NEW --- #
-
-        # --- NEW: Position Bottom Button Bar --- #
         margin = 20
         bar_width = self.width() - 2 * margin
-        bar_height = self.browse_button.height()  # Assuming all buttons same height
+        bar_height = self.browse_button.height() 
         bar_y = self.height() - bar_height - margin
         self.bottom_button_bar.setGeometry(margin, bar_y, bar_width, bar_height)
         self.bottom_button_bar.raise_()
-        # --- END NEW --- #
 
     def _update_upload_status_position(self):
-        """Update the position of the upload status overlay (relative to BrowserPage)"""
-        # Center horizontally, position near the top
         status_x = (self.width() - self.upload_status.width()) // 2
-        status_y = 60  # Position below the potential header bar
+        status_y = 60  
         self.upload_status.move(status_x, status_y)
-        self.upload_status.raise_()  # Ensure it's on top
+        self.upload_status.raise_()
 
     def _update_temp_message_position(self):
-        """Update the position of the temporary message label (centered in BrowserPage)."""
         if self.temp_message_label.isVisible():
             self.temp_message_label.adjustSize()
-
-            # Calculate the center point of the BrowserPage widget itself
             page_center_x = self.width() // 2
             page_center_y = self.height() // 2
-
-            # Calculate the top-left position for the label to center it
             label_width = self.temp_message_label.width()
             label_height = self.temp_message_label.height()
             label_x = page_center_x - label_width // 2
             label_y = page_center_y - label_height // 2
-
-            # Position relative to the BrowserPage
             self.temp_message_label.move(label_x, label_y)
-            # Raise within the BrowserPage
             self.temp_message_label.raise_()
 
     def showEvent(self, event):
-        """
-        Load settings and automatically load the last browsed directory 
-        when the page is shown.
-        """
         super().showEvent(event)
-        
-        # --- Load OPlayer settings into UI --- 
         ftp_host = self.settings.get('oplayer/ftp_host', OPlayerService.DEFAULT_HOST, SettingType.STRING)
         ftp_port = self.settings.get('oplayer/ftp_port', OPlayerService.DEFAULT_PORT, SettingType.INT)
         self.ftp_host_edit.setText(ftp_host)
         self.ftp_port_spinbox.setValue(ftp_port)
-        # Ensure the service instance also has the latest settings on show
         self.oplayer_service.update_connection_settings(host=ftp_host, port=ftp_port)
-        # --------------------------------------
         
-        # Check if we're in the middle of navigation - skip loading last directory if so
-        if self._navigation_in_progress:
-            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Skipping auto-load of last directory (navigation in progress)")
-            return
-        
-        # Get the last browsed directory from settings
+        if self._navigation_in_progress: return
         last_dir_str = self.settings.get('browser/last_browse_dir', None, SettingType.PATH)
-        
         if last_dir_str:
             last_dir_path = Path(last_dir_str)
-            # Check if it exists, is a directory, AND is different from the current view
             if last_dir_path.is_dir() and last_dir_path != self._current_directory:
-                # Use the centralized navigation method
                 self._navigate_to_directory(last_dir_path)
             elif not last_dir_path.is_dir() and self._current_directory is None:
-                 # If saved path is invalid and nothing is loaded, ensure empty message
                  self._update_empty_message()
         elif self._current_directory is None:
-            # If no setting exists and nothing loaded, show empty message
             self._update_empty_message()
         
     def _handle_oplayer_setting_changed(self):
-        """Handles changes in OPlayer host or port fields and saves them."""
         host = self.ftp_host_edit.text().strip()
         port = self.ftp_port_spinbox.value()
-
-        # Validate host input (simple check for non-empty)
-        if not host:
-            # Maybe briefly highlight the field or show a status icon?
-            # For now, just log and don't save if host is empty. 
-            # The validator should prevent invalid IPs, but not empty strings.
-            Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] OPlayer host cannot be empty. Settings not saved.")
-            return
-        
-        # Check if settings actually changed compared to current service config
-        # to avoid unnecessary updates/logs
+        if not host: return
         current_host = self.oplayer_service.host
         current_port = self.oplayer_service.ftp_port
-        if host == current_host and port == current_port:
-            return
-
-        # 1. Save to SettingsManager
-        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Auto-saving OPlayer settings: {host}:{port}")
+        if host == current_host and port == current_port: return
         self.settings.set('oplayer/ftp_host', host, SettingType.STRING)
         self.settings.set('oplayer/ftp_port', port, SettingType.INT)
-        self.settings.sync() # Persist immediately
-
-        # 2. Update the service instance used by this page
+        self.settings.sync()
         self.oplayer_service.update_connection_settings(host=host, port=port)
 
-        # 3. Log success (no temporary message needed for auto-save)
-        Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] OPlayer settings updated and service reconfigured.")
-
     def _show_temporary_message(self, message: str, is_error: bool = False):
-        """Displays a temporary message overlay."""
         self.temp_message_label.setText(message)
-        # Ensure the label is visible *before* positioning
         self.temp_message_label.show()
-        # Adjust size *after* setting text and showing
         self.temp_message_label.adjustSize()
-        # Position it correctly relative to BrowserPage center
         self._update_temp_message_position()
-        # Raise it again just in case
         self.temp_message_label.raise_()
-        self.temp_message_timer.start() # Timer will hide it after interval 
-
-        # Adjust style based on error or success
+        self.temp_message_timer.start() 
         if is_error:
-             style = f"""
-                background-color: {self.theme.get_color('status', 'error')};
-                color: {self.theme.get_color('text', 'on_error')};
-             """
+             style = f"background-color: {self.theme.get_color('status', 'error')}; color: {self.theme.get_color('text', 'on_error')};"
         else:
-             style = f"""
-                background-color: {self.theme.get_color('status', 'success')};
-                color: {self.theme.get_color('text', 'on_success')};
-             """
-        self.temp_message_label.setStyleSheet(f"""
-            QLabel#tempMessageLabel {{ 
-                {style} 
-                padding: 8px 15px; 
-                border-radius: 5px; 
-                font-size: 9pt; 
-            }}
-        """) 
+             style = f"background-color: {self.theme.get_color('status', 'success')}; color: {self.theme.get_color('text', 'on_success')};"
+        self.temp_message_label.setStyleSheet(f"QLabel#tempMessageLabel {{ {style} padding: 8px 15px; border-radius: 5px; font-size: 9pt; }}") 
 
     def set_navigation_in_progress(self, in_progress=True):
-        """
-        Set a flag indicating if we're in the middle of programmatic navigation.
-        This prevents showEvent from loading the last directory when we're about to navigate somewhere else.
-        
-        Args:
-            in_progress (bool): True if navigation is in progress, False otherwise
-        """
         self._navigation_in_progress = in_progress
-        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Navigation in progress set to: {in_progress}")
 
     def navigate_to_file(self, directory_path, filename=None):
-        """
-        Navigate to the specified directory and optionally select a file.
-        This method is the public API for external components to navigate within the browser.
-        Handles asynchronous loading before selection.
-        
-        Args:
-            directory_path (str or Path): Path to the directory to navigate to
-            filename (str, optional): Name of the file to select after navigation
-            
-        Returns:
-            bool: True if navigation process was initiated successfully
-        """
-        Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] navigate_to_file called: dir={directory_path}, file={filename}")
-        
-        if not directory_path:
-            Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] Cannot navigate: Empty directory path provided.")
-            return False
-            
-        # Convert to Path object for consistency
+        if not directory_path: return False
         if not isinstance(directory_path, Path):
-            try:
-                target_dir = Path(directory_path)
-            except Exception as e:
-                Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Cannot navigate: Invalid directory path '{directory_path}': {e}")
-                return False
-        else:
-            target_dir = directory_path
+            try: target_dir = Path(directory_path)
+            except Exception: return False
+        else: target_dir = directory_path
 
-        # --- Navigation/Refresh Logic ---
         needs_load = False
         if self._current_directory == target_dir:
-            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Already in target directory: {target_dir}")
-            # Check if file exists in the CURRENT model
             if filename and self._is_file_in_table(filename):
-                Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] File '{filename}' found in current view. Selecting.")
                 self._select_file_by_name(filename)
-                # Clear any old pending selection from previous navigations
                 self._pending_selection_dir = None
                 self._pending_selection_filename = None
-                return True # Selection done immediately
+                return True 
             elif filename:
-                Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] File '{filename}' not in current view. Refresh required.")
-                # File not found, need refresh, then select
                 needs_load = True
                 self._pending_selection_dir = target_dir
                 self._pending_selection_filename = filename
-                self._refresh_view() # Triggers async load via _populate_table
+                self._refresh_view() 
             else:
-                 # Just navigating to the directory, no selection needed
                  self._pending_selection_dir = None
                  self._pending_selection_filename = None
-                 return True # Already in the directory
+                 return True 
         else:
-            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Navigating to different directory: {target_dir}")
-            # Need to navigate to a different directory
             needs_load = True
             self._pending_selection_dir = target_dir
-            self._pending_selection_filename = filename # Store filename even if None, handled in _on_directory_loading_finished
-            self._navigate_to_directory(target_dir) # Triggers async load via _populate_table
+            self._pending_selection_filename = filename 
+            self._navigate_to_directory(target_dir) 
         
-        # --- Handle Navigation Flag --- 
-        # If we initiated a load, update the navigation flag state from the caller
-        # This logic was previously inside the delegated file_table.navigate_to_file
-        # It prevents showEvent from reloading the *previous* last directory if 
-        # navigation was triggered programmatically while the page wasn't visible.
-        if needs_load and self._navigation_in_progress:
-            # NOTE: The flag is reset in _navigate_to_directory or _refresh_view implicitly
-            # because they update _current_directory which showEvent checks against.
-            # However, we might need to explicitly save the *target* directory here if 
-            # the load fails or is cancelled before _on_directory_loading_finished runs?
-            # For now, let's assume the load will complete or error out appropriately.
-            pass # No immediate action needed here, pending selection handles the rest
-        
-        # Let the caller know navigation/load was initiated
         return needs_load 
 
-    # --- Helper methods for file checking and selection (moved from BrowserTableView) ---
     def _is_file_in_table(self, filename: str) -> bool:
-        """Helper method to check if a file is currently loaded in the file_table view."""
-        if not filename:
-            return False
-        
+        if not filename: return False
         try:
             proxy_model = self.file_table.model()
-            if not proxy_model:
-                Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] _is_file_in_table: No model available.")
-                return False
-            
+            if not proxy_model: return False
             for row in range(proxy_model.rowCount()):
-                index = proxy_model.index(row, self.COL_FILENAME) # Use COL_FILENAME
+                index = proxy_model.index(row, self.COL_FILENAME) 
                 data = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
                 item_data = proxy_model.data(index, Qt.ItemDataRole.UserRole)
-                
-                if (data == filename or 
-                    (isinstance(item_data, dict) and item_data.get('filename') == filename)):
+                if (data == filename or (isinstance(item_data, dict) and item_data.get('filename') == filename)):
                     return True
             return False
-        except Exception as e:
-            Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Error in _is_file_in_table for '{filename}': {e}")
-            return False
+        except Exception: return False
 
     def _select_file_by_name(self, filename: str) -> bool:
-        """Helper method to select a file in the file_table by its name."""
-        if not filename:
-            return False
-            
+        if not filename: return False
         try:
             proxy_model = self.file_table.model()
-            if not proxy_model:
-                Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] _select_file_by_name: No model available.")
-                return False
-                
-            # Check if already selected (visual check, might not be strictly necessary but good for log)
+            if not proxy_model: return False
             selected_indices = self.file_table.selectedIndexes()
             if selected_indices:
                 for index in selected_indices:
                     if index.column() == self.COL_FILENAME:
                         if proxy_model.data(index, Qt.ItemDataRole.DisplayRole) == filename:
-                            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] File '{filename}' is already selected. Scrolling to ensure visible.")
                             self.file_table.scrollTo(index, QAbstractItemView.ScrollHint.EnsureVisible)
                             return True
-            
-            # Find the row containing the file
             for row in range(proxy_model.rowCount()):
-                index = proxy_model.index(row, self.COL_FILENAME) # Use COL_FILENAME
+                index = proxy_model.index(row, self.COL_FILENAME) 
                 data = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
                 item_data = proxy_model.data(index, Qt.ItemDataRole.UserRole)
-                
-                if (data == filename or 
-                    (isinstance(item_data, dict) and item_data.get('filename') == filename)):
-                    Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Selecting file: '{filename}' at view row {row}")
+                if (data == filename or (isinstance(item_data, dict) and item_data.get('filename') == filename)):
                     self.file_table.selectRow(row)
                     self.file_table.scrollTo(index, QAbstractItemView.ScrollHint.EnsureVisible)
                     return True
-            
-            Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] File not found in browser table for selection: '{filename}'")
             return False
-        except Exception as e:
-            Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Error in _select_file_by_name for '{filename}': {e}")
-            return False
-    # --- End Helper methods --- 
+        except Exception: return False
 
-    # --- NEW: MP3 Conversion Handlers --- #
+    # ... [Keep MP3/Video/Douyin handlers] ...
     def _on_mp3_convert_selected_clicked(self):
         selected_objects = self.file_table.get_selected_items_data()
         files_to_convert = []
-
         if not selected_objects:
             QMessageBox.warning(self, "No Selection", "Please select one or more files to convert to MP3.")
             return
-
-        # Filter for files only (not directories)
         for obj in selected_objects:
             path_str = obj.get('path')
             is_dir = obj.get('is_dir', False)
             if path_str and not is_dir and os.path.exists(path_str):
-                # Basic check for media-like extensions - can be improved
-                # For now, accept common audio/video. FFmpeg will fail if not convertible.
                 if any(path_str.lower().endswith(ext) for ext in ['.wav', '.mp4', '.mkv', '.avi', '.flac', '.ogg', '.mov']):
-                    if path_str not in [f['path'] for f in files_to_convert]: # Avoid duplicates
-                        files_to_convert.append(obj) # Pass the whole object, manager might need more info
-                else:
-                    Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Skipping non-media-like file for conversion: {path_str}")
-            elif is_dir:
-                Logger.instance().debug(caller="BrowserPage", msg=f"[BrowserPage] Skipping directory for conversion: {path_str}")
-
+                    if path_str not in [f['path'] for f in files_to_convert]: 
+                        files_to_convert.append(obj) 
         if not files_to_convert:
             QMessageBox.information(self, "No Convertible Files", "The current selection contains no files suitable for MP3 conversion.")
             return
-
         if not self._current_directory or not self._current_directory.is_dir():
             QMessageBox.critical(self, "Error", "Cannot determine output directory. Please select a valid folder first.")
             return
-        
         output_directory = str(self._current_directory)
-        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Starting MP3 conversion for {len(files_to_convert)} files to directory: {output_directory}")
         self.conversion_manager.start_conversions(files_to_convert, output_directory)
 
     def _on_conversion_batch_started(self, total_files: int):
-        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Conversion batch started for {total_files} files.")
         self.conversion_progress_overlay.show_conversion_started(total_files)
         self._update_conversion_progress_position()
-        self.cancel_conversion_button.show() # Show cancel button when batch starts
+        self.cancel_conversion_button.show() 
 
     def _on_conversion_file_started(self, task_id: str, original_filename: str, file_index: int, total_files: int):
-        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Conversion started for file {file_index + 1}/{total_files}: {original_filename} (Task ID: {task_id})")
-        # Pass task_id to show_file_progress, percentage is 0.0 initially
         self.conversion_progress_overlay.show_file_progress(task_id, os.path.basename(original_filename), file_index, total_files, 0.0)
-        self._update_conversion_progress_position() # Ensure visible and positioned
+        self._update_conversion_progress_position() 
 
     def _on_conversion_file_progress(self, task_id: str, percentage: float):
-        # Now directly call the new update method on the overlay
         self.conversion_progress_overlay.update_current_file_progress(task_id, percentage)
 
     def _on_conversion_file_completed(self, task_id: str, original_filename: str, output_filepath: str):
-        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Conversion completed: {original_filename} -> {output_filepath} (Task ID: {task_id})")
-        # The ConversionProgress overlay might already show "Completed: ..." based on its own logic
-        # or simply wait for the next file to start.
-        # We can call show_file_completed to ensure the filename is updated if it was showing an error previously.
         self.conversion_progress_overlay.show_file_completed(os.path.basename(original_filename))
         self._update_conversion_progress_position()
 
     def _on_conversion_file_failed(self, task_id: str, original_filename: str, error_message: str):
-        Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Conversion failed for {original_filename} (Task ID: {task_id}): {error_message}")
         self.conversion_progress_overlay.show_file_failed(os.path.basename(original_filename), error_message)
         self._update_conversion_progress_position()
 
     def _on_conversion_batch_finished(self):
-        Logger.instance().info(caller="BrowserPage", msg="[BrowserPage] Conversion batch finished.")
         self.conversion_progress_overlay.show_batch_finished()
-        self.cancel_conversion_button.hide() # Hide cancel button when batch finishes
-        self._update_conversion_progress_position() # Ensure final message is positioned
-        # Refresh the browser view to show newly converted files
-        QTimer.singleShot(500, self._refresh_view) # Short delay before refresh
-    # --- END NEW --- #
+        self.cancel_conversion_button.hide() 
+        self._update_conversion_progress_position() 
+        QTimer.singleShot(500, self._refresh_view) 
 
-    # --- NEW: Cancel Conversion Handler --- #
     def _on_cancel_conversions_clicked(self):
-        Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] Cancel conversions button clicked.")
-        if self.conversion_manager:
-            self.conversion_manager.cancel_all_conversions()
-        # The ConversionProgress overlay and cancel button will be hidden by
-        # the conversion_batch_finished signal if the cancellation leads to that.
-        # Or if a file fails due to cancellation, it might show that message.
-    # --- END NEW --- #
+        if self.conversion_manager: self.conversion_manager.cancel_all_conversions()
 
-    # --- NEW: Video Compression Handlers --- #
     def _on_video_process_clicked(self):
         selected_objects = self.file_table.get_selected_items_data()
         items_to_process = []
-
         if not selected_objects:
             QMessageBox.warning(self, "No Selection", "Please select one or more files or directories to process.")
             return
-
-        # Include both video files and directories (for recursive processing)
         for obj in selected_objects:
             path_str = obj.get('path')
             is_dir = obj.get('is_dir', False)
             if path_str and os.path.exists(path_str):
-                if is_dir:
-                    items_to_process.append(obj)
+                if is_dir: items_to_process.append(obj)
                 else:
                     if any(path_str.lower().endswith(ext) for ext in ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v', '.flv', '.wmv', '.mpg', '.mpeg']):
                         items_to_process.append(obj)
-            
         if not items_to_process:
             QMessageBox.information(self, "No Video Files or Directories", "The current selection contains no video files or directories suitable for processing.")
             return
-
         if not self._current_directory or not self._current_directory.is_dir():
             QMessageBox.critical(self, "Error", "Cannot determine output directory. Please select a valid folder first.")
             return
-
-        # Options dialog
         dialog = VideoProcessOptionsDialog(self)
-        if not dialog.exec():
-            return
+        if not dialog.exec(): return
         opts = dialog.get_options()
         do_compress = opts.get('compress', True)
-        rotate = opts.get('rotate')  # 'cw' | 'ccw' | None
-
-        # If rotation only without compression, perform rotation with progress in a worker
+        rotate = opts.get('rotate') 
         if rotate and not do_compress:
             self._rotate_videos_async(items_to_process, rotate)
             return
-
-        # Compression (optionally with rotation applied during encode)
         output_directory = str(self._current_directory)
-        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Starting video processing for {len(items_to_process)} items. Compress={do_compress}, Rotate={rotate}")
-        if do_compress:
-            self.video_compression_manager.start_compressions(items_to_process, output_directory, rotate_direction=rotate)
-        else:
-            # Neither compress nor rotate selected (shouldn't happen due to defaults), guard anyway
-            QMessageBox.information(self, "No Action", "No processing option selected.")
+        if do_compress: self.video_compression_manager.start_compressions(items_to_process, output_directory, rotate_direction=rotate)
+        else: QMessageBox.information(self, "No Action", "No processing option selected.")
 
     def _rotate_videos_async(self, selected_objects, direction: str):
         from music_player.models.video_file_utils import discover_video_files
         from music_player.models.video_rotation_manager import VideoRotationManager
-
-        # Discover files
         paths = []
         for obj in selected_objects:
             path_str = obj.get('path')
-            if path_str:
-                paths.append(path_str)
+            if path_str: paths.append(path_str)
         video_files = discover_video_files(paths)
         if not video_files:
             QMessageBox.information(self, "No Videos", "No video files found in selection.")
             return
-
-        # Create a lightweight rotation manager and hook to existing overlay
         self._rotation_manager = VideoRotationManager(self)
         self.video_compression_progress_overlay.show_rotation_started(len(video_files))
         self._update_video_compression_progress_position()
-
-        # Wire signals to reuse the overlay
-        self._rotation_manager.rotation_file_started.connect(
-            lambda filename, idx, total: self.video_compression_progress_overlay.show_rotation_file_progress(filename, idx, total, 0.0)
-        )
-        self._rotation_manager.rotation_file_progress.connect(
-            lambda filename, prog: self.video_compression_progress_overlay.show_rotation_file_progress(filename, 0, 0, prog)
-        )
-        self._rotation_manager.rotation_file_completed.connect(
-            lambda filename: self.video_compression_progress_overlay.show_rotation_file_completed(filename)
-        )
-        self._rotation_manager.rotation_file_failed.connect(
-            lambda filename, err: self.video_compression_progress_overlay.show_rotation_file_failed(filename, err)
-        )
-        self._rotation_manager.rotation_batch_finished.connect(
-            lambda: (self.video_compression_progress_overlay.show_batch_finished(), QTimer.singleShot(500, self._refresh_view))
-        )
-
-        # Start async rotation
+        self._rotation_manager.rotation_file_started.connect(lambda filename, idx, total: self.video_compression_progress_overlay.show_rotation_file_progress(filename, idx, total, 0.0))
+        self._rotation_manager.rotation_file_progress.connect(lambda filename, prog: self.video_compression_progress_overlay.show_rotation_file_progress(filename, 0, 0, prog))
+        self._rotation_manager.rotation_file_completed.connect(lambda filename: self.video_compression_progress_overlay.show_rotation_file_completed(filename))
+        self._rotation_manager.rotation_file_failed.connect(lambda filename, err: self.video_compression_progress_overlay.show_rotation_file_failed(filename, err))
+        self._rotation_manager.rotation_batch_finished.connect(lambda: (self.video_compression_progress_overlay.show_batch_finished(), QTimer.singleShot(500, self._refresh_view)))
         self._rotation_manager.start_rotations(video_files, direction)
 
     def _on_video_compression_batch_started(self, total_files: int):
-        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Video compression batch started for {total_files} files.")
         self.video_compression_progress_overlay.show_compression_started(total_files)
         self._update_video_compression_progress_position()
-        self.cancel_video_compression_button.show() # Show cancel button when batch starts
+        self.cancel_video_compression_button.show() 
 
     def _on_video_compression_file_started(self, task_id: str, original_filename: str, file_index: int, total_files: int):
-        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Video compression started for file {file_index + 1}/{total_files}: {original_filename} (Task ID: {task_id})")
-        # Pass task_id to show_file_progress, percentage is 0.0 initially
         self.video_compression_progress_overlay.show_file_progress(task_id, os.path.basename(original_filename), file_index, total_files, 0.0)
-        self._update_video_compression_progress_position() # Ensure visible and positioned
+        self._update_video_compression_progress_position() 
 
     def _on_video_compression_file_progress(self, task_id: str, percentage: float):
-        # Now directly call the new update method on the overlay
         self.video_compression_progress_overlay.update_current_file_progress(task_id, percentage)
 
     def _on_video_compression_file_completed(self, task_id: str, original_filename: str, compressed_filename: str):
-        Logger.instance().info(caller="BrowserPage", msg=f"[BrowserPage] Video compression completed: {original_filename} -> {compressed_filename} (Task ID: {task_id})")
-        # The VideoCompressionProgress overlay might already show "Completed: ..." based on its own logic
-        # or simply wait for the next file to start.
-        # We can call show_file_completed to ensure the filename is updated if it was showing an error previously.
         self.video_compression_progress_overlay.show_file_completed(os.path.basename(original_filename), os.path.basename(compressed_filename))
         self._update_video_compression_progress_position()
 
     def _on_video_compression_file_failed(self, task_id: str, original_filename: str, error_message: str):
-        Logger.instance().error(caller="BrowserPage", msg=f"[BrowserPage] Video compression failed for {original_filename} (Task ID: {task_id}): {error_message}")
         self.video_compression_progress_overlay.show_file_failed(os.path.basename(original_filename), error_message)
         self._update_video_compression_progress_position()
 
     def _on_video_compression_batch_finished(self):
-        Logger.instance().info(caller="BrowserPage", msg="[BrowserPage] Video compression batch finished.")
         self.video_compression_progress_overlay.show_batch_finished()
-        self.cancel_video_compression_button.hide() # Hide cancel button when batch finishes
-        self._update_video_compression_progress_position() # Ensure final message is positioned
-        # Refresh the browser view to show newly compressed files
-        QTimer.singleShot(500, self._refresh_view) # Short delay before refresh
+        self.cancel_video_compression_button.hide() 
+        self._update_video_compression_progress_position() 
+        QTimer.singleShot(500, self._refresh_view) 
 
     def _on_cancel_video_compressions_clicked(self):
-        Logger.instance().debug(caller="BrowserPage", msg="[BrowserPage] Cancel video compressions button clicked.")
-        if self.video_compression_manager:
-            self.video_compression_manager.cancel_all_compressions()
-        # The VideoCompressionProgress overlay and cancel button will be hidden by
-        # the compression_batch_finished signal if the cancellation leads to that.
-        # Or if a file fails due to cancellation, it might show that message.
-    # --- END NEW --- #
+        if self.video_compression_manager: self.video_compression_manager.cancel_all_compressions()
 
-    # --- NEW: Douyin Process Handler --- #
     def _on_douyin_process_clicked(self):
-        """Handle Douyin process button click."""
         if not self.file_table.model():
             QMessageBox.warning(self, "No Selection", "No files selected or directory not loaded.")
             return
-
         selected_objects = self.file_table.get_selected_items_data()
         if not selected_objects:
             QMessageBox.warning(self, "No Selection", "Please select files or directories to process.")
             return
-
         dialog = DouyinOptionsDialog(self)
         if dialog.exec():
             options = dialog.get_options()
             do_trim = options["do_trim"]
             do_merge = options["do_merge"]
-            
             if not do_trim and not do_merge:
                 QMessageBox.information(self, "No Operation", "No operation selected.")
                 return
-
             video_files = []
             for obj in selected_objects:
                 path_str = obj.get('path') if isinstance(obj, dict) else str(obj)
                 p = Path(path_str)
-                if p.is_dir():
-                    video_files.extend(get_all_video_files(str(p)))
-                elif p.is_file() and is_video_file(p.name):
-                    video_files.append(str(p))
-
+                if p.is_dir(): video_files.extend(get_all_video_files(str(p)))
+                elif p.is_file() and is_video_file(p.name): video_files.append(str(p))
             if not video_files:
                 QMessageBox.information(self, "No Videos", "No video files found in selection.")
                 return
-
             output_directory = str(self._current_directory)
             self.douyin_processor.start_processing(video_files, output_directory, do_trim, do_merge)
-    # --- END NEW --- #
 
-    # --- NEW: Douyin Process Handlers --- #
     def _on_douyin_batch_started(self, total_files: int):
         self.douyin_progress_overlay.show_trimming_started(total_files)
         self._update_douyin_progress_position()
@@ -1408,7 +1117,6 @@ class BrowserPage(QWidget):
 
     def _on_douyin_batch_finished(self):
         self.douyin_progress_overlay.show_batch_finished()
-        # Don't refresh yet, wait for merging to complete
 
     def _on_douyin_merge_started(self):
         self.douyin_progress_overlay.show_merge_started()
@@ -1446,61 +1154,28 @@ class BrowserPage(QWidget):
             self.douyin_progress_overlay.move(overlay_x, overlay_y)
             self.douyin_progress_overlay.raise_()
 
-    # --- END NEW --- #
-
-    # --- NEW: Conversion Progress Position --- # 
     def _update_conversion_progress_position(self):
-        """Update the position of the conversion progress overlay (relative to BrowserPage)"""
         if self.conversion_progress_overlay.isVisible():
             self.conversion_progress_overlay.adjustSize()
             overlay_width = self.conversion_progress_overlay.width()
             overlay_height = self.conversion_progress_overlay.height()
-            
             overlay_x = (self.width() - overlay_width) // 2
             overlay_y = 60 
             if self.upload_status.isVisible():
                 overlay_y = self.upload_status.y() + self.upload_status.height() + 10
-            
             self.conversion_progress_overlay.move(overlay_x, overlay_y)
             self.conversion_progress_overlay.raise_()
-    # --- END NEW --- #
 
-    # --- NEW: Video Compression Progress Position --- # 
     def _update_video_compression_progress_position(self):
-        """Update the position of the video compression progress overlay (relative to BrowserPage)"""
         if self.video_compression_progress_overlay.isVisible():
             self.video_compression_progress_overlay.adjustSize()
             overlay_width = self.video_compression_progress_overlay.width()
             overlay_height = self.video_compression_progress_overlay.height()
-            
             overlay_x = (self.width() - overlay_width) // 2
             overlay_y = 60 
             if self.upload_status.isVisible():
                 overlay_y = self.upload_status.y() + self.upload_status.height() + 10
             if self.conversion_progress_overlay.isVisible():
                 overlay_y = self.conversion_progress_overlay.y() + self.conversion_progress_overlay.height() + 10
-            
             self.video_compression_progress_overlay.move(overlay_x, overlay_y)
             self.video_compression_progress_overlay.raise_()
-    # --- END NEW --- #
-
-    # --- NEW: Douyin Progress Position --- #
-    def _update_douyin_progress_position(self):
-        """Update the position of the Douyin progress overlay (relative to BrowserPage)"""
-        if self.douyin_progress_overlay.isVisible():
-            self.douyin_progress_overlay.adjustSize()
-            overlay_width = self.douyin_progress_overlay.width()
-            overlay_height = self.douyin_progress_overlay.height()
-
-            overlay_x = (self.width() - overlay_width) // 2
-            overlay_y = 60
-            if self.upload_status.isVisible():
-                overlay_y = self.upload_status.y() + self.upload_status.height() + 10
-            if self.conversion_progress_overlay.isVisible():
-                overlay_y = self.conversion_progress_overlay.y() + self.conversion_progress_overlay.height() + 10
-            if self.video_compression_progress_overlay.isVisible():
-                overlay_y = self.video_compression_progress_overlay.y() + self.video_compression_progress_overlay.height() + 10
-
-            self.douyin_progress_overlay.move(overlay_x, overlay_y)
-            self.douyin_progress_overlay.raise_()
-    # --- END NEW --- #

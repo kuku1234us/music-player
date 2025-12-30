@@ -60,8 +60,12 @@ class HotkeyHandler(QObject):
             Qt.Key.Key_E: self._mark_clip_end,
             Qt.Key.Key_A: self._frame_backward,   # A key for one frame backward
             Qt.Key.Key_F: self._frame_forward,    # F key for one frame forward
-            # Add more hotkeys as needed
-            # Note: Shift + Key combinations will be handled separately in handle_key_press
+            
+            # --- New Context-Aware Hotkeys ---
+            Qt.Key.Key_PageUp: self.main_player.on_prev_media_request,
+            Qt.Key.Key_PageDown: self.main_player.on_next_media_request,
+            Qt.Key.Key_Delete: self.main_player.on_delete_media_request,
+            # ---------------------------------
         }
         
     def handle_key_press(self, event: QKeyEvent) -> bool:
@@ -299,25 +303,10 @@ class HotkeyHandler(QObject):
         except Exception as e:
             Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Could not get video FPS: {e}")
         
-        # Try to detect frame rate from VLC media player
-        try:
-            if (hasattr(self.main_player.backend, 'media_player') and 
-                self.main_player.backend.media_player):
-                
-                # Get video track information if available
-                video_tracks = self.main_player.backend.media_player.video_get_track_description()
-                if video_tracks:
-                    # VLC doesn't easily expose frame rate through Python bindings
-                    # So we'll use common video frame rates as fallback
-                    pass
-        except Exception as e:
-            Logger.instance().debug(caller="HotkeyHandler", msg=f"[HotkeyHandler] Could not detect frame rate from VLC: {e}")
-        
         # Common video frame rates (in order of likelihood)
         common_fps = [29.97, 30, 25, 24, 23.976, 60, 50]
         
         # For now, default to 30 FPS (most common for web videos)
-        # This gives us ~33.33ms per frame
         default_fps = 30.0
         frame_duration = 1000.0 / default_fps
         

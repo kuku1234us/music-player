@@ -214,6 +214,27 @@ class MusicPlayerDashboard(BaseWindow):
             browser_page.play_single_file_requested.connect(
                 lambda filepath: self.player.load_media_unified(filepath, "browser_files")
             )
+
+        # Ensure BrowserPage can resolve current playback state for PageUp/PageDown navigation.
+        # (BrowserPage.handle_browser_nav_request uses browser_page.persistent_player)
+        try:
+            browser_page.persistent_player = self.player
+        except Exception:
+            pass
+        
+        # --- NEW: Connect Browser Hotkeys and Deletion ---
+        # 1. MainPlayer -> BrowserPage (Navigation Request)
+        if hasattr(self.player, 'browser_nav_request') and hasattr(browser_page, 'handle_browser_nav_request'):
+            self.player.browser_nav_request.connect(browser_page.handle_browser_nav_request)
+            
+        # 2. MainPlayer -> BrowserPage (Delete Request)
+        if hasattr(self.player, 'browser_delete_request') and hasattr(browser_page, 'handle_browser_delete_request'):
+            self.player.browser_delete_request.connect(browser_page.handle_browser_delete_request)
+            
+        # 3. BrowserPage -> MainPlayer (Stop Request for Deletion)
+        if hasattr(browser_page, 'request_stop_playback') and hasattr(self.player, 'stop'):
+            browser_page.request_stop_playback.connect(self.player.stop)
+        # -------------------------------------------------
         
         # Show the dashboard page initially
         self.show_page('dashboard')
@@ -276,7 +297,7 @@ class MusicPlayerDashboard(BaseWindow):
             if page_widget == current_widget:
                 current_page_id = page_id
                 break
-
+        
         # Navigate only if not already on the player page
         if current_page_id != 'player':
             self.show_page('player')
