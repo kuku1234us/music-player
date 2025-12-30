@@ -290,9 +290,23 @@ class MainPlayer(QWidget):
         Logger.instance().debug(caller="MainPlayer", msg="[MainPlayer] End reached signal received.")
         if self.current_media_path:
             try:
-                # Save position 0 logic...
-                self.position_manager.save_position(self.current_media_path, 0, self.backend.get_duration(), self.backend.get_rate(),
-                                                      False, -1, '', -1) # Simplified for brevity, reuse logic from original
+                # Save position 0 (reset) logic via centralized helper would save current pos (end), 
+                # but we want to force save 0. So we use position_manager directly or specific args.
+                # Actually, duplicate logic just for "0" is fine, or we update helper to accept override.
+                # Let's use the manual call for this specific "reset to 0" case to be explicit.
+                sub_state = self.subtitle_manager.get_subtitle_state_info()
+                audio_state = self.audio_manager.get_audio_state_info()
+                
+                self.position_manager.save_position(
+                    self.current_media_path, 
+                    0, 
+                    self.backend.get_duration(), 
+                    self.backend.get_rate(),
+                    sub_state['subtitle_enabled'], 
+                    self.subtitle_manager.current_subtitle_track, 
+                    sub_state['current_subtitle_language'], 
+                    audio_state['current_audio_track']
+                )
             except Exception as e:
                 Logger.instance().error(caller="MainPlayer", msg=f"Error saving position on end: {e}")
         
@@ -319,6 +333,11 @@ class MainPlayer(QWidget):
             self.backend.seek(position_ms)
             if self.app_state == STATE_PLAYING: # removed "and not self.backend.is_playing" check as is_playing is now a method/property
                 self.backend.play()
+                
+            # --- Save Position on Timeline Seek ---
+            self._save_current_playback_state("seek_timeline", position_override_ms=position_ms)
+            # --------------------------------------
+            
         finally:
             self.block_position_updates = False
         self.player_widget.timeline.set_position(position_ms)
@@ -334,7 +353,7 @@ class MainPlayer(QWidget):
         return True
         
     def pause(self):
-        # Save position logic...
+        self._save_current_playback_state("pause")
         self._set_app_state(STATE_PAUSED)
         self.backend.pause()
         return True
@@ -361,7 +380,7 @@ class MainPlayer(QWidget):
     def set_rate(self, rate):
         self.player_widget.set_rate(rate)
         self.backend.set_rate(rate)
-        # Save rate logic...
+        self._save_current_playback_state("rate_change")
         
     def get_rate(self):
         return self.backend.get_rate()
@@ -372,14 +391,57 @@ class MainPlayer(QWidget):
             new_position = max(0, current_position + int(seconds * 1000))
             self.backend.seek(new_position)
             self.player_widget.set_position(new_position)
+            
+            # --- Save Position on Relative Seek (Arrow Keys) ---
+            self._save_current_playback_state("seek_relative", position_override_ms=new_position)
+            # ---------------------------------------------------
     
     def _apply_saved_volume(self):
         volume = self.settings.get('player/volume', 100, SettingType.INT)
         self.set_volume(volume)
     
     # --- UPDATED: Unified Media Loading with Surface Swapping ---
+    # --- Helper for Centralized State Saving ---
+    def _save_current_playback_state(self, action_reason="manual", position_override_ms: Optional[int] = None):
+        """
+        Centralized helper to save current playback state (position, tracks, rate).
+        """
+        if not self.current_media_path: return
+
+        sub_state = self.subtitle_manager.get_subtitle_state_info()
+        audio_state = self.audio_manager.get_audio_state_info()
+        
+        # Get current position (default to 0 if None)
+        pos = int(position_override_ms) if position_override_ms is not None else (self.backend.get_current_position() or 0)
+        dur = self.backend.get_duration()
+        if not dur or dur <= 0:
+            # Fall back to UI timeline duration when backend duration is not yet available.
+            try:
+                dur = self.player_widget.timeline.get_duration()
+            except Exception:
+                dur = 0
+        rate = self.backend.get_rate()
+        
+        self.position_manager.handle_manual_action_save(
+            self.current_media_path,
+            pos,
+            dur,
+            rate,
+            action_reason,
+            sub_state['subtitle_enabled'],
+            self.subtitle_manager.current_subtitle_track,
+            sub_state['current_subtitle_language'],
+            audio_state['current_audio_track']
+        )
+    # -------------------------------------------
+
     def load_media_unified(self, filepath: str, source_context: str = "unknown"):
         Logger.instance().debug(caller="MainPlayer", msg=f"[MainPlayer] Unified media loading from {source_context}: {filepath}")
+        
+        # --- Save Position of Current Media Before Switching ---
+        if self.current_media_path:
+             self._save_current_playback_state("media_switch")
+        # -----------------------------------------------------
         
         # --- Update Context & Source ---
         if source_context == "browser_files":
@@ -491,12 +553,20 @@ class MainPlayer(QWidget):
         self.setFocus()
         self.media_changed.emit(media, is_video)
         
-        # Position restoration logic...
+        # Position restoration logic
         if self.current_media_path:
-             # ... simplified reuse ...
              saved_position, saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language, saved_audio_track_id = self.position_manager.get_saved_position(self.current_media_path)
-             if saved_position and self.backend.get_duration() > saved_position > 5000:
-                 QTimer.singleShot(100, lambda: self._restore_playback_state(saved_position, saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language, saved_audio_track_id))
+             
+             if saved_position is not None and saved_position > 5000:
+                 # NOTE: PlaybackPositionManager.get_saved_position() already validates saved_position
+                 # against the DB-stored duration, so we should not gate restoration on
+                 # VLCBackend.get_duration() (which can be stale during media switching).
+                 Logger.instance().debug(caller="MainPlayer", msg=f"Restoring position {saved_position}ms")
+                 # Restore with a slight delay to ensure backend is ready
+                 QTimer.singleShot(200, lambda: self._restore_playback_state(saved_position, saved_rate, saved_subtitle_enabled, saved_subtitle_track_id, saved_subtitle_language, saved_audio_track_id))
+                 
+             elif saved_rate != 1.0:
+                 self.set_rate(saved_rate)
 
     def _update_subtitle_controls(self):
         state_info = self.subtitle_manager.get_subtitle_state_info()
@@ -507,10 +577,25 @@ class MainPlayer(QWidget):
         self._restore_settings(rate, sub_enabled, sub_id, sub_lang, aud_id)
         
     def _restore_settings(self, rate, sub_enabled, sub_id, sub_lang, aud_id):
+        # Restore rate
         self.backend.set_rate(rate)
         self.player_widget.set_rate(rate)
-        # Restore subtitle logic...
-        # Restore audio logic...
+        
+        # Restore subtitles
+        if self._is_current_media_video and self.backend.has_subtitle_tracks():
+            if sub_enabled and sub_id >= 0:
+                self.backend.enable_subtitles(sub_id)
+                self.subtitle_manager.update_subtitle_state(sub_id, True)
+            else:
+                self.backend.disable_subtitles()
+                self.subtitle_manager.update_subtitle_state(-1, False)
+            self._update_subtitle_controls()
+            
+        # Restore audio track
+        if aud_id >= 0:
+            if self.backend.set_audio_track(aud_id):
+                self.audio_manager.update_audio_state(aud_id)
+                self._update_audio_controls()
 
     def _toggle_subtitles(self):
         state_info = self.subtitle_manager.get_subtitle_state_info()
@@ -629,7 +714,9 @@ class MainPlayer(QWidget):
             except Exception: pass
 
     def stop(self):
-        # Save logic...
+        if self.current_media_path:
+            self._save_current_playback_state("stop")
+            
         self.backend.stop()
         self.current_media_path = None
         self.player_widget.timeline.set_current_media_path(None)
@@ -695,7 +782,25 @@ class MainPlayer(QWidget):
 
     def _periodic_position_save(self):
         if not self.current_media_path or not self.is_playing(): return
-        # Position logic...
+        
+        sub_state = self.subtitle_manager.get_subtitle_state_info()
+        audio_state = self.audio_manager.get_audio_state_info()
+        
+        success, new_last_pos = self.position_manager.handle_periodic_save(
+            self.current_media_path,
+            self.backend.get_current_position() or 0,
+            self.backend.get_duration(),
+            self.backend.get_rate(),
+            self.last_saved_position,
+            sub_state['subtitle_enabled'],
+            self.subtitle_manager.current_subtitle_track,
+            sub_state['current_subtitle_language'],
+            audio_state['current_audio_track']
+        )
+        
+        if success:
+            self.last_saved_position = new_last_pos
+            
         self.position_dirty = False
 
     def _update_audio_controls(self):

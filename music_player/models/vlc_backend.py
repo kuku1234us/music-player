@@ -198,9 +198,11 @@ class VLCWorker(QObject):
             'artwork_path': None 
         }
         
+        # IMPORTANT: emit duration first so the manager/UI can't observe stale duration from the
+        # previous media when handling media_loaded.
+        self.duration_changed.emit(metadata['duration'])
         # Emit all data at once
         self.media_loaded.emit(metadata, is_video, audio_tracks, subtitle_tracks)
-        self.duration_changed.emit(metadata['duration'])
 
     def _update_position(self):
         if not self.player or self._is_stopping:
@@ -459,6 +461,20 @@ class VLCBackend(QObject):
 
         if self.active_worker:
             self._retire_active_worker()
+
+        # Reset cached state immediately so callers don't see stale info from the previous media.
+        # (The new worker will publish real values shortly after startup.)
+        self._current_position = 0
+        self._current_duration = 0
+        self._is_playing = False
+        try:
+            self.position_changed.emit(0)
+        except Exception:
+            pass
+        try:
+            self.duration_changed.emit(0)
+        except Exception:
+            pass
 
         # Reset caches
         self._cached_audio_tracks = []

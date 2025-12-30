@@ -347,8 +347,8 @@ class PlaybackPositionManager(BaseDatabaseManager):
         if position_ms <= 5000:
             return False
         
-        # Don't save very end (last 10 seconds)
-        if position_ms >= (duration_ms - 10000):
+        # Don't save very end (last 5 seconds)
+        if position_ms >= (duration_ms - 5000):
             return False
         
         # Check if position changed significantly (if last position provided)
