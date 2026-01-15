@@ -2,6 +2,8 @@
 """
 Entry point script to run the Music Player application.
 Handles single instance logic and protocol URL parsing.
+
+Run this.
 """
 import sys
 import os
